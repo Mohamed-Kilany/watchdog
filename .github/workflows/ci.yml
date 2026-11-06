@@ -2,10 +2,7 @@ name: ci
 
 on:
   push:
-    branches:
-      - master
-      - m1-foundations
-      - "milestone/**"
+    branches: ["**"]
   pull_request:
     branches:
       - master

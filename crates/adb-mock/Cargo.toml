@@ -1,0 +1,20 @@
+[package]
+name = "watchdog-adb-mock"
+description = "In-memory fake ADB device implementing the wire protocol for tests."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+watchdog-adb = { path = "../adb" }
+async-trait = "0.1"
+bytes.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
