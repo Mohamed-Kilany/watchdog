@@ -83,15 +83,18 @@ jobs:
       - run: python scripts/check-docs-links.py
 
   fixtures:
-    name: test fixtures (regenerate + verify)
+    name: test fixtures (verify)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: install ffmpeg and pillow
+      - name: ensure ffmpeg is available
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg python3-pil
-      - name: verify committed fixtures match what the generator produces
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n1
+          ffprobe -version | head -n1
+      - name: verify committed fixtures
         run: python3 scripts/generate-fixtures.py --verify
 
   gate:
