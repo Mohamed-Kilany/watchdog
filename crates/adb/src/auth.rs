@@ -67,9 +67,14 @@ impl AdbKeyPair {
             let pem = std::fs::read_to_string(&key_path)?;
             let private_key = RsaPrivateKey::from_pkcs8_pem(&pem)
                 .or_else(|_| RsaPrivateKey::from_pkcs1_pem(&pem))
-                .map_err(|e| AdbError::Protocol(format!("cannot parse {}: {e}", key_path.display())))?;
+                .map_err(|e| {
+                    AdbError::Protocol(format!("cannot parse {}: {e}", key_path.display()))
+                })?;
             let public_key = private_key.to_public_key();
-            let pair = Self { private_key, public_key };
+            let pair = Self {
+                private_key,
+                public_key,
+            };
             pair.write_public_key_file(&pub_path)?;
             return Ok(pair);
         }
@@ -87,7 +92,10 @@ impl AdbKeyPair {
             let _ = std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600));
         }
         let public_key = private_key.to_public_key();
-        let pair = Self { private_key, public_key };
+        let pair = Self {
+            private_key,
+            public_key,
+        };
         pair.write_public_key_file(&pub_path)?;
         Ok(pair)
     }
@@ -95,7 +103,12 @@ impl AdbKeyPair {
     /// The public key as an `adbkey.pub` body (base64 + " user@host"), no trailing newline.
     #[must_use]
     pub fn public_key_userkey(&self) -> String {
-        format!("{} {}@{}", BASE64.encode(self.android_public_key()), user_name(), host_name())
+        format!(
+            "{} {}@{}",
+            BASE64.encode(self.android_public_key()),
+            user_name(),
+            host_name()
+        )
     }
 
     /// The full `AUTH_RSAPUBLICKEY` payload (user key + trailing NUL).
@@ -147,10 +160,13 @@ fn gethostname() -> Option<String> {
             return Some(trimmed.to_string());
         }
     }
-    std::process::Command::new("hostname").output().ok().and_then(|o| {
-        let s = String::from_utf8(o.stdout).ok()?;
-        Some(s.trim().to_string())
-    })
+    std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8(o.stdout).ok()?;
+            Some(s.trim().to_string())
+        })
 }
 
 #[cfg(windows)]
@@ -163,8 +179,16 @@ fn encode_android_public_key(public_key: &RsaPublicKey) -> [u8; ANDROID_PUBKEY_E
     use num_bigint::BigUint;
 
     let modulus = BigUint::from_bytes_be(&public_key.n().to_bytes_be());
-    let exponent = u32::try_from(public_key.e().to_u64_digits().1.first().copied().unwrap_or(65537))
-        .expect("exponent fits u32");
+    let exponent = u32::try_from(
+        public_key
+            .e()
+            .to_u64_digits()
+            .1
+            .first()
+            .copied()
+            .unwrap_or(65537),
+    )
+    .expect("exponent fits u32");
 
     // n0inv = -1 / n[0] (mod 2^32), where n[0] is the low 32-bit word.
     let low_word = modulus.iter_u32_digits().next().expect("non-empty modulus");
@@ -208,7 +232,11 @@ mod tests {
         for modulus_limb in [3u32, 0x1234567f, 0xfffffff1, 0xdeadbeef | 1] {
             let inv = mod_inverse_neg(modulus_limb);
             // inv * n ≡ -1 (mod 2^32)
-            assert_eq!(modulus_limb.wrapping_mul(inv), 0u32.wrapping_sub(1), "n={modulus_limb:#x}");
+            assert_eq!(
+                modulus_limb.wrapping_mul(inv),
+                0u32.wrapping_sub(1),
+                "n={modulus_limb:#x}"
+            );
         }
     }
 
@@ -218,14 +246,20 @@ mod tests {
         let private_key = RsaPrivateKey::new(&mut rng, 2048).expect("keygen");
         let public_key = private_key.to_public_key();
         let encoded = encode_android_public_key(&public_key);
-        assert_eq!(u32::from_le_bytes(encoded[0..4].try_into().unwrap()), MODULUS_SIZE_WORDS);
+        assert_eq!(
+            u32::from_le_bytes(encoded[0..4].try_into().unwrap()),
+            MODULUS_SIZE_WORDS
+        );
         assert!(BASE64.encode(encoded).len() > 600); // ~704 chars
         let exponent = u32::from_le_bytes(encoded[520..524].try_into().unwrap());
         assert_eq!(exponent, 65537);
         // rr = 2^4096 mod N
         let n = num_bigint::BigUint::from_bytes_le(&encoded[8..264]);
         let rr = num_bigint::BigUint::from_bytes_le(&encoded[264..520]);
-        assert_eq!(rr, num_bigint::BigUint::from(2u8).modpow(&num_bigint::BigUint::from(4096u32), &n));
+        assert_eq!(
+            rr,
+            num_bigint::BigUint::from(2u8).modpow(&num_bigint::BigUint::from(4096u32), &n)
+        );
     }
 
     #[test]

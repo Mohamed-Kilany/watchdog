@@ -126,15 +126,23 @@ pub async fn run_shell<T: Transport>(
     command: &str,
     stdin: Option<&[u8]>,
 ) -> Result<ShellOutput> {
-    let stream = connection.open_stream(&format!("shell,v2,raw:{command}")).await?;
+    let stream = connection
+        .open_stream(&format!("shell,v2,raw:{command}"))
+        .await?;
 
     if let Some(input) = stdin {
         for chunk in input.chunks(16 * 1024) {
-            stream.write(Bytes::from(encode_shell_packet(ids::STDIN, chunk))).await?;
+            stream
+                .write(Bytes::from(encode_shell_packet(ids::STDIN, chunk)))
+                .await?;
         }
-        stream.write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[]))).await?;
+        stream
+            .write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[])))
+            .await?;
     } else {
-        stream.write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[]))).await?;
+        stream
+            .write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[])))
+            .await?;
     }
 
     collect_shell(stream).await
@@ -151,7 +159,9 @@ pub async fn run_shell_legacy<T: Transport>(
     let mut output = ShellOutput::default();
     let mut buf = Vec::new();
     loop {
-        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv()).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv())
+            .await
+        {
             Ok(Some(chunk)) => buf.extend_from_slice(&chunk),
             Ok(None) | Err(_) => break,
         }
@@ -166,7 +176,9 @@ async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
     let mut pending: Vec<u8> = Vec::new();
 
     loop {
-        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv()).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv())
+            .await
+        {
             Ok(Some(chunk)) => {
                 pending.extend_from_slice(&chunk);
                 loop {
@@ -194,7 +206,9 @@ async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
                 return Ok(output); // stream ended without EXIT
             }
             Err(_) => {
-                return Err(AdbError::Timeout("shell timed out waiting for output".into()));
+                return Err(AdbError::Timeout(
+                    "shell timed out waiting for output".into(),
+                ));
             }
         }
     }

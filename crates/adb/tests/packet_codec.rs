@@ -5,7 +5,12 @@ use watchdog_adb::error::AdbError;
 use watchdog_adb::packet::{Command, IncrementalDecoder, Packet, HEADER_LEN, MAX_PAYLOAD};
 
 fn sample_cnxn() -> Packet {
-    Packet::new(Command::Cnxn, 0x0100_0001, 1024 * 1024, b"host::test demo\0".as_slice())
+    Packet::new(
+        Command::Cnxn,
+        0x0100_0001,
+        1024 * 1024,
+        b"host::test demo\0".as_slice(),
+    )
 }
 
 #[test]
@@ -92,7 +97,10 @@ fn pre_cnxn_limit_is_enforced() {
     let packet = Packet::new(Command::Wrte, 1, 2, Bytes::from(payload));
     let mut decoder = IncrementalDecoder::new();
     let err = decoder.feed(&packet.encode(), 4 * 1024).unwrap_err();
-    assert!(matches!(err, AdbError::PayloadTooLarge(5000)), "got {err:?}");
+    assert!(
+        matches!(err, AdbError::PayloadTooLarge(5000)),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -127,10 +135,14 @@ fn truncated_stream_waits_for_more_bytes() {
     let bytes = sample_cnxn().encode();
     let mut decoder = IncrementalDecoder::new();
     // Only the header, no payload — must return an empty vec, not an error.
-    let packets = decoder.feed(&bytes[..HEADER_LEN], MAX_PAYLOAD).expect("header only");
+    let packets = decoder
+        .feed(&bytes[..HEADER_LEN], MAX_PAYLOAD)
+        .expect("header only");
     assert!(packets.is_empty());
     // Payload arrives in a later chunk.
-    let packets = decoder.feed(&bytes[HEADER_LEN..], MAX_PAYLOAD).expect("payload");
+    let packets = decoder
+        .feed(&bytes[HEADER_LEN..], MAX_PAYLOAD)
+        .expect("payload");
     assert_eq!(packets.len(), 1);
 }
 
@@ -145,7 +157,16 @@ fn command_values_match_aosp() {
     assert_eq!(Command::Wrte.as_u32(), 0x4554_5257);
     assert_eq!(Command::Clse.as_u32(), 0x4553_4c43);
     assert_eq!(Command::Stls.as_u32(), 0x534c_5453);
-    for cmd in [Command::Sync, Command::Cnxn, Command::Auth, Command::Open, Command::Okay, Command::Wrte, Command::Clse, Command::Stls] {
+    for cmd in [
+        Command::Sync,
+        Command::Cnxn,
+        Command::Auth,
+        Command::Open,
+        Command::Okay,
+        Command::Wrte,
+        Command::Clse,
+        Command::Stls,
+    ] {
         assert_eq!(cmd.magic(), cmd.as_u32() ^ 0xffff_ffff);
     }
 }

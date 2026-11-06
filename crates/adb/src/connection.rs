@@ -60,16 +60,27 @@ impl Stream {
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
         let permit = Arc::clone(&self.write_permit);
-        permit.acquire_owned().await.map_err(|_| AdbError::StreamClosed)?;
+        permit
+            .acquire_owned()
+            .await
+            .map_err(|_| AdbError::StreamClosed)?;
         self.outbound
-            .send(Outbound::Write { local_id: self.local_id, payload })
+            .send(Outbound::Write {
+                local_id: self.local_id,
+                payload,
+            })
             .await
             .map_err(|_| AdbError::StreamClosed)
     }
 
     /// Close our side of the stream (sends CLSE).
     pub async fn close(self) -> Result<()> {
-        let _ = self.outbound.send(Outbound::Close { local_id: self.local_id }).await;
+        let _ = self
+            .outbound
+            .send(Outbound::Close {
+                local_id: self.local_id,
+            })
+            .await;
         Ok(())
     }
 }
@@ -136,10 +147,7 @@ impl<T: Transport + 'static> Connection<T> {
             Arc::clone(&shared),
             outbound_rx,
         ));
-        let reader = tokio::spawn(reader_task(
-            Arc::clone(&transport),
-            Arc::clone(&shared),
-        ));
+        let reader = tokio::spawn(reader_task(Arc::clone(&transport), Arc::clone(&shared)));
 
         Ok(Self {
             info,
@@ -199,7 +207,11 @@ impl<T: Transport + 'static> Connection<T> {
 }
 
 /// Complete the CNXN/AUTH handshake on a fresh transport.
-pub async fn handshake<T: Transport>(transport: &mut T, banner: &str, keys: &AdbKeyPair) -> Result<SessionInfo> {
+pub async fn handshake<T: Transport>(
+    transport: &mut T,
+    banner: &str,
+    keys: &AdbKeyPair,
+) -> Result<SessionInfo> {
     send_cnxn(transport, banner).await?;
 
     let mut signature_sent = false;
@@ -215,10 +227,15 @@ pub async fn handshake<T: Transport>(transport: &mut T, banner: &str, keys: &Adb
             Command::Cnxn => {
                 let version = packet.arg0;
                 if version < crate::packet::A_VERSION_MIN {
-                    return Err(AdbError::VersionMismatch(format!("peer CNXN version {version:#x}")));
+                    return Err(AdbError::VersionMismatch(format!(
+                        "peer CNXN version {version:#x}"
+                    )));
                 }
                 let peer_banner = parse_banner(&packet.payload)?;
-                return Ok(SessionInfo { banner: peer_banner, maxdata: packet.arg1 });
+                return Ok(SessionInfo {
+                    banner: peer_banner,
+                    maxdata: packet.arg1,
+                });
             }
             Command::Auth => match packet.arg0 {
                 x if x == AuthType::Token as u32 => {
@@ -230,7 +247,12 @@ pub async fn handshake<T: Transport>(transport: &mut T, banner: &str, keys: &Adb
                     }
                     if !signature_sent {
                         let signature = keys.sign_token(&packet.payload)?;
-                        let reply = Packet::new(Command::Auth, AuthType::Signature as u32, 0, Bytes::from(signature));
+                        let reply = Packet::new(
+                            Command::Auth,
+                            AuthType::Signature as u32,
+                            0,
+                            Bytes::from(signature),
+                        );
                         transport.write_all(&reply.encode()).await?;
                         signature_sent = true;
                     } else if !public_key_sent {
@@ -270,7 +292,12 @@ pub async fn handshake<T: Transport>(transport: &mut T, banner: &str, keys: &Adb
 async fn send_cnxn<T: Transport>(transport: &mut T, banner: &str) -> Result<()> {
     let mut payload = banner.as_bytes().to_vec();
     payload.push(0);
-    let packet = Packet::new(Command::Cnxn, crate::packet::A_VERSION, crate::packet::DEFAULT_MAXDATA, payload);
+    let packet = Packet::new(
+        Command::Cnxn,
+        crate::packet::A_VERSION,
+        crate::packet::DEFAULT_MAXDATA,
+        payload,
+    );
     transport.write_all(&packet.encode()).await
 }
 
@@ -305,7 +332,10 @@ async fn read_packet<T: Transport>(transport: &mut T, timeout: Duration) -> Resu
 }
 
 fn parse_banner(payload: &[u8]) -> Result<String> {
-    let nul = payload.iter().position(|&b| b == 0).unwrap_or(payload.len());
+    let nul = payload
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(payload.len());
     std::str::from_utf8(&payload[..nul])
         .map(str::to_string)
         .map_err(|e| AdbError::Protocol(format!("banner is not UTF-8: {e}")))

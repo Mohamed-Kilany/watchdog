@@ -18,7 +18,12 @@ fn test_keys() -> AdbKeyPair {
 }
 
 fn device_cnxn_packet() -> Packet {
-    Packet::new(Command::Cnxn, 0x0100_0001, 1024 * 1024, b"device::mock:001122334455:mock device\0".as_slice())
+    Packet::new(
+        Command::Cnxn,
+        0x0100_0001,
+        1024 * 1024,
+        b"device::mock:001122334455:mock device\0".as_slice(),
+    )
 }
 
 fn parse_written(bytes: &[u8]) -> Vec<Packet> {
@@ -44,7 +49,12 @@ async fn auth_token_signature_accepted() {
     let token = [0x42u8; 20];
     let transport = MockTransport::new("test")
         .script_packet(&device_cnxn_packet())
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)))
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ))
         .script_packet(&device_cnxn_packet());
 
     // Note: the mock serves scripted bytes in order; the host answers the
@@ -61,8 +71,18 @@ async fn signature_rejected_falls_back_to_public_key() {
     let token = [0x7bu8; 20];
     let transport = MockTransport::new("test")
         .script_packet(&device_cnxn_packet())
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)))
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)))
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ))
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ))
         .script_packet(&device_cnxn_packet());
 
     let tap = transport.tap();
@@ -71,8 +91,15 @@ async fn signature_rejected_falls_back_to_public_key() {
         .expect("connect");
     assert_eq!(connection.info.maxdata, 1024 * 1024);
     let packets = parse_written(&tap.written());
-    let auth_packets: Vec<&Packet> = packets.iter().filter(|p| p.command == Command::Auth).collect();
-    assert_eq!(auth_packets.len(), 2, "expected Signature then RsaPublicKey");
+    let auth_packets: Vec<&Packet> = packets
+        .iter()
+        .filter(|p| p.command == Command::Auth)
+        .collect();
+    assert_eq!(
+        auth_packets.len(),
+        2,
+        "expected Signature then RsaPublicKey"
+    );
     assert_eq!(auth_packets[0].arg0, AuthType::Signature as u32);
     assert_eq!(auth_packets[0].payload.len(), 256);
     assert_eq!(auth_packets[1].arg0, AuthType::RsaPublicKey as u32);
@@ -85,9 +112,24 @@ async fn unauthorized_after_public_key_sent() {
     let token = [0x11u8; 20];
     let transport = MockTransport::new("test")
         .script_packet(&device_cnxn_packet())
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)))
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)))
-        .script_packet(&Packet::new(Command::Auth, AuthType::Token as u32, 0, Bytes::from_static(&token)));
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ))
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ))
+        .script_packet(&Packet::new(
+            Command::Auth,
+            AuthType::Token as u32,
+            0,
+            Bytes::from_static(&token),
+        ));
 
     let err = Connection::connect(transport, HOST_BANNER, &keys)
         .await
@@ -119,7 +161,10 @@ async fn open_stream_ok() {
     let connection = Connection::connect(transport, HOST_BANNER, &keys)
         .await
         .expect("connect");
-    let stream = connection.open_stream("shell:id").await.expect("open stream");
+    let stream = connection
+        .open_stream("shell:id")
+        .await
+        .expect("open stream");
     assert_eq!(stream.remote_id(), 0xdead_beef);
     assert_eq!(stream.local_id(), 0x4000);
 }

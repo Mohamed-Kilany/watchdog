@@ -111,7 +111,10 @@ impl Transport for MockTransport {
     }
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        self.written.lock().expect("tap lock").extend_from_slice(buf);
+        self.written
+            .lock()
+            .expect("tap lock")
+            .extend_from_slice(buf);
         Ok(())
     }
 

@@ -134,7 +134,9 @@ async fn read_fail(stream: &mut Stream, len: u32) -> AdbError {
 /// `STAT <path>` — metadata for one file.
 pub async fn stat<T: Transport>(connection: &Connection<T>, path: &str) -> Result<SyncStat> {
     let mut stream = connection.open_stream("sync:").await?;
-    stream.write(Bytes::from(req_cstring(id::STAT, path))).await?;
+    stream
+        .write(Bytes::from(req_cstring(id::STAT, path)))
+        .await?;
     let rid = read_id(&mut stream).await?;
     match &rid {
         x if x == id::STAT => {
@@ -157,7 +159,9 @@ pub async fn stat<T: Transport>(connection: &Connection<T>, path: &str) -> Resul
 /// `LIST <path>` — directory entries.
 pub async fn list<T: Transport>(connection: &Connection<T>, path: &str) -> Result<Vec<SyncEntry>> {
     let mut stream = connection.open_stream("sync:").await?;
-    stream.write(Bytes::from(req_cstring(id::LIST, path))).await?;
+    stream
+        .write(Bytes::from(req_cstring(id::LIST, path)))
+        .await?;
     let mut out = Vec::new();
     loop {
         let rid = read_id(&mut stream).await?;
@@ -168,7 +172,9 @@ pub async fn list<T: Transport>(connection: &Connection<T>, path: &str) -> Resul
                 let mtime = read_u32(&mut stream).await?;
                 let name_len = read_u32(&mut stream).await? as usize;
                 if name_len > 8192 {
-                    return Err(AdbError::Protocol(format!("LIST entry name too long ({name_len})")));
+                    return Err(AdbError::Protocol(format!(
+                        "LIST entry name too long ({name_len})"
+                    )));
                 }
                 let mut name = vec![0u8; name_len];
                 read_exact_stream(&mut stream, &mut name).await?;
@@ -226,7 +232,9 @@ pub async fn pull<T: Transport>(
     };
 
     let mut stream = connection.open_stream("sync:").await?;
-    stream.write(Bytes::from(req_cstring(id::RECV, remote_path))).await?;
+    stream
+        .write(Bytes::from(req_cstring(id::RECV, remote_path)))
+        .await?;
 
     let mut file = std::fs::File::create(&part_path)?;
     let mut hasher = Sha256::new();
@@ -292,7 +300,9 @@ pub async fn push<T: Transport>(
     let mut stream = connection.open_stream("sync:").await?;
 
     let spec = format!("{remote_path},{mode}");
-    stream.write(Bytes::from(req_cstring(id::SEND, &spec))).await?;
+    stream
+        .write(Bytes::from(req_cstring(id::SEND, &spec)))
+        .await?;
 
     let mut file = std::fs::File::open(local_path)?;
     let mut buf = vec![0u8; SYNC_DATA_MAX];
