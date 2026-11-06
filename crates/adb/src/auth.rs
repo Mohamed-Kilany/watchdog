@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
 use rsa::traits::PublicKeyParts;
 use rsa::{Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
@@ -43,7 +44,8 @@ pub struct AdbKeyPair {
 
 impl std::fmt::Debug for AdbKeyPair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AdbKeyPair", &[&"[redacted]"]).finish()
+        f.debug_struct("AdbKeyPair", &[("state", &"[redacted]")])
+            .finish()
     }
 }
 
@@ -179,16 +181,12 @@ fn encode_android_public_key(public_key: &RsaPublicKey) -> [u8; ANDROID_PUBKEY_E
     use num_bigint::BigUint;
 
     let modulus = BigUint::from_bytes_be(&public_key.n().to_bytes_be());
-    let exponent = u32::try_from(
-        public_key
-            .e()
-            .to_u64_digits()
-            .1
-            .first()
-            .copied()
-            .unwrap_or(65537),
-    )
-    .expect("exponent fits u32");
+    let exponent_bytes = public_key.e().to_bytes_be();
+    let mut exponent: u64 = 0;
+    for byte in exponent_bytes {
+        exponent = (exponent << 8) | u64::from(byte);
+    }
+    let exponent = u32::try_from(exponent).expect("RSA exponent fits u32");
 
     // n0inv = -1 / n[0] (mod 2^32), where n[0] is the low 32-bit word.
     let low_word = modulus.iter_u32_digits().next().expect("non-empty modulus");

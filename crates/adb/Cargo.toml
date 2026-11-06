@@ -24,7 +24,7 @@ num-bigint = "0.4"
 rand = "0.8"
 
 [dev-dependencies]
-watchdog-adb-mock = { path = "../adb-mock" }
+watchdog-adb-mock = { path = "../adb-mock", version = "0.1.0" }
 tempfile = "3.19"
 
 [lints]

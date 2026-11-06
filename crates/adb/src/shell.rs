@@ -121,7 +121,7 @@ pub fn encode_shell_packet(id: u8, payload: &[u8]) -> Vec<u8> {
 ///
 /// `stdin` is written in full then signalled EOF (CloseStdin); the device
 /// responds with stdout/stderr frames and a final EXIT frame.
-pub async fn run_shell<T: Transport>(
+pub async fn run_shell<T: Transport + 'static>(
     connection: &Connection<T>,
     command: &str,
     stdin: Option<&[u8]>,
@@ -151,7 +151,7 @@ pub async fn run_shell<T: Transport>(
 /// Run `command` via the legacy `shell:` service (combined stdout+stderr, no exit code).
 ///
 /// Provided for very old devices and emulator edge cases; prefer [`run_shell`].
-pub async fn run_shell_legacy<T: Transport>(
+pub async fn run_shell_legacy<T: Transport + 'static>(
     connection: &Connection<T>,
     command: &str,
 ) -> Result<ShellOutput> {

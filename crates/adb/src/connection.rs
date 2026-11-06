@@ -5,7 +5,7 @@
 //! a 1-outstanding-WRTE flow-control window (refilled on OKAY), per the ADB spec.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -123,8 +123,7 @@ impl Shared {
 }
 
 /// An established connection (post-handshake).
-#[derive(Debug)]
-pub struct Connection<T: Transport> {
+pub struct Connection<T: Transport + 'static> {
     /// Negotiated session info.
     pub info: SessionInfo,
     transport: Arc<tokio::sync::Mutex<T>>,
@@ -207,7 +206,7 @@ impl<T: Transport + 'static> Connection<T> {
 }
 
 /// Complete the CNXN/AUTH handshake on a fresh transport.
-pub async fn handshake<T: Transport>(
+pub async fn handshake<T: Transport + 'static>(
     transport: &mut T,
     banner: &str,
     keys: &AdbKeyPair,
@@ -289,7 +288,7 @@ pub async fn handshake<T: Transport>(
     }
 }
 
-async fn send_cnxn<T: Transport>(transport: &mut T, banner: &str) -> Result<()> {
+async fn send_cnxn<T: Transport + 'static>(transport: &mut T, banner: &str) -> Result<()> {
     let mut payload = banner.as_bytes().to_vec();
     payload.push(0);
     let packet = Packet::new(
@@ -301,7 +300,10 @@ async fn send_cnxn<T: Transport>(transport: &mut T, banner: &str) -> Result<()> 
     transport.write_all(&packet.encode()).await
 }
 
-async fn read_packet<T: Transport>(transport: &mut T, timeout: Duration) -> Result<Packet> {
+async fn read_packet<T: Transport + 'static>(
+    transport: &mut T,
+    timeout: Duration,
+) -> Result<Packet> {
     use crate::packet::HEADER_LEN;
 
     let mut header = [0u8; HEADER_LEN];
@@ -342,7 +344,7 @@ fn parse_banner(payload: &[u8]) -> Result<String> {
 }
 
 /// Writer task: serialize all outbound packets.
-async fn writer_task<T: Transport>(
+async fn writer_task<T: Transport + 'static>(
     transport: Arc<tokio::sync::Mutex<T>>,
     shared: Arc<std::sync::Mutex<Shared>>,
     mut outbound: mpsc::Receiver<Outbound>,
@@ -374,7 +376,7 @@ async fn writer_task<T: Transport>(
 }
 
 /// Reader task: route inbound packets to stream channels and OKAY/CLSE bookkeeping.
-async fn reader_task<T: Transport>(
+async fn reader_task<T: Transport + 'static>(
     transport: Arc<tokio::sync::Mutex<T>>,
     shared: Arc<std::sync::Mutex<Shared>>,
 ) -> Result<()> {

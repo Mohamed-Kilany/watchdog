@@ -43,6 +43,17 @@ env/file; restart) — a dedicated `token rotate` command lands with M9-T04.
 documented with fingerprint verification for impresario clients. Until M10-T02, LAN TLS
 means reverse proxy (Caddy/nginx) in front of watchdog.
 
+## Known advisories and accepted risks
+
+- **RUSTSEC-2023-0071** (`rsa` crate — Marvin Attack, timing sidechannel): no patched
+  version exists. watchdog uses `rsa` solely for the ADB AUTH handshake, which mandates
+  RSA-PKCS#1-v1_5 with SHA-1 by protocol definition. Signing happens once per device
+  connection. The attack requires an attacker who can observe very precise timing across
+  many signatures; practically it targets network-visible services, not a localhost/LAN
+  test tool. The advisory is explicitly ignored in `deny.toml` with this rationale and is
+  re-evaluated in M10 (or whenever a patched `rsa` release lands). If you have a stricter
+  threat model, run watchdog on isolated VLANs and keep the bearer token enabled.
+
 ## Reporting
 
 Security issues: open a private GitHub security advisory on the repository, or email the

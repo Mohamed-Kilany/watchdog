@@ -9,7 +9,7 @@ homepage.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-watchdog-adb = { path = "../adb" }
+watchdog-adb = { path = "../adb", version = "0.1.0" }
 async-trait = "0.1"
 bytes.workspace = true
 thiserror.workspace = true

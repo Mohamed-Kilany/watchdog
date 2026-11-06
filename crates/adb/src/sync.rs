@@ -132,7 +132,10 @@ async fn read_fail(stream: &mut Stream, len: u32) -> AdbError {
 }
 
 /// `STAT <path>` — metadata for one file.
-pub async fn stat<T: Transport>(connection: &Connection<T>, path: &str) -> Result<SyncStat> {
+pub async fn stat<T: Transport + 'static>(
+    connection: &Connection<T>,
+    path: &str,
+) -> Result<SyncStat> {
     let mut stream = connection.open_stream("sync:").await?;
     stream
         .write(Bytes::from(req_cstring(id::STAT, path)))
@@ -157,7 +160,10 @@ pub async fn stat<T: Transport>(connection: &Connection<T>, path: &str) -> Resul
 }
 
 /// `LIST <path>` — directory entries.
-pub async fn list<T: Transport>(connection: &Connection<T>, path: &str) -> Result<Vec<SyncEntry>> {
+pub async fn list<T: Transport + 'static>(
+    connection: &Connection<T>,
+    path: &str,
+) -> Result<Vec<SyncEntry>> {
     let mut stream = connection.open_stream("sync:").await?;
     stream
         .write(Bytes::from(req_cstring(id::LIST, path)))
@@ -216,7 +222,7 @@ pub struct PullResult {
 ///
 /// Streams to `<local>.watchdog-part` and renames on completion; an
 /// interrupted pull leaves the `.part` file, which is discarded on retry.
-pub async fn pull<T: Transport>(
+pub async fn pull<T: Transport + 'static>(
     connection: &Connection<T>,
     remote_path: &str,
     local_path: &Path,
@@ -288,7 +294,7 @@ pub async fn pull<T: Transport>(
 ///
 /// The remote file is truncated before the first byte arrives; on failure the
 /// remote copy is incomplete and must be re-sent.
-pub async fn push<T: Transport>(
+pub async fn push<T: Transport + 'static>(
     connection: &Connection<T>,
     local_path: &Path,
     remote_path: &str,
