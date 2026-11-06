@@ -16,6 +16,8 @@ pub mod connection;
 pub mod error;
 pub mod lifecycle;
 pub mod packet;
+pub mod shell;
+pub mod sync;
 pub mod transport;
 
 pub use auth::AdbKeyPair;
