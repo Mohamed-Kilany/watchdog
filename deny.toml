@@ -1,13 +1,7 @@
 # cargo-deny configuration. Run: cargo deny check
-[graph]
-all-features = false
-no-default-features = false
-
-[output]
-feature-depth = 1
+# Schema: keep only keys documented for the installed cargo-deny version.
 
 [advisories]
-yanked = "deny"
 ignore = []
 
 [licenses]
@@ -27,9 +21,6 @@ allow = [
     "MPL-2.0",
 ]
 confidence-threshold = 0.8
-
-[licenses.private]
-ignored = false
 
 [bans]
 multiple-versions = "warn"
