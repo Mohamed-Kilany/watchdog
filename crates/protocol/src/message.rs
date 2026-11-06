@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use crate::packet::{Packet, MessageType};
+use crate::packet::{MessageType, Packet};
 use crate::DecodeError;
 
 /// Serde map alias used for capability descriptors and control snapshots.
@@ -136,7 +136,6 @@ impl Rotation {
             Self::R180 => 180,
             Self::R270 => 270,
         }
-
     }
 
     fn from_degrees(value: u16) -> Option<Self> {
@@ -199,13 +198,24 @@ impl FramePacket {
         let rotation_raw = u16::from_le_bytes(bytes[24..26].try_into().expect("slice len"));
         let flags = bytes[26];
         if bytes[27] != 0 {
-            return Err(DecodeError::Binary { message_type: "FRAME", reason: "reserved byte must be 0".to_string() });
+            return Err(DecodeError::Binary {
+                message_type: "FRAME",
+                reason: "reserved byte must be 0".to_string(),
+            });
         }
         let rotation = Rotation::from_degrees(rotation_raw).ok_or_else(|| DecodeError::Binary {
             message_type: "FRAME",
             reason: format!("invalid rotation {rotation_raw}"),
         })?;
-        Ok(Self { seq, sensor_timestamp_ns, width, height, rotation, flags, jpeg: Bytes::copy_from_slice(&bytes[FRAME_HEADER_LEN..]) })
+        Ok(Self {
+            seq,
+            sensor_timestamp_ns,
+            width,
+            height,
+            rotation,
+            flags,
+            jpeg: Bytes::copy_from_slice(&bytes[FRAME_HEADER_LEN..]),
+        })
     }
 }
 
@@ -499,66 +509,133 @@ impl Message {
         let msg_type = packet.msg_type;
         let payload = packet.payload;
         match msg_type {
-            MessageType::HostHello => {
-                Ok(Self::HostHello(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "HOST_HELLO", source })?))
-            }
-            MessageType::HelloAck => {
-                Ok(Self::HelloAck(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "HELLO_ACK", source })?))
-            }
+            MessageType::HostHello => Ok(Self::HostHello(
+                serde_json::from_slice(&payload).map_err(|source| DecodeError::Json {
+                    message_type: "HOST_HELLO",
+                    source,
+                })?,
+            )),
+            MessageType::HelloAck => Ok(Self::HelloAck(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "HELLO_ACK",
+                    source,
+                },
+            )?)),
             MessageType::Frame => Ok(Self::Frame(FramePacket::decode_binary(&payload)?)),
             MessageType::State => {
-                let mut state: StateMessage = serde_json::from_slice(&payload)
-                    .map_err(|source| DecodeError::Json { message_type: "STATE", source })?;
+                let mut state: StateMessage =
+                    serde_json::from_slice(&payload).map_err(|source| DecodeError::Json {
+                        message_type: "STATE",
+                        source,
+                    })?;
                 state.delta = flags & STATE_DELTA_FLAG != 0;
                 Ok(Self::State(state))
             }
-            MessageType::Command => {
-                Ok(Self::Command(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "COMMAND", source })?))
-            }
-            MessageType::CommandResult => {
-                Ok(Self::CommandResult(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "COMMAND_RESULT", source })?))
-            }
-            MessageType::Event => {
-                Ok(Self::Event(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "EVENT", source })?))
-            }
-            MessageType::MediaManifest => {
-                Ok(Self::MediaManifest(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "MEDIA_MANIFEST", source })?))
-            }
+            MessageType::Command => Ok(Self::Command(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "COMMAND",
+                    source,
+                },
+            )?)),
+            MessageType::CommandResult => Ok(Self::CommandResult(
+                serde_json::from_slice(&payload).map_err(|source| DecodeError::Json {
+                    message_type: "COMMAND_RESULT",
+                    source,
+                })?,
+            )),
+            MessageType::Event => Ok(Self::Event(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "EVENT",
+                    source,
+                },
+            )?)),
+            MessageType::MediaManifest => Ok(Self::MediaManifest(
+                serde_json::from_slice(&payload).map_err(|source| DecodeError::Json {
+                    message_type: "MEDIA_MANIFEST",
+                    source,
+                })?,
+            )),
             MessageType::LogChunk => Ok(Self::LogChunk(decode_log_chunk(&payload)?)),
-            MessageType::Error => {
-                Ok(Self::Error(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "ERROR", source })?))
-            }
-            MessageType::Ping => {
-                Ok(Self::Ping(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "PING", source })?))
-            }
-            MessageType::Pong => {
-                Ok(Self::Pong(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "PONG", source })?))
-            }
-            MessageType::Bye => {
-                Ok(Self::Bye(serde_json::from_slice(&payload).map_err(|source| DecodeError::Json { message_type: "BYE", source })?))
-            }
+            MessageType::Error => Ok(Self::Error(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "ERROR",
+                    source,
+                },
+            )?)),
+            MessageType::Ping => Ok(Self::Ping(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "PING",
+                    source,
+                },
+            )?)),
+            MessageType::Pong => Ok(Self::Pong(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "PONG",
+                    source,
+                },
+            )?)),
+            MessageType::Bye => Ok(Self::Bye(serde_json::from_slice(&payload).map_err(
+                |source| DecodeError::Json {
+                    message_type: "BYE",
+                    source,
+                },
+            )?)),
         }
     }
 
     /// Encode into a packet (payload CRC computed by the packet).
     pub fn to_packet(&self) -> Result<Packet, DecodeError> {
-        fn to_json<T: Serialize>(message_type: &'static str, value: &T) -> Result<Bytes, DecodeError> {
+        fn to_json<T: Serialize>(
+            message_type: &'static str,
+            value: &T,
+        ) -> Result<Bytes, DecodeError> {
             serde_json::to_vec(value)
                 .map(Bytes::from)
-                .map_err(|source| DecodeError::Json { message_type, source })
+                .map_err(|source| DecodeError::Json {
+                    message_type,
+                    source,
+                })
         }
         match self {
-            Self::HostHello(m) => Ok(Packet::new(MessageType::HostHello, 0, to_json("HOST_HELLO", m)?)?),
-            Self::HelloAck(m) => Ok(Packet::new(MessageType::HelloAck, 0, to_json("HELLO_ACK", m)?)?),
-            Self::Frame(m) => Ok(Packet::new(MessageType::Frame, 0, Bytes::from(m.encode_binary()))?),
+            Self::HostHello(m) => Ok(Packet::new(
+                MessageType::HostHello,
+                0,
+                to_json("HOST_HELLO", m)?,
+            )?),
+            Self::HelloAck(m) => Ok(Packet::new(
+                MessageType::HelloAck,
+                0,
+                to_json("HELLO_ACK", m)?,
+            )?),
+            Self::Frame(m) => Ok(Packet::new(
+                MessageType::Frame,
+                0,
+                Bytes::from(m.encode_binary()),
+            )?),
             Self::State(m) => {
                 let flags = if m.delta { STATE_DELTA_FLAG } else { 0 };
-                Ok(Packet::new(MessageType::State, flags, to_json("STATE", m)?)?)
+                Ok(Packet::new(
+                    MessageType::State,
+                    flags,
+                    to_json("STATE", m)?,
+                )?)
             }
-            Self::Command(m) => Ok(Packet::new(MessageType::Command, 0, to_json("COMMAND", m)?)?),
-            Self::CommandResult(m) => Ok(Packet::new(MessageType::CommandResult, 0, to_json("COMMAND_RESULT", m)?)?),
+            Self::Command(m) => Ok(Packet::new(
+                MessageType::Command,
+                0,
+                to_json("COMMAND", m)?,
+            )?),
+            Self::CommandResult(m) => Ok(Packet::new(
+                MessageType::CommandResult,
+                0,
+                to_json("COMMAND_RESULT", m)?,
+            )?),
             Self::Event(m) => Ok(Packet::new(MessageType::Event, 0, to_json("EVENT", m)?)?),
-            Self::MediaManifest(m) => Ok(Packet::new(MessageType::MediaManifest, 0, to_json("MEDIA_MANIFEST", m)?)?),
+            Self::MediaManifest(m) => Ok(Packet::new(
+                MessageType::MediaManifest,
+                0,
+                to_json("MEDIA_MANIFEST", m)?,
+            )?),
             Self::LogChunk(m) => Ok(Packet::new(MessageType::LogChunk, 0, encode_log_chunk(m))?),
             Self::Error(m) => Ok(Packet::new(MessageType::Error, 0, to_json("ERROR", m)?)?),
             Self::Ping(m) => Ok(Packet::new(MessageType::Ping, 0, to_json("PING", m)?)?),
@@ -583,7 +660,10 @@ fn encode_log_chunk(chunk: &LogChunk) -> Bytes {
 
 fn decode_log_chunk(bytes: &[u8]) -> Result<LogChunk, DecodeError> {
     if bytes.len() < 9 {
-        return Err(DecodeError::Binary { message_type: "LOG_CHUNK", reason: format!("truncated log chunk: {} bytes", bytes.len()) });
+        return Err(DecodeError::Binary {
+            message_type: "LOG_CHUNK",
+            reason: format!("truncated log chunk: {} bytes", bytes.len()),
+        });
     }
     let timestamp_ms = u64::from_le_bytes(bytes[0..8].try_into().expect("slice len"));
     let level = LogLevel::from_u8(bytes[8]).ok_or_else(|| DecodeError::Binary {
@@ -591,7 +671,14 @@ fn decode_log_chunk(bytes: &[u8]) -> Result<LogChunk, DecodeError> {
         reason: format!("invalid log level {}", bytes[8]),
     })?;
     let text = std::str::from_utf8(&bytes[9..])
-        .map_err(|e| DecodeError::Binary { message_type: "LOG_CHUNK", reason: format!("invalid UTF-8: {e}") })?
+        .map_err(|e| DecodeError::Binary {
+            message_type: "LOG_CHUNK",
+            reason: format!("invalid UTF-8: {e}"),
+        })?
         .to_string();
-    Ok(LogChunk { timestamp_ms, level, text })
+    Ok(LogChunk {
+        timestamp_ms,
+        level,
+        text,
+    })
 }

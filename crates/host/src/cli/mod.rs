@@ -4,8 +4,8 @@ pub mod analyze;
 pub mod capture;
 pub mod config;
 pub mod device;
-pub mod media;
 pub mod mcp;
+pub mod media;
 pub mod schedule;
 pub mod serve;
 
@@ -17,5 +17,7 @@ pub(crate) fn not_implemented(feature: &str, milestone: &str) -> WatchdogError {
         ErrorCode::NotImplemented,
         format!("{feature} is not implemented yet"),
     )
-    .with_hint(format!("tracked as part of {milestone} (see TASK.md and docs/PROGRESS.md)"))
+    .with_hint(format!(
+        "tracked as part of {milestone} (see TASK.md and docs/PROGRESS.md)"
+    ))
 }

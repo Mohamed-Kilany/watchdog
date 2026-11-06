@@ -70,5 +70,8 @@ pub enum RecordAction {
 /// Entry point.
 pub fn run(args: &CaptureArgs, _cfg: &Config) -> watchdog_core::Result<()> {
     let _ = args;
-    Err(not_implemented("capture (still/burst/record)", "M5 (docs/PROGRESS.md)"))
+    Err(not_implemented(
+        "capture (still/burst/record)",
+        "M5 (docs/PROGRESS.md)",
+    ))
 }

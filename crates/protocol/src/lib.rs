@@ -1,4 +1,4 @@
-﻿//! Wire protocol between the watchdog host and the watchdog Android app.
+//! Wire protocol between the watchdog host and the watchdog Android app.
 //!
 //! Normative spec: `docs/protocol.md`. Golden vectors: `protocol/vectors/`.
 //! The Kotlin app implements the same spec against the same vectors.
@@ -16,7 +16,7 @@ pub use message::{
     FramePacket, HelloAck, HostHello, HostInfo, JsonMap, LogChunk, LogLevel, ManifestItem,
     MediaManifest, Message, PingPong, Rotation, StateMessage, STATE_DELTA_FLAG,
 };
-pub use packet::{Packet, MessageType, HEADER_LEN, MAX_PAYLOAD_LEN, PROTOCOL_VERSION};
+pub use packet::{MessageType, Packet, HEADER_LEN, MAX_PAYLOAD_LEN, PROTOCOL_VERSION};
 
 /// CRC-32 (IEEE) of `payload`, matching the spec's checksum rules.
 #[must_use]

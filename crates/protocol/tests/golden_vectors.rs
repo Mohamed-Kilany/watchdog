@@ -9,11 +9,16 @@ use serde_json::Value;
 use watchdog_protocol::{Decoder, FeedResult, Message, MessageType};
 
 fn vectors_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join("protocol").join("vectors")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("protocol")
+        .join("vectors")
 }
 
 fn manifest() -> Value {
-    let raw = fs::read_to_string(vectors_dir().join("manifest.json")).expect("manifest.json must exist");
+    let raw =
+        fs::read_to_string(vectors_dir().join("manifest.json")).expect("manifest.json must exist");
     serde_json::from_str(&raw).expect("manifest.json must be valid JSON")
 }
 
@@ -26,25 +31,39 @@ fn valid_vectors_decode_and_reencode_byte_exact() {
     for entry in vectors {
         let file = entry["file"].as_str().expect("file");
         let expected_type = entry["type"].as_str().expect("type");
-        let bytes = fs::read(vectors_dir().join(file)).unwrap_or_else(|e| panic!("read {file}: {e}"));
+        let bytes =
+            fs::read(vectors_dir().join(file)).unwrap_or_else(|e| panic!("read {file}: {e}"));
 
         // Decode in one shot.
         let mut decoder = Decoder::new();
         let packets = match decoder.feed(&bytes) {
             Ok(FeedResult::Packets(packets)) => packets,
-            Ok(FeedResult::NeedMore) => panic!("{file}: decoder wants more bytes for a complete vector"),
+            Ok(FeedResult::NeedMore) => {
+                panic!("{file}: decoder wants more bytes for a complete vector")
+            }
             Err(err) => panic!("{file}: decode failed: {err}"),
         };
         assert_eq!(packets.len(), 1, "{file}: expected exactly one packet");
         let packet = packets.into_iter().next().expect("one packet");
-        assert_eq!(packet.msg_type.name(), expected_type, "{file}: message type mismatch");
+        assert_eq!(
+            packet.msg_type.name(),
+            expected_type,
+            "{file}: message type mismatch"
+        );
 
-        let message = Message::from_packet(packet).unwrap_or_else(|e| panic!("{file}: typed decode failed: {e}"));
+        let message = Message::from_packet(packet)
+            .unwrap_or_else(|e| panic!("{file}: typed decode failed: {e}"));
         assert_eq!(message.msg_type().name(), expected_type);
 
         // Re-encode must be byte-exact for the committed vectors.
-        let reencoded = message.encode_frame().unwrap_or_else(|e| panic!("{file}: re-encode failed: {e}"));
-        assert_eq!(reencoded.as_ref(), bytes.as_slice(), "{file}: re-encode mismatch");
+        let reencoded = message
+            .encode_frame()
+            .unwrap_or_else(|e| panic!("{file}: re-encode failed: {e}"));
+        assert_eq!(
+            reencoded.as_ref(),
+            bytes.as_slice(),
+            "{file}: re-encode mismatch"
+        );
     }
 }
 
@@ -63,7 +82,11 @@ fn valid_vectors_survive_byte_at_a_time_feeding() {
                 Err(err) => panic!("{file}: decode failed at byte level: {err}"),
             }
         }
-        assert_eq!(packets.len(), 1, "{file}: byte-at-a-time feed produced wrong packet count");
+        assert_eq!(
+            packets.len(),
+            1,
+            "{file}: byte-at-a-time feed produced wrong packet count"
+        );
     }
 }
 
@@ -85,10 +108,15 @@ fn invalid_vectors_fail_without_panicking() {
             "MessageDecode" => {
                 // Frame is well-formed (header CRC valid) but the typed payload is bad.
                 let packet = match decoder.feed(&bytes) {
-                    Ok(FeedResult::Packets(packets)) => packets.into_iter().next().expect("one packet"),
+                    Ok(FeedResult::Packets(packets)) => {
+                        packets.into_iter().next().expect("one packet")
+                    }
                     other => panic!("{file}: expected a packet, got {other:?}"),
                 };
-                assert!(Message::from_packet(packet).is_err(), "{file}: expected typed decode failure");
+                assert!(
+                    Message::from_packet(packet).is_err(),
+                    "{file}: expected typed decode failure"
+                );
             }
             _ => {
                 let result = decoder.feed(&bytes);
@@ -97,7 +125,10 @@ fn invalid_vectors_fail_without_panicking() {
                     Ok(ok) => panic!("{file}: expected {expect}, got {ok:?}"),
                 };
                 let kind = format!("{err:?}");
-                assert!(kind.starts_with(expect), "{file}: expected {expect}, got {kind}");
+                assert!(
+                    kind.starts_with(expect),
+                    "{file}: expected {expect}, got {kind}"
+                );
             }
         }
     }
@@ -145,7 +176,7 @@ fn garbage_inputs_never_panic() {
         }
         let mut decoder = Decoder::new();
         let _ = decoder.feed(&buf); // must not panic; Ok or Err both fine
-        // Also try feeding into a decoder that already saw valid bytes.
+                                    // Also try feeding into a decoder that already saw valid bytes.
         if case % 7 == 0 {
             let valid = fs::read(vectors_dir().join("0001-host-hello.bin")).expect("vector");
             let mut decoder = Decoder::new();

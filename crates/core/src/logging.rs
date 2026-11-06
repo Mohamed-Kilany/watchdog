@@ -41,7 +41,9 @@ pub fn register_secret(value: &str) -> bool {
     if bytes.len() < 4 {
         return false;
     }
-    let mut guard = secrets().write().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard = secrets()
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if !guard.contains(&bytes) {
         guard.push(bytes);
         // Longest first so overlapping matches replace the maximal secret.
@@ -89,12 +91,22 @@ struct StreamingRedactor<W: Write> {
 
 impl<W: Write> StreamingRedactor<W> {
     fn new(inner: W) -> Self {
-        Self { inner, pending: Vec::new() }
+        Self {
+            inner,
+            pending: Vec::new(),
+        }
     }
 
     fn emit_ready(&mut self, final_flush: bool) -> std::io::Result<()> {
-        let secrets = secrets().read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-        let max_keep = secrets.iter().map(Vec::len).max().map_or(0, |m| m.saturating_sub(1));
+        let secrets = secrets()
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let max_keep = secrets
+            .iter()
+            .map(Vec::len)
+            .max()
+            .map_or(0, |m| m.saturating_sub(1));
 
         // Redact everything we can fully see.
         loop {
@@ -153,17 +165,25 @@ pub struct SharedRedactingWriter<W: Write + Send + 'static> {
 
 impl<W: Write + Send + 'static> Clone for SharedRedactingWriter<W> {
     fn clone(&self) -> Self {
-        Self { shared: std::sync::Arc::clone(&self.shared) }
+        Self {
+            shared: std::sync::Arc::clone(&self.shared),
+        }
     }
 }
 
 impl<W: Write + Send + 'static> Write for SharedRedactingWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.shared.lock().map_err(|_| std::io::Error::other("log writer poisoned"))?.write(buf)
+        self.shared
+            .lock()
+            .map_err(|_| std::io::Error::other("log writer poisoned"))?
+            .write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.shared.lock().map_err(|_| std::io::Error::other("log writer poisoned"))?.flush()
+        self.shared
+            .lock()
+            .map_err(|_| std::io::Error::other("log writer poisoned"))?
+            .flush()
     }
 }
 
@@ -174,7 +194,9 @@ pub struct SharedRedactingWriterFactory<W: Write + Send + 'static> {
 
 impl<W: Write + Send + 'static> SharedRedactingWriterFactory<W> {
     fn new(inner: W) -> Self {
-        Self { shared: std::sync::Arc::new(Mutex::new(StreamingRedactor::new(inner))) }
+        Self {
+            shared: std::sync::Arc::new(Mutex::new(StreamingRedactor::new(inner))),
+        }
     }
 }
 
@@ -182,7 +204,9 @@ impl<W: Write + Send + 'static> MakeWriter<'_> for SharedRedactingWriterFactory<
     type Writer = SharedRedactingWriter<W>;
 
     fn make_writer(&self) -> Self::Writer {
-        SharedRedactingWriter { shared: std::sync::Arc::clone(&self.shared) }
+        SharedRedactingWriter {
+            shared: std::sync::Arc::clone(&self.shared),
+        }
     }
 }
 
@@ -214,30 +238,64 @@ pub fn init(level: &str, log_json: bool, log_dir: Option<&Path>) -> Result<LogGu
             let file_factory = SharedRedactingWriterFactory::new(non_blocking);
             if json {
                 registry
-                    .with(tracing_subscriber::fmt::layer().json().with_writer(console_factory))
-                    .with(tracing_subscriber::fmt::layer().json().with_writer(file_factory))
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .json()
+                            .with_writer(console_factory),
+                    )
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .json()
+                            .with_writer(file_factory),
+                    )
                     .try_init()
-                    .map_err(|e| WatchdogError::new(crate::error::ErrorCode::Internal, format!("failed to init logging: {e}")))?;
+                    .map_err(|e| {
+                        WatchdogError::new(
+                            crate::error::ErrorCode::Internal,
+                            format!("failed to init logging: {e}"),
+                        )
+                    })?;
             } else {
                 registry
                     .with(tracing_subscriber::fmt::layer().with_writer(console_factory))
                     .with(tracing_subscriber::fmt::layer().with_writer(file_factory))
                     .try_init()
-                    .map_err(|e| WatchdogError::new(crate::error::ErrorCode::Internal, format!("failed to init logging: {e}")))?;
+                    .map_err(|e| {
+                        WatchdogError::new(
+                            crate::error::ErrorCode::Internal,
+                            format!("failed to init logging: {e}"),
+                        )
+                    })?;
             }
-            Ok(LogGuard { _file_guard: Some(guard) })
+            Ok(LogGuard {
+                _file_guard: Some(guard),
+            })
         }
         None => {
             if json {
                 registry
-                    .with(tracing_subscriber::fmt::layer().json().with_writer(console_factory))
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .json()
+                            .with_writer(console_factory),
+                    )
                     .try_init()
-                    .map_err(|e| WatchdogError::new(crate::error::ErrorCode::Internal, format!("failed to init logging: {e}")))?;
+                    .map_err(|e| {
+                        WatchdogError::new(
+                            crate::error::ErrorCode::Internal,
+                            format!("failed to init logging: {e}"),
+                        )
+                    })?;
             } else {
                 registry
                     .with(tracing_subscriber::fmt::layer().with_writer(console_factory))
                     .try_init()
-                    .map_err(|e| WatchdogError::new(crate::error::ErrorCode::Internal, format!("failed to init logging: {e}")))?;
+                    .map_err(|e| {
+                        WatchdogError::new(
+                            crate::error::ErrorCode::Internal,
+                            format!("failed to init logging: {e}"),
+                        )
+                    })?;
             }
             Ok(LogGuard { _file_guard: None })
         }
@@ -252,8 +310,11 @@ mod tests {
     fn redacts_secret_written_in_one_write() {
         register_secret("hunter2-token-xyz");
         let shared = std::sync::Arc::new(Mutex::new(StreamingRedactor::new(Vec::new())));
-        let mut w = SharedRedactingWriter { shared: std::sync::Arc::clone(&shared) };
-        w.write_all(b"connecting with hunter2-token-xyz now").unwrap();
+        let mut w = SharedRedactingWriter {
+            shared: std::sync::Arc::clone(&shared),
+        };
+        w.write_all(b"connecting with hunter2-token-xyz now")
+            .unwrap();
         w.flush().unwrap();
         let out = shared.lock().unwrap().inner.clone();
         let text = String::from_utf8(out).unwrap();
@@ -265,14 +326,19 @@ mod tests {
     fn redacts_secret_split_across_writes() {
         register_secret("split-secret-98765");
         let shared = std::sync::Arc::new(Mutex::new(StreamingRedactor::new(Vec::new())));
-        let mut w = SharedRedactingWriter { shared: std::sync::Arc::clone(&shared) };
+        let mut w = SharedRedactingWriter {
+            shared: std::sync::Arc::clone(&shared),
+        };
         for piece in [&b"tok=split-"[..], b"secret-98", b"765&x=1\n"] {
             w.write_all(piece).unwrap();
         }
         w.flush().unwrap();
         let out = shared.lock().unwrap().inner.clone();
         let text = String::from_utf8(out).unwrap();
-        assert!(!text.contains("split-secret-98765"), "secret leaked: {text}");
+        assert!(
+            !text.contains("split-secret-98765"),
+            "secret leaked: {text}"
+        );
         assert_eq!(text, "tok=[REDACTED]&x=1\n");
     }
 
@@ -280,7 +346,9 @@ mod tests {
     fn flush_emits_everything() {
         register_secret("tail-secret-abc");
         let shared = std::sync::Arc::new(Mutex::new(StreamingRedactor::new(Vec::new())));
-        let mut w = SharedRedactingWriter { shared: std::sync::Arc::clone(&shared) };
+        let mut w = SharedRedactingWriter {
+            shared: std::sync::Arc::clone(&shared),
+        };
         w.write_all(b"prefix tail-secret-abc").unwrap();
         w.flush().unwrap();
         let out = shared.lock().unwrap().inner.clone();
@@ -307,7 +375,9 @@ mod tests {
         let shared = std::sync::Arc::new(Mutex::new(StreamingRedactor::new(Vec::new())));
         let factory_shared = std::sync::Arc::clone(&shared);
         // Format an event through tracing into the redacting writer.
-        let make = SharedRedactingWriterFactory { shared: factory_shared };
+        let make = SharedRedactingWriterFactory {
+            shared: factory_shared,
+        };
         let subscriber = tracing_subscriber::fmt()
             .with_writer(make)
             .with_ansi(false)
@@ -320,8 +390,10 @@ mod tests {
         shared.lock().unwrap().flush().unwrap();
         let out = shared.lock().unwrap().inner.clone();
         let text = String::from_utf8(out).unwrap();
-        assert!(!text.contains("e2e-token-11223344"), "secret leaked in log line: {text}");
+        assert!(
+            !text.contains("e2e-token-11223344"),
+            "secret leaked in log line: {text}"
+        );
         assert!(text.contains(REDACTED));
     }
-
 }

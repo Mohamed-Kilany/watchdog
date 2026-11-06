@@ -38,14 +38,19 @@ const CONFIG_FILE: &str = "watchdog.toml";
 /// - Windows: `%LOCALAPPDATA%\watchdog`
 #[must_use]
 pub fn default_data_dir() -> PathBuf {
-    BaseDirs::new().map_or_else(|| PathBuf::from(APP_DIR), |b| b.data_local_dir().join(APP_DIR))
+    BaseDirs::new().map_or_else(
+        || PathBuf::from(APP_DIR),
+        |b| b.data_local_dir().join(APP_DIR),
+    )
 }
 
 /// Platform config directory (may differ from the data dir).
 #[must_use]
 pub fn config_dir() -> PathBuf {
-    ProjectDirs::from("", "", APP_DIR)
-        .map_or_else(|| default_data_dir().join("config"), |p| p.config_dir().to_path_buf())
+    ProjectDirs::from("", "", APP_DIR).map_or_else(
+        || default_data_dir().join("config"),
+        |p| p.config_dir().to_path_buf(),
+    )
 }
 
 /// Full path of the platform `watchdog.toml`.
@@ -137,8 +142,7 @@ pub fn check_writable(dir: &Path) -> Result<()> {
         .with_source(e)
     })?;
     let probe = dir.join(format!(".watchdog-write-probe-{}", std::process::id()));
-    let result = std::fs::write(&probe, b"watchdog")
-        .and_then(|()| std::fs::remove_file(&probe));
+    let result = std::fs::write(&probe, b"watchdog").and_then(|()| std::fs::remove_file(&probe));
     result.map_err(|e| {
         let _ = std::fs::remove_file(&probe);
         WatchdogError::new(

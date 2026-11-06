@@ -175,10 +175,20 @@ impl Config {
         }
 
         // --- layer 3: environment ---
-        merge(&mut values, FileValues::from_env()?, ConfigSource::Env, &mut set);
+        merge(
+            &mut values,
+            FileValues::from_env()?,
+            ConfigSource::Env,
+            &mut set,
+        );
 
         // --- layer 4: CLI ---
-        merge(&mut values, FileValues::from_overrides(overrides), ConfigSource::Cli, &mut set);
+        merge(
+            &mut values,
+            FileValues::from_overrides(overrides),
+            ConfigSource::Cli,
+            &mut set,
+        );
 
         // --- validate ---
         let cfg = values.into_config(sources, config_file)?;
@@ -188,13 +198,18 @@ impl Config {
     /// Port of the named service, for wiring and diagnostics.
     #[must_use]
     pub fn is_lan_exposed(&self) -> bool {
-        [self.ui_listen, self.mcp_listen, self.api_listen].iter().any(|a| !a.is_loopback())
+        [self.ui_listen, self.mcp_listen, self.api_listen]
+            .iter()
+            .any(|a| !a.is_loopback())
     }
 
     /// Where a key came from.
     #[must_use]
     pub fn source_of(&self, key: &str) -> ConfigSource {
-        self.sources.get(key).copied().unwrap_or(ConfigSource::Default)
+        self.sources
+            .get(key)
+            .copied()
+            .unwrap_or(ConfigSource::Default)
     }
 
     /// All (key, value, source) rows with secrets redacted, for `config show`.
@@ -209,11 +224,21 @@ impl Config {
             ("api_listen", self.api_listen.to_string()),
             (
                 "token",
-                if self.token.is_some() { "set (redacted)".to_string() } else { "not set".to_string() },
+                if self.token.is_some() {
+                    "set (redacted)".to_string()
+                } else {
+                    "not set".to_string()
+                },
             ),
             ("data_dir", self.data_dir.display().to_string()),
-            ("retention_max_age_days", self.retention_max_age_days.to_string()),
-            ("retention_max_size_mb", self.retention_max_size_mb.to_string()),
+            (
+                "retention_max_age_days",
+                self.retention_max_age_days.to_string(),
+            ),
+            (
+                "retention_max_size_mb",
+                self.retention_max_size_mb.to_string(),
+            ),
             (
                 "ffmpeg_path",
                 self.ffmpeg_path
@@ -356,17 +381,34 @@ impl FileValues {
                     ErrorCode::ConfigInvalid,
                     format!("{key} must be an IP address (e.g. 127.0.0.1 or 0.0.0.0), got {raw:?}"),
                 )
-                .with_hint("use 0.0.0.0 to expose on the LAN (requires a token, see docs/security.md)")
+                .with_hint(
+                    "use 0.0.0.0 to expose on the LAN (requires a token, see docs/security.md)",
+                )
             })
         };
-        let ui_listen = parse_listen("ui_listen", self.ui_listen.unwrap_or_else(|| DEFAULT_LISTEN.to_string()))?;
-        let mcp_listen = parse_listen("mcp_listen", self.mcp_listen.unwrap_or_else(|| DEFAULT_LISTEN.to_string()))?;
-        let api_listen = parse_listen("api_listen", self.api_listen.unwrap_or_else(|| DEFAULT_LISTEN.to_string()))?;
+        let ui_listen = parse_listen(
+            "ui_listen",
+            self.ui_listen.unwrap_or_else(|| DEFAULT_LISTEN.to_string()),
+        )?;
+        let mcp_listen = parse_listen(
+            "mcp_listen",
+            self.mcp_listen
+                .unwrap_or_else(|| DEFAULT_LISTEN.to_string()),
+        )?;
+        let api_listen = parse_listen(
+            "api_listen",
+            self.api_listen
+                .unwrap_or_else(|| DEFAULT_LISTEN.to_string()),
+        )?;
 
         let ui_port = self.ui_port.unwrap_or(DEFAULT_UI_PORT);
         let mcp_port = self.mcp_port.unwrap_or(DEFAULT_MCP_PORT);
         let api_port = self.api_port.unwrap_or(DEFAULT_API_PORT);
-        for (key, port) in [("ui_port", ui_port), ("mcp_port", mcp_port), ("api_port", api_port)] {
+        for (key, port) in [
+            ("ui_port", ui_port),
+            ("mcp_port", mcp_port),
+            ("api_port", api_port),
+        ] {
             if port == 0 {
                 return Err(WatchdogError::new(
                     ErrorCode::ConfigInvalid,
@@ -384,7 +426,10 @@ impl FileValues {
             ));
         }
 
-        let log_level = self.log_level.unwrap_or_else(|| "info".to_string()).to_lowercase();
+        let log_level = self
+            .log_level
+            .unwrap_or_else(|| "info".to_string())
+            .to_lowercase();
         const LEVELS: &[&str] = &["trace", "debug", "info", "warn", "error"];
         if !LEVELS.contains(&log_level.as_str()) {
             return Err(WatchdogError::new(
@@ -414,8 +459,12 @@ impl FileValues {
             api_listen,
             token: self.token.filter(|t| !t.trim().is_empty()),
             data_dir: self.data_dir.unwrap_or_else(paths::default_data_dir),
-            retention_max_age_days: self.retention_max_age_days.unwrap_or(DEFAULT_RETENTION_MAX_AGE_DAYS),
-            retention_max_size_mb: self.retention_max_size_mb.unwrap_or(DEFAULT_RETENTION_MAX_SIZE_MB),
+            retention_max_age_days: self
+                .retention_max_age_days
+                .unwrap_or(DEFAULT_RETENTION_MAX_AGE_DAYS),
+            retention_max_size_mb: self
+                .retention_max_size_mb
+                .unwrap_or(DEFAULT_RETENTION_MAX_SIZE_MB),
             ffmpeg_path,
             log_level,
             log_json: self.log_json.unwrap_or(false),
@@ -464,12 +513,19 @@ impl From<FileValuesFile> for FileValues {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::io::Write as _;
+    use std::sync::{Mutex, OnceLock};
 
     use super::*;
+
+    /// Env vars are process-global; serialize the env-mutating tests.
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn env_lock() -> &'static Mutex<()> {
+        ENV_LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     struct EnvGuard {
         saved: Vec<(String, Option<std::ffi::OsString>)>,
@@ -534,6 +590,7 @@ mod tests {
 
     #[test]
     fn precedence_defaults_file_env_cli() {
+        let _lock = env_lock().lock().unwrap();
         let mut guard = EnvGuard::new();
         clean_env(&mut guard);
         let dir = tempfile::tempdir().unwrap();
@@ -554,13 +611,18 @@ mod tests {
         assert_eq!(cfg.source_of("ui_port"), ConfigSource::Env);
 
         // CLI beats env.
-        let cfg = Config::load(&ConfigOverrides { ui_port: Some(7730), ..ConfigOverrides::default() }).unwrap();
+        let cfg = Config::load(&ConfigOverrides {
+            ui_port: Some(7730),
+            ..ConfigOverrides::default()
+        })
+        .unwrap();
         assert_eq!(cfg.ui_port, 7730);
         assert_eq!(cfg.source_of("ui_port"), ConfigSource::Cli);
     }
 
     #[test]
     fn missing_explicit_config_is_not_found() {
+        let _lock = env_lock().lock().unwrap();
         let mut guard = EnvGuard::new();
         clean_env(&mut guard);
         guard.set("WATCHDOG_CONFIG", "C:\\no\\such\\watchdog.toml");
@@ -570,6 +632,7 @@ mod tests {
 
     #[test]
     fn invalid_values_are_rejected() {
+        let _lock = env_lock().lock().unwrap();
         let mut guard = EnvGuard::new();
         clean_env(&mut guard);
         let dir = tempfile::tempdir().unwrap();
@@ -577,12 +640,18 @@ mod tests {
         // Bad TOML.
         let file = write_config(dir.path(), "ui_port = [1,2,3]\n");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
-        assert_eq!(Config::load(&ConfigOverrides::default()).unwrap_err().code, ErrorCode::ConfigInvalid);
+        assert_eq!(
+            Config::load(&ConfigOverrides::default()).unwrap_err().code,
+            ErrorCode::ConfigInvalid
+        );
 
         // Unknown key (deny_unknown_fields).
         let file = write_config(dir.path(), "ui_prot = 7710\n");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
-        assert_eq!(Config::load(&ConfigOverrides::default()).unwrap_err().code, ErrorCode::ConfigInvalid);
+        assert_eq!(
+            Config::load(&ConfigOverrides::default()).unwrap_err().code,
+            ErrorCode::ConfigInvalid
+        );
 
         // Distinct ports required.
         let file = write_config(dir.path(), "ui_port = 7700\nmcp_port = 7700\n");
@@ -594,32 +663,48 @@ mod tests {
         // Bad listen address.
         let file = write_config(dir.path(), "ui_listen = \"not-an-ip\"\n");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
-        assert_eq!(Config::load(&ConfigOverrides::default()).unwrap_err().code, ErrorCode::ConfigInvalid);
+        assert_eq!(
+            Config::load(&ConfigOverrides::default()).unwrap_err().code,
+            ErrorCode::ConfigInvalid
+        );
 
         // Bad log level.
         let file = write_config(dir.path(), "log_level = \"shouty\"\n");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
-        assert_eq!(Config::load(&ConfigOverrides::default()).unwrap_err().code, ErrorCode::ConfigInvalid);
+        assert_eq!(
+            Config::load(&ConfigOverrides::default()).unwrap_err().code,
+            ErrorCode::ConfigInvalid
+        );
 
         // Env with unparsable integer.
         let file = write_config(dir.path(), "");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
         guard.set("WATCHDOG_UI_PORT", "seventy-seven");
-        assert_eq!(Config::load(&ConfigOverrides::default()).unwrap_err().code, ErrorCode::ConfigInvalid);
+        assert_eq!(
+            Config::load(&ConfigOverrides::default()).unwrap_err().code,
+            ErrorCode::ConfigInvalid
+        );
     }
 
     #[test]
     fn lan_exposure_and_token_reporting() {
+        let _lock = env_lock().lock().unwrap();
         let mut guard = EnvGuard::new();
         clean_env(&mut guard);
         let dir = tempfile::tempdir().unwrap();
-        let file = write_config(dir.path(), "api_listen = \"0.0.0.0\"\ntoken = \"local-test-token-123\"\n");
+        let file = write_config(
+            dir.path(),
+            "api_listen = \"0.0.0.0\"\ntoken = \"local-test-token-123\"\n",
+        );
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
         let cfg = Config::load(&ConfigOverrides::default()).unwrap();
         assert!(cfg.is_lan_exposed());
         assert_eq!(cfg.token.as_deref(), Some("local-test-token-123"));
         let rendered = format!("{:?}", cfg.redacted_rows());
-        assert!(!rendered.contains("local-test-token-123"), "token leaked into redacted rows: {rendered}");
+        assert!(
+            !rendered.contains("local-test-token-123"),
+            "token leaked into redacted rows: {rendered}"
+        );
 
         let file = write_config(dir.path(), "");
         guard.set("WATCHDOG_CONFIG", file.to_str().unwrap());
@@ -629,6 +714,7 @@ mod tests {
 
     #[test]
     fn data_dir_env_moves_layout() {
+        let _lock = env_lock().lock().unwrap();
         let mut guard = EnvGuard::new();
         clean_env(&mut guard);
         guard.set("WATCHDOG_DATA_DIR", "D:\\\\watchdog-test-root");

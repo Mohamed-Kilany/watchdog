@@ -108,12 +108,22 @@ pub struct Packet {
 
 impl Packet {
     /// Build a packet (validates the size limit).
-    pub fn new(msg_type: MessageType, flags: u8, payload: impl Into<Bytes>) -> Result<Self, DecodeError> {
+    pub fn new(
+        msg_type: MessageType,
+        flags: u8,
+        payload: impl Into<Bytes>,
+    ) -> Result<Self, DecodeError> {
         let payload = payload.into();
         if payload.len() as u64 > u64::from(MAX_PAYLOAD_LEN) {
-            return Err(DecodeError::PayloadTooLarge(u32::try_from(payload.len()).unwrap_or(u32::MAX)));
+            return Err(DecodeError::PayloadTooLarge(
+                u32::try_from(payload.len()).unwrap_or(u32::MAX),
+            ));
         }
-        Ok(Self { msg_type, flags, payload })
+        Ok(Self {
+            msg_type,
+            flags,
+            payload,
+        })
     }
 
     /// Serialize to a complete frame (16-byte header + payload).
@@ -144,9 +154,16 @@ impl Packet {
         let payload = Bytes::copy_from_slice(&bytes[HEADER_LEN..payload_end]);
         let actual = crc32(&payload);
         if actual != header.crc32 {
-            return Err(DecodeError::CrcMismatch { expected: header.crc32, actual });
+            return Err(DecodeError::CrcMismatch {
+                expected: header.crc32,
+                actual,
+            });
         }
-        Ok(Self { msg_type: header.msg_type, flags: header.flags, payload })
+        Ok(Self {
+            msg_type: header.msg_type,
+            flags: header.flags,
+            payload,
+        })
     }
 }
 
@@ -189,5 +206,10 @@ pub(crate) fn parse_header(bytes: &[u8]) -> Result<Header, DecodeError> {
     }
     let crc = cur.get_u32_le();
     let msg_type = MessageType::from_u8(type_byte).ok_or(DecodeError::UnknownType(type_byte))?;
-    Ok(Header { msg_type, flags, payload_len, crc32: crc })
+    Ok(Header {
+        msg_type,
+        flags,
+        payload_len,
+        crc32: crc,
+    })
 }

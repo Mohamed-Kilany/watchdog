@@ -30,7 +30,9 @@ impl Decoder {
     /// New, empty decoder.
     #[must_use]
     pub fn new() -> Self {
-        Self { buf: BytesMut::new() }
+        Self {
+            buf: BytesMut::new(),
+        }
     }
 
     /// Bytes currently buffered (unparsed). Exposed for diagnostics/tests.
@@ -56,9 +58,16 @@ impl Decoder {
             let payload = frame.slice(HEADER_LEN..);
             let actual = crc32(payload.as_ref());
             if actual != header.crc32 {
-                return Err(DecodeError::CrcMismatch { expected: header.crc32, actual });
+                return Err(DecodeError::CrcMismatch {
+                    expected: header.crc32,
+                    actual,
+                });
             }
-            packets.push(Packet { msg_type: header.msg_type, flags: header.flags, payload });
+            packets.push(Packet {
+                msg_type: header.msg_type,
+                flags: header.flags,
+                payload,
+            });
         }
         if packets.is_empty() {
             Ok(FeedResult::NeedMore)

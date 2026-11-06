@@ -14,7 +14,7 @@ use watchdog_protocol::PROTOCOL_VERSION;
 
 mod cli;
 
-use cli::{analyze, capture, config, device, media, mcp, schedule, serve};
+use cli::{analyze, capture, config, device, mcp, media, schedule, serve};
 
 /// watchdog — turns an Android phone into a remotely controlled, observable camera.
 #[derive(Debug, Parser)]
@@ -169,7 +169,11 @@ fn print_error(err: &WatchdogError) {
 
 /// `watchdog doctor` — diagnostics and write-permission checks.
 fn doctor(overrides: &ConfigOverrides) -> watchdog_core::Result<()> {
-    println!("watchdog doctor — {} {}", std::env::consts::OS, std::env::consts::ARCH);
+    println!(
+        "watchdog doctor — {} {}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
     println!("host version     {}", env!("CARGO_PKG_VERSION"));
     println!("protocol version {PROTOCOL_VERSION}");
     println!();
@@ -178,14 +182,23 @@ fn doctor(overrides: &ConfigOverrides) -> watchdog_core::Result<()> {
     let cfg = match Config::load(overrides) {
         Ok(cfg) => cfg,
         Err(err) => {
-            println!("config           INVALID — error [{}]: {}", err.code, err.message);
+            println!(
+                "config           INVALID — error [{}]: {}",
+                err.code, err.message
+            );
             if let Some(hint) = &err.hint {
                 println!("                 hint: {hint}");
             }
             return Err(err);
         }
     };
-    println!("config file      {}", cfg.config_file.as_deref().map_or_else(|| "(none — using defaults)".to_string(), |p| p.display().to_string()));
+    println!(
+        "config file      {}",
+        cfg.config_file.as_deref().map_or_else(
+            || "(none — using defaults)".to_string(),
+            |p| p.display().to_string()
+        )
+    );
     println!("data dir         {}", cfg.data_dir.display());
     if cfg.is_lan_exposed() {
         println!("LAN exposure     WARNING: at least one port binds a non-loopback address");
@@ -230,7 +243,9 @@ fn doctor(overrides: &ConfigOverrides) -> watchdog_core::Result<()> {
     println!();
 
     println!("ffmpeg           {}", ffmpeg_status(&cfg));
-    println!("system adb       not used (watchdog ships its own native ADB; see docs/device-setup.md)");
+    println!(
+        "system adb       not used (watchdog ships its own native ADB; see docs/device-setup.md)"
+    );
 
     if failures > 0 {
         return Err(WatchdogError::new(
@@ -245,5 +260,6 @@ fn ffmpeg_status(cfg: &Config) -> String {
     if let Some(path) = &cfg.ffmpeg_path {
         return format!("debug override {}", path.display());
     }
-    "not embedded yet (bundles in M7; here only the debug-only ffmpeg_path override is honored)".to_string()
+    "not embedded yet (bundles in M7; here only the debug-only ffmpeg_path override is honored)"
+        .to_string()
 }

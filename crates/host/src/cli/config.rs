@@ -25,11 +25,20 @@ pub fn run(cmd: &ConfigCommand, overrides: &ConfigOverrides) -> watchdog_core::R
             let resolved = overrides
                 .config_file
                 .clone()
-                .or_else(|| std::env::var_os(watchdog_core::config::CONFIG_PATH_ENV).map(Into::into))
+                .or_else(|| {
+                    std::env::var_os(watchdog_core::config::CONFIG_PATH_ENV).map(Into::into)
+                })
                 .unwrap_or_else(paths::config_file_path);
             let exists = resolved.exists();
             println!("{}", resolved.display());
-            println!("exists: {}", if exists { "yes" } else { "no (defaults will be used)" });
+            println!(
+                "exists: {}",
+                if exists {
+                    "yes"
+                } else {
+                    "no (defaults will be used)"
+                }
+            );
             Ok(())
         }
         ConfigCommand::Show => {
@@ -58,7 +67,12 @@ pub fn run(cmd: &ConfigCommand, overrides: &ConfigOverrides) -> watchdog_core::R
             println!("data dir: {}", cfg.data_dir.display());
             println!(
                 "ports: ui={} mcp={} api={} (listen {} / {} / {})",
-                cfg.ui_port, cfg.mcp_port, cfg.api_port, cfg.ui_listen, cfg.mcp_listen, cfg.api_listen
+                cfg.ui_port,
+                cfg.mcp_port,
+                cfg.api_port,
+                cfg.ui_listen,
+                cfg.mcp_listen,
+                cfg.api_listen
             );
             Ok(())
         }

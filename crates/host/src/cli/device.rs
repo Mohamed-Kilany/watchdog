@@ -220,25 +220,38 @@ pub fn run(cmd: &DeviceCommand, _cfg: &Config) -> watchdog_core::Result<()> {
                 })?;
                 file.write_all(rules.as_bytes())?;
                 println!("wrote {}", path.display());
-                println!("reload with: sudo udevadm control --reload-rules && sudo udevadm trigger");
+                println!(
+                    "reload with: sudo udevadm control --reload-rules && sudo udevadm trigger"
+                );
             } else {
                 print!("{rules}");
             }
             Ok(())
         }
         other => Err(match other {
-            DeviceCommand::List(_) | DeviceCommand::Discover | DeviceCommand::Connect { .. }
-            | DeviceCommand::Pair { .. } | DeviceCommand::Disconnect { .. } | DeviceCommand::Info { .. }
-            | DeviceCommand::Shell { .. } | DeviceCommand::Push { .. } | DeviceCommand::Pull { .. }
-            | DeviceCommand::Install { .. } | DeviceCommand::Uninstall { .. }
-            | DeviceCommand::Forward { .. } | DeviceCommand::Logs { .. }
+            DeviceCommand::List(_)
+            | DeviceCommand::Discover
+            | DeviceCommand::Connect { .. }
+            | DeviceCommand::Pair { .. }
+            | DeviceCommand::Disconnect { .. }
+            | DeviceCommand::Info { .. }
+            | DeviceCommand::Shell { .. }
+            | DeviceCommand::Push { .. }
+            | DeviceCommand::Pull { .. }
+            | DeviceCommand::Install { .. }
+            | DeviceCommand::Uninstall { .. }
+            | DeviceCommand::Forward { .. }
+            | DeviceCommand::Logs { .. }
             | DeviceCommand::UsbDoctor => {
                 not_implemented("native ADB device management", "M2 (docs/PROGRESS.md)")
             }
-            DeviceCommand::Provision { .. } | DeviceCommand::Status { .. } | DeviceCommand::Restore { .. }
-            | DeviceCommand::Capabilities { .. } => {
-                not_implemented("zero-touch provisioning / capability dump", "M3–M4 (docs/PROGRESS.md)")
-            }
+            DeviceCommand::Provision { .. }
+            | DeviceCommand::Status { .. }
+            | DeviceCommand::Restore { .. }
+            | DeviceCommand::Capabilities { .. } => not_implemented(
+                "zero-touch provisioning / capability dump",
+                "M3–M4 (docs/PROGRESS.md)",
+            ),
             DeviceCommand::UdevRules { .. } => unreachable!(),
         }),
     }

@@ -42,5 +42,8 @@ pub enum AnalyzeCommand {
 /// Entry point.
 pub fn run(cmd: &AnalyzeCommand, _cfg: &Config) -> watchdog_core::Result<()> {
     let _ = cmd;
-    Err(not_implemented("analysis engine and reports", "M7 (docs/PROGRESS.md)"))
+    Err(not_implemented(
+        "analysis engine and reports",
+        "M7 (docs/PROGRESS.md)",
+    ))
 }
