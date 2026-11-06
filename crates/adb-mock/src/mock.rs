@@ -1,7 +1,5 @@
 //! Scripted fake device: queued byte stream for reads, recording for writes.
 
-use std::collections::VecDeque;
-
 use async_trait::async_trait;
 
 use watchdog_adb::transport::Transport;
@@ -16,19 +14,31 @@ pub enum ScriptStep {
     CloseAfter(Vec<u8>),
 }
 
+/// Cloneable inspection handle for [`MockTransport`] writes.
+#[derive(Debug, Clone)]
+pub struct MockTap {
+    written: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+}
+
+impl MockTap {
+    /// Snapshot of all bytes written so far.
+    #[must_use]
+    pub fn written(&self) -> Vec<u8> {
+        self.written.lock().expect("tap lock").clone()
+    }
+}
+
 /// In-memory scripted transport implementing [`Transport`].
 ///
-/// Reads serve from the concatenated [`ScriptStep::Serve`] payloads; when the
-/// script is exhausted, reads fail with `StreamClosed` — tests must script
-/// every expected byte. Writes are recorded for later assertions.
+/// Reads serve from the concatenated script; when it is exhausted, reads fail
+/// with `StreamClosed`. Writes are recorded and inspectable via [`MockTap`].
 #[derive(Debug)]
 pub struct MockTransport {
     name: String,
     incoming: Vec<u8>,
     read_pos: usize,
     close_after_reads: bool,
-    /// Everything written so far.
-    pub written: Vec<u8>,
+    written: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
 }
 
 impl Default for MockTransport {
@@ -46,7 +56,15 @@ impl MockTransport {
             incoming: Vec::new(),
             read_pos: 0,
             close_after_reads: true,
-            written: Vec::new(),
+            written: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Clone a tap that observes everything written.
+    #[must_use]
+    pub fn tap(&self) -> MockTap {
+        MockTap {
+            written: std::sync::Arc::clone(&self.written),
         }
     }
 
@@ -57,7 +75,7 @@ impl MockTransport {
         self
     }
 
-    /// Append a raw packet to the readable script.
+    /// Append a packet to the readable script.
     #[must_use]
     pub fn script_packet(mut self, packet: &watchdog_adb::packet::Packet) -> Self {
         self.incoming.extend_from_slice(&packet.encode());
@@ -93,47 +111,12 @@ impl Transport for MockTransport {
     }
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        self.written.extend_from_slice(buf);
+        self.written.lock().expect("tap lock").extend_from_slice(buf);
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
         self.read_pos = self.incoming.len();
         Ok(())
-    }
-}
-
-/// A fake device with a name and scripted transport (extensible harness).
-#[derive(Debug)]
-pub struct MockDevice {
-    /// Device banner, e.g. `device::1a2b3c4d:test device`.
-    pub banner: String,
-    /// Scripted transport returned by [`MockDevice::open`].
-    pub transport: MockTransport,
-    /// Recorded peer-info packets once protocol-level helpers land (M2-T14).
-    pub seen_packets: VecDeque<String>,
-}
-
-impl Default for MockDevice {
-    fn default() -> Self {
-        Self::new("device::mock:001122334455:mock device")
-    }
-}
-
-impl MockDevice {
-    /// New device with the given CNXN banner.
-    #[must_use]
-    pub fn new(banner: &str) -> Self {
-        Self {
-            banner: banner.to_string(),
-            transport: MockTransport::new("adb"),
-            seen_packets: VecDeque::new(),
-        }
-    }
-
-    /// Consume the scripted transport.
-    #[must_use]
-    pub fn open(self) -> MockTransport {
-        self.transport
     }
 }

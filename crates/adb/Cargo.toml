@@ -24,6 +24,7 @@ rand = "0.8"
 
 [dev-dependencies]
 watchdog-adb-mock = { path = "../adb-mock" }
+tempfile = "3.19"
 
 [lints]
 workspace = true

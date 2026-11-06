@@ -13,4 +13,4 @@
 
 mod mock;
 
-pub use mock::{MockDevice, MockTransport, ScriptStep};
+pub use mock::{MockDevice, MockTap, MockTransport, ScriptStep};

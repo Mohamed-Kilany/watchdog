@@ -12,12 +12,14 @@
 #![warn(missing_docs)]
 
 pub mod auth;
+pub mod connection;
 pub mod error;
 pub mod lifecycle;
 pub mod packet;
 pub mod transport;
 
 pub use auth::AdbKeyPair;
+pub use connection::{Connection, SessionInfo, Stream, OPEN_TIMEOUT};
 pub use error::{AdbError, Result};
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
 pub use transport::Transport;
