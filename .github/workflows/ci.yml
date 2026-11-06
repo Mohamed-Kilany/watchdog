@@ -65,10 +65,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: rustup (pinned toolchain)
+        run: rustup show
+      - uses: taiki-e/install-action@v2
         with:
-          command: check
-          arguments: --all-features
+          tool: cargo-deny
+      - run: cargo deny check
 
   docs-link-check:
     name: docs link check
