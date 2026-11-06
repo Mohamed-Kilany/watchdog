@@ -1,0 +1,19 @@
+﻿[package]
+name = "watchdog-protocol"
+description = "Host<->app wire protocol: framing, message types, schemas and codec."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+crc32fast.workspace = true
+
+[lints]
+workspace = true

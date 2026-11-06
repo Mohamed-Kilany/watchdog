@@ -1,0 +1,5 @@
+# clippy configuration (supplements [workspace.lints] in Cargo.toml)
+cognitive-complexity-threshold = 30
+mtoo-many-arguments-threshold = 8
+type-complexity-threshold = 350
+ptr-arg-max-size = 256

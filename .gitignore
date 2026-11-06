@@ -1,0 +1,27 @@
+# Rust
+/target
+Cargo.lock.bak
+
+# Node / web UI
+node_modules/
+ui/dist/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.keystore
+!android/debug.keystore
+
+# Fixtures generated in CI (committed small ones live in tests/fixtures)
+/tests/fixtures/generated/
+
+# Local tooling
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
