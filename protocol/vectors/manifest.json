@@ -1,0 +1,114 @@
+{
+  "invalid": [
+    {
+      "expect": "BadMagic",
+      "file": "invalid/bad-magic.bin"
+    },
+    {
+      "expect": "NeedMore",
+      "file": "invalid/truncated-header.bin"
+    },
+    {
+      "expect": "NeedMore",
+      "file": "invalid/truncated-payload.bin"
+    },
+    {
+      "expect": "CrcMismatch",
+      "file": "invalid/crc-mismatch.bin"
+    },
+    {
+      "expect": "PayloadTooLarge",
+      "file": "invalid/oversized-length.bin"
+    },
+    {
+      "expect": "UnsupportedVersion",
+      "file": "invalid/unsupported-version.bin"
+    },
+    {
+      "expect": "ReservedNonZero",
+      "file": "invalid/reserved-nonzero.bin"
+    },
+    {
+      "expect": "UnknownType",
+      "file": "invalid/unknown-type.bin"
+    },
+    {
+      "expect": "MessageDecode",
+      "file": "invalid/frame-bad-rotation.bin"
+    }
+  ],
+  "note": "Golden vectors for the watchdog wire protocol. See docs/protocol.md §7. Regenerate with `cargo run -p watchdog-protocol --example generate-vectors`.",
+  "vectors": [
+    {
+      "file": "0001-host-hello.bin",
+      "summary": "Host handshake request with min/max protocol",
+      "type": "HOST_HELLO"
+    },
+    {
+      "file": "0002-hello-ack.bin",
+      "summary": "Handshake reply: app/device identity, cameras, capabilities",
+      "type": "HELLO_ACK"
+    },
+    {
+      "file": "0003-frame.bin",
+      "summary": "Viewfinder JPEG frame with sequence and sensor timestamp",
+      "type": "FRAME"
+    },
+    {
+      "file": "0004-state-full.bin",
+      "summary": "Full control state snapshot",
+      "type": "STATE"
+    },
+    {
+      "file": "0005-state-delta.bin",
+      "summary": "Delta state (header flag 0x01), ISO only",
+      "type": "STATE"
+    },
+    {
+      "file": "0006-command-set-controls.bin",
+      "summary": "set_controls batch with one control",
+      "type": "COMMAND"
+    },
+    {
+      "file": "0007-command-result.bin",
+      "summary": "Per-control acknowledgement with applied value",
+      "type": "COMMAND_RESULT"
+    },
+    {
+      "file": "0008-event-camera-disconnected.bin",
+      "summary": "Camera was disconnected (USB unplugged / taken by another app)",
+      "type": "EVENT"
+    },
+    {
+      "file": "0009-media-manifest.bin",
+      "summary": "Recorded video ready to pull; hash + size for verification",
+      "type": "MEDIA_MANIFEST"
+    },
+    {
+      "file": "0010-log-chunk.bin",
+      "summary": "Device log ring-buffer chunk (INFO level, UTF-8)",
+      "type": "LOG_CHUNK"
+    },
+    {
+      "file": "0011-error-version-mismatch.bin",
+      "summary": "Fatal handshake error: no common protocol version",
+      "type": "ERROR"
+    },
+    {
+      "file": "0012-ping.bin",
+      "summary": "Liveness/latency probe from host",
+      "type": "PING"
+    },
+    {
+      "file": "0013-pong.bin",
+      "summary": "Liveness/latency reply with app boottime",
+      "type": "PONG"
+    },
+    {
+      "file": "0014-bye.bin",
+      "summary": "Orderly session close (host shutdown)",
+      "type": "BYE"
+    }
+  ],
+  "version": 1
+}
