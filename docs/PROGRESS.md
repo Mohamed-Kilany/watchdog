@@ -13,17 +13,19 @@ Environment note: no physical device was required for M1 tasks. Devices are avai
 
 ## M1. Foundations
 
-- [ ] M1-T01 Workspace
-- [ ] M1-T02 Config system
-- [ ] M1-T03 Data directory layout
-- [ ] M1-T04 Logging
-- [ ] M1-T05 Error model
-- [ ] M1-T06 Protocol crate + spec
-- [ ] M1-T07 CLI skeleton
-- [ ] M1-T08 CI skeleton
-- [ ] M1-T09 Docs skeleton + link checker
-- [ ] M1-T10 Fixture generator
-- [ ] M1-T11 Verification template
+CI for the M1 branch is green on ubuntu/windows/macos (clippy `-D warnings`, cargo test, fmt, cargo-deny, docs link check, fixture verification) — run [42263437349](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42263437349).
+
+- [x] M1-T01 Workspace
+- [x] M1-T02 Config system
+- [x] M1-T03 Data directory layout
+- [x] M1-T04 Logging
+- [x] M1-T05 Error model
+- [x] M1-T06 Protocol crate + spec
+- [x] M1-T07 CLI skeleton
+- [x] M1-T08 CI skeleton
+- [x] M1-T09 Docs skeleton + link checker
+- [x] M1-T10 Fixture generator
+- [x] M1-T11 Verification template
 
 ## M2. Native ADB (crate `adb`)
 
