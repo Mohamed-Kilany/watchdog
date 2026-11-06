@@ -1,0 +1,18 @@
+﻿[package]
+name = "watchdog-ui-server"
+description = "Serves the embedded web UI and its UI API/WebSocket."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+watchdog-core.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

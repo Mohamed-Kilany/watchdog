@@ -1,0 +1,8 @@
+# Stable options only (CI runs stable rustfmt).
+edition = "2021"
+newline_style = "Unix"
+max_width = 100
+reorder_imports = true
+reorder_modules = true
+use_field_init_shorthand = true
+use_try_shorthand = true

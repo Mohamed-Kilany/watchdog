@@ -1,0 +1,67 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/protocol",
+    "crates/adb",
+    "crates/device",
+    "crates/media",
+    "crates/analyzers",
+    "crates/scheduler",
+    "crates/api",
+    "crates/mcp",
+    "crates/ui-server",
+    "crates/host",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Mohamed-Kilany/watchdog"
+homepage = "https://github.com/Mohamed-Kilany/watchdog"
+authors = ["watchdog contributors"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+watchdog-core = { path = "crates/core", version = "0.1.0" }
+watchdog-protocol = { path = "crates/protocol", version = "0.1.0" }
+watchdog-adb = { path = "crates/adb", version = "0.1.0" }
+watchdog-device = { path = "crates/device", version = "0.1.0" }
+watchdog-media = { path = "crates/media", version = "0.1.0" }
+watchdog-analyzers = { path = "crates/analyzers", version = "0.1.0" }
+watchdog-scheduler = { path = "crates/scheduler", version = "0.1.0" }
+watchdog-api = { path = "crates/api", version = "0.1.0" }
+watchdog-mcp = { path = "crates/mcp", version = "0.1.0" }
+watchdog-ui-server = { path = "crates/ui-server", version = "0.1.0" }
+
+bytes = "1.10"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4.5", features = ["derive", "wrap_help"] }
+crc32fast = "1.4"
+directories = "6.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.44", features = ["full"] }
+toml = "0.9"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+# Pragmatic gate: clippy::all denies in CI. Pedantic is deferred to a
+# hardening pass (see docs/adr/0004) and enforced per-crate then.
+all = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+wildcard_imports = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"

@@ -1,0 +1,19 @@
+﻿[package]
+name = "watchdog-analyzers"
+description = "Pluggable analyzer engine: native image analyzers, ffmpeg wrapper, OTT rollup."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+watchdog-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

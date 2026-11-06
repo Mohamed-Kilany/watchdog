@@ -1,0 +1,5 @@
+# clippy configuration (supplements [workspace.lints] in Cargo.toml)
+# Keys must match clippy's documented config options exactly.
+cognitive-complexity-threshold = 30
+too-many-arguments-threshold = 8
+type-complexity-threshold = 350
