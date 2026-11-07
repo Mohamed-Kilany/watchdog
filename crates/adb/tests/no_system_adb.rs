@@ -5,7 +5,6 @@
 //! and runs without a system adb binary and without touching port 5037.
 
 use std::net::TcpListener;
-use std::process::Command;
 
 /// Test that does **not** invoke or require a system adb binary.
 #[test]

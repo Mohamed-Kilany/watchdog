@@ -351,19 +351,6 @@ pub mod gcm {
     }
 }
 
-/// Deterministic test-only constructor: fixed ephemeral so vectors are reproducible.
-#[cfg(test)]
-pub(crate) fn spake2_with_private(
-    role: SpakeRole,
-    my_name: &[u8],
-    their_name: &[u8],
-    private_bytes: [u8; 64],
-) -> Spake2 {
-    let mut session = Spake2::new(role, my_name, their_name);
-    session.my_private = Scalar::from_bytes_mod_order_wide(&private_bytes);
-    session
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
