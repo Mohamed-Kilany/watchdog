@@ -57,6 +57,64 @@ impl Stream {
         self.remote_id
     }
 
+    /// Split into the inbound receiver and the write half (consumes the stream).
+    ///
+    /// Used by port forwarding to run the two copy directions as separate tasks.
+    pub fn into_parts(self) -> (mpsc::Receiver<Bytes>, StreamWriter) {
+        let Self {
+            local_id,
+            remote_id: _,
+            inbound,
+            write_permit,
+            outbound,
+        } = self;
+        (
+            inbound,
+            StreamWriter {
+                local_id,
+                write_permit,
+                outbound,
+            },
+        )
+    }
+
+    /// Send a payload; waits for the per-stream write window (1 in flight).
+    pub async fn write(&self, payload: Bytes) -> Result<()> {
+        let permit = Arc::clone(&self.write_permit);
+        permit
+            .acquire_owned()
+            .await
+            .map_err(|_| AdbError::StreamClosed)?;
+        self.outbound
+            .send(Outbound::Write {
+                local_id: self.local_id,
+                payload,
+            })
+            .await
+            .map_err(|_| AdbError::StreamClosed)
+    }
+
+    /// Close our side of the stream (sends CLSE).
+    pub async fn close(self) -> Result<()> {
+        let _ = self
+            .outbound
+            .send(Outbound::Close {
+                local_id: self.local_id,
+            })
+            .await;
+        Ok(())
+    }
+}
+
+/// Write half of a stream (see [`Stream::into_parts`]).
+#[derive(Debug)]
+pub struct StreamWriter {
+    local_id: u32,
+    write_permit: Arc<Semaphore>,
+    outbound: mpsc::Sender<Outbound>,
+}
+
+impl StreamWriter {
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
         let permit = Arc::clone(&self.write_permit);

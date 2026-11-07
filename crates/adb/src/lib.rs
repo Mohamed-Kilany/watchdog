@@ -14,6 +14,8 @@
 pub mod auth;
 pub mod connection;
 pub mod error;
+pub mod forward;
+pub mod install;
 pub mod lifecycle;
 pub mod packet;
 pub mod shell;
@@ -21,7 +23,9 @@ pub mod sync;
 pub mod transport;
 
 pub use auth::AdbKeyPair;
-pub use connection::{Connection, SessionInfo, Stream, OPEN_TIMEOUT};
+pub use connection::{Connection, SessionInfo, Stream, StreamWriter, OPEN_TIMEOUT};
 pub use error::{AdbError, Result};
+pub use forward::{start_forward, ForwardHandle};
+pub use install::{install_apk, install_failure_hint, InstallOptions, InstallOutcome};
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
 pub use transport::Transport;
