@@ -106,9 +106,11 @@ impl Spake2 {
         let p = EdwardsPoint::mul_base(&self.my_private);
         // mask = w * M (client) or w * N (server)
         let mask_point = if self.role == SpakeRole::Client {
-            EdwardsPoint::mul(&decompress(&SPAKE_M)?, &self.password_scalar)
+            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
+                * decompress(&SPAKE_M)?
         } else {
-            EdwardsPoint::mul(&decompress(&SPAKE_N)?, &self.password_scalar)
+            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
+                * decompress(&SPAKE_N)?
         };
         // P* = P + mask
         let p_star = p + mask_point;
@@ -134,14 +136,16 @@ impl Spake2 {
 
         // Q = Q* - mask (peer's mask uses the other point).
         let peers_mask = if self.role == SpakeRole::Client {
-            EdwardsPoint::mul(&decompress(&SPAKE_N)?, &self.password_scalar)
+            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
+                * decompress(&SPAKE_N)?
         } else {
-            EdwardsPoint::mul(&decompress(&SPAKE_M)?, &self.password_scalar)
+            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
+                * decompress(&SPAKE_M)?
         };
         let q = q_star - peers_mask;
 
         // dh = private * Q
-        let dh = EdwardsPoint::mul(&q, &self.my_private);
+        let dh = Scalar::from_bytes_mod_order_wide(&self.my_private.to_bytes()) * q;
         let dh_encoded = dh.compress().to_bytes();
 
         // Transcript: SHA-512 over 8-byte-LE-length-prefixed fields.

@@ -12,7 +12,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
-use rustls::{ClientConfig, DigitallySignedStruct, Error as TlsError, SignatureScheme, UnixTime};
+use rustls::{ClientConfig, DigitallySignedStruct, Error as TlsError, SignatureScheme};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::client::TlsConnector;
 use tokio_rustls::client::TlsStream;
 
@@ -48,22 +49,23 @@ impl Transport for StlsTransport {
     }
 
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        use tokio::io::AsyncReadExt;
         self.tls
             .read_exact(buf)
             .await
+            .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("stls read: {e}")))
     }
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        use tokio::io::AsyncWriteExt;
         self.tls
             .write_all(buf)
             .await
+            .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("stls write: {e}")))
     }
 
     async fn close(&mut self) -> Result<()> {
+        use tokio::io::AsyncWriteExt as _;
         let _ = self.tls.shutdown().await;
         Ok(())
     }
@@ -78,6 +80,7 @@ impl std::fmt::Debug for StlsTransport {
 }
 
 /// Server-certificate verifier that accepts any chain (AOSP behavior for adbd).
+#[derive(Debug)]
 pub struct AllowAnyVerifier;
 
 impl rustls::client::danger::ServerCertVerifier for AllowAnyVerifier {
@@ -87,7 +90,7 @@ impl rustls::client::danger::ServerCertVerifier for AllowAnyVerifier {
         _intermediates: &[CertificateDer],
         _server_name: &ServerName,
         _ocsp_response: &[u8],
-        _now: UnixTime,
+        _now: rustls::pki_types::UnixTime,
     ) -> std::result::Result<ServerCertVerified, TlsError> {
         Ok(ServerCertVerified::assertion())
     }
@@ -111,7 +114,11 @@ impl rustls::client::danger::ServerCertVerifier for AllowAnyVerifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        SignatureScheme::supported_from_tls13_and_tls12()
+        SignatureScheme::RSA_PKCS1_SHA256
+            .to_tls13_vec()
+            .into_iter()
+            .chain([SignatureScheme::ECDSA_P256_SHA256, SignatureScheme::ED25519])
+            .collect()
     }
 }
 
@@ -163,7 +170,8 @@ pub async fn upgrade_stls(
 
 fn build_client_config(cert_der: &[u8], key_der: &[u8]) -> Result<ClientConfig> {
     let cert_chain = vec![CertificateDer::from(cert_der.to_vec())];
-    let key = PrivateKeyDer::from(key_der.to_vec());
+    let key = PrivateKeyDer::try_from(key_der)
+        .map_err(|e| AdbError::Protocol(format!("STLS: invalid private key DER: {e}")))?;
     let mut config = ClientConfig::builder()
         .with_root_certificates(rustls::RootCertStore::empty())
         .with_client_auth_cert(cert_chain, key)
