@@ -52,9 +52,9 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
         if remaining.is_zero() {
             break;
         }
-        let event = tokio::time::timeout(remaining, receiver.recv_async()).await;
-        let event = match event {
-            Ok(ev) => ev,
+        let result = tokio::time::timeout(remaining, receiver.recv_async()).await;
+        let event = match result {
+            Ok(event) => event,
             Err(_) => break,
         };
         match event {
