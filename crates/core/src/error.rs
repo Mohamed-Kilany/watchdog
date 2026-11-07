@@ -200,6 +200,12 @@ impl From<std::io::Error> for WatchdogError {
     }
 }
 
+impl From<serde_json::Error> for WatchdogError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::new(ErrorCode::IoError, format!("JSON error: {err}")).with_source(err)
+    }
+}
+
 /// Serialized error body returned by the API and MCP layers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorBody {

@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/protocol",
     "crates/adb",
+    "crates/adb-mock",
     "crates/device",
     "crates/media",
     "crates/analyzers",

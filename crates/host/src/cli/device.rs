@@ -1,10 +1,9 @@
 //! `watchdog device` — device management (native ADB, no system adb).
-//!
-//! `udev-rules` is implemented now because it is pure text; the rest land
-//! with M2 (native ADB) and M3 (provisioning).
 
 use std::io::Write as _;
+use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Args, Subcommand};
 
@@ -198,7 +197,7 @@ fn render_udev_rules() -> String {
 }
 
 /// Entry point.
-pub fn run(cmd: &DeviceCommand, _cfg: &Config) -> watchdog_core::Result<()> {
+pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
     match cmd {
         DeviceCommand::UdevRules { write } => {
             let rules = render_udev_rules();
@@ -228,31 +227,340 @@ pub fn run(cmd: &DeviceCommand, _cfg: &Config) -> watchdog_core::Result<()> {
             }
             Ok(())
         }
+        DeviceCommand::List(args) => cli_list(args, cfg),
+        DeviceCommand::Discover => cli_discover(cfg),
+        DeviceCommand::Connect { target } => cli_connect(target, cfg),
+        DeviceCommand::Pair { target, code } => cli_pair(target, code, cfg),
+        DeviceCommand::Shell { serial, command } => cli_shell(serial.as_deref(), command, cfg),
+        DeviceCommand::Push {
+            local,
+            remote,
+            serial,
+        } => cli_push(serial.as_deref(), local, remote, cfg),
+        DeviceCommand::Pull {
+            remote,
+            local,
+            serial,
+        } => cli_pull(serial.as_deref(), remote, local, cfg),
+        DeviceCommand::Install { serial, apk } => {
+            cli_install(serial.as_deref(), apk.as_deref(), cfg)
+        }
+        DeviceCommand::Uninstall { package, serial } => {
+            cli_uninstall(serial.as_deref(), package.as_deref(), cfg)
+        }
+        DeviceCommand::Forward {
+            local_port,
+            remote,
+            serial,
+        } => cli_forward(serial.as_deref(), *local_port, remote, cfg),
+        DeviceCommand::UsbDoctor => cli_usb_doctor(),
         other => Err(match other {
-            DeviceCommand::List(_)
+            DeviceCommand::Provision { .. }
+            | DeviceCommand::Status { .. }
+            | DeviceCommand::Restore { .. }
+            | DeviceCommand::Capabilities { .. } => not_implemented(
+                "zero-touch provisioning / capability dump",
+                "M3-M4 (docs/PROGRESS.md)",
+            ),
+            DeviceCommand::Disconnect { .. }
+            | DeviceCommand::Info { .. }
+            | DeviceCommand::Logs { .. } => not_implemented(
+                "device session management in this CLI process",
+                "M2-T13 (docs/PROGRESS.md)",
+            ),
+            DeviceCommand::UdevRules { .. }
+            | DeviceCommand::List(_)
             | DeviceCommand::Discover
             | DeviceCommand::Connect { .. }
             | DeviceCommand::Pair { .. }
-            | DeviceCommand::Disconnect { .. }
-            | DeviceCommand::Info { .. }
             | DeviceCommand::Shell { .. }
             | DeviceCommand::Push { .. }
             | DeviceCommand::Pull { .. }
             | DeviceCommand::Install { .. }
             | DeviceCommand::Uninstall { .. }
             | DeviceCommand::Forward { .. }
-            | DeviceCommand::Logs { .. }
-            | DeviceCommand::UsbDoctor => {
-                not_implemented("native ADB device management", "M2 (docs/PROGRESS.md)")
-            }
-            DeviceCommand::Provision { .. }
-            | DeviceCommand::Status { .. }
-            | DeviceCommand::Restore { .. }
-            | DeviceCommand::Capabilities { .. } => not_implemented(
-                "zero-touch provisioning / capability dump",
-                "M3–M4 (docs/PROGRESS.md)",
-            ),
-            DeviceCommand::UdevRules { .. } => unreachable!(),
+            | DeviceCommand::UsbDoctor => unreachable!("handled above"),
         }),
     }
+}
+
+fn adbs_key(cfg: &Config) -> Result<watchdog_adb::AdbKeyPair, watchdog_core::WatchdogError> {
+    let paths = watchdog_core::paths::DataPaths::resolve(&cfg.data_dir);
+    watchdog_adb::AdbKeyPair::load_or_create(&paths.keys).map_err(Into::into)
+}
+
+fn cli_list(args: &ListArgs, cfg: &Config) -> watchdog_core::Result<()> {
+    let devices = watchdog_adb::list_usb();
+    let mdns = if args.discover {
+        futures_discover()
+    } else {
+        vec![]
+    };
+    if args.json {
+        let usb: Vec<_> = devices
+            .iter()
+            .map(|d| serde_json::json!({"id": d.id(), "vendor": d.vendor_id, "product": d.product_id, "product_str": d.product}))
+            .collect();
+        let mdns_json: Vec<_> = mdns
+            .iter()
+            .map(|d| serde_json::json!({"guid": d.guid, "host": d.host, "connect": d.connect.map(|a| a.to_string()), "pairing": d.pairing.map(|a| a.to_string())}))
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &serde_json::json!({"usb": usb, "discovered": mdns_json})
+            )?
+        );
+        return Ok(());
+    }
+    if devices.is_empty() && mdns.is_empty() {
+        println!("No devices found.");
+        println!("  usb: nothing (plug in a phone with USB debugging enabled; run `watchdog device usb-doctor`)");
+        if !args.discover {
+            println!(
+                "  lan: run `watchdog device list --discover` for wireless-debugging endpoints"
+            );
+        }
+    }
+    for device in &devices {
+        println!(
+            "{}  {:04x}:{:04x}  {}",
+            device.id(),
+            device.vendor_id,
+            device.product_id,
+            device.product
+        );
+    }
+    for discovered in &mdns {
+        println!(
+            "{}  connect={:?} pairing={:?}  {}",
+            discovered.guid, discovered.connect, discovered.pairing, discovered.name
+        );
+    }
+    let _ = cfg;
+    Ok(())
+}
+
+fn futures_discover() -> Vec<watchdog_adb::DiscoveredDevice> {
+    // Runtime built on demand for this one-shot command.
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .ok()
+        .and_then(|rt| rt.block_on(watchdog_adb::discover_default()).ok())
+        .unwrap_or_default()
+}
+
+fn cli_discover(cfg: &Config) -> watchdog_core::Result<()> {
+    let found = futures_discover();
+    if found.is_empty() {
+        println!("No wireless-debugging endpoints found (mDNS timeout).");
+    } else {
+        for device in found {
+            println!(
+                "{}  connect={:?} pairing={:?}",
+                device.guid, device.connect, device.pairing
+            );
+        }
+    }
+    let _ = cfg;
+    Ok(())
+}
+
+fn cli_connect(target: &str, cfg: &Config) -> watchdog_core::Result<()> {
+    let keys = adbs_key(cfg)?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let info = rt.block_on(async {
+        if is_tcp_target(target) {
+            let (host, port) = split_host_port(target)?;
+            let handle =
+                watchdog_adb::manager::connect_tcp(&keys, &host, port, "host::watchdog").await?;
+            Ok::<_, watchdog_core::WatchdogError>(handle.connection.info.banner.clone())
+        } else {
+            let handle = watchdog_adb::manager::connect_usb(&keys, "host::watchdog").await?;
+            Ok::<_, watchdog_core::WatchdogError>(handle.connection.info.banner.clone())
+        }
+    })?;
+    println!("connected: {info}");
+    Ok(())
+}
+
+fn is_tcp_target(target: &str) -> bool {
+    target.contains(':') && target.chars().any(|c| c == '.' || c == ':')
+}
+
+fn split_host_port(target: &str) -> watchdog_core::Result<(String, u16)> {
+    let (host, port_str) = target.rsplit_once(':').unwrap_or((target, "5555"));
+    let port: u16 = port_str.parse().map_err(|_| {
+        watchdog_core::WatchdogError::new(
+            watchdog_core::ErrorCode::InvalidRequest,
+            format!("invalid port in target {target:?} (expected host[:port])"),
+        )
+    })?;
+    Ok((host.to_string(), port))
+}
+
+fn cli_pair(target: &str, code: &str, cfg: &Config) -> watchdog_core::Result<()> {
+    let _ = (target, code, cfg);
+    Err(not_implemented(
+        "wireless-debugging pairing (TLS+SPAKE2) end-to-end (device-verified)",
+        "M2-T07 (device proof pending; see docs/PROGRESS.md)",
+    ))
+}
+
+fn with_usb_connection<T, F, Fut>(
+    cfg: &Config,
+    serial: Option<&str>,
+    f: F,
+) -> watchdog_core::Result<T>
+where
+    F: FnOnce(Arc<watchdog_adb::Connection<watchdog_adb::UsbTransport>>) -> Fut,
+    Fut: std::future::Future<Output = Result<T, watchdog_adb::AdbError>>,
+{
+    let keys = adbs_key(cfg)?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let out = rt.block_on(async {
+        let transport = if let Some(serial) = serial {
+            watchdog_adb::UsbTransport::open_by_serial(serial)?
+        } else {
+            watchdog_adb::UsbTransport::open()?
+        };
+        let connection =
+            Arc::new(watchdog_adb::Connection::connect(transport, "host::watchdog", &keys).await?);
+        f(Arc::clone(&connection)).await
+    });
+    out.map_err(Into::into)
+}
+
+fn cli_shell(serial: Option<&str>, command: &[String], cfg: &Config) -> watchdog_core::Result<()> {
+    if command.is_empty() {
+        return Err(watchdog_core::WatchdogError::new(
+            watchdog_core::ErrorCode::InvalidRequest,
+            "no command given (usage: watchdog device shell [--serial S] -- cmd…)",
+        ));
+    }
+    let cmd = command.join(" ");
+    let output = with_usb_connection(cfg, serial, |conn| async move {
+        watchdog_adb::shell::run_shell(&conn, &cmd, None).await
+    })?;
+    print!("{}", output.stdout_string());
+    let stderr = output.stderr_string();
+    if !stderr.is_empty() {
+        eprint!("{stderr}");
+    }
+    std::process::exit(output.exit_code.unwrap_or(0));
+}
+
+fn cli_push(
+    serial: Option<&str>,
+    local: &Path,
+    remote: &str,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let written = with_usb_connection(cfg, serial, |conn| async move {
+        watchdog_adb::sync::push(&conn, local, remote, 0o100644, current_mtime(), None).await
+    })?;
+    println!("pushed {written} bytes to {remote}");
+    Ok(())
+}
+
+fn current_mtime() -> u32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as u32)
+        .unwrap_or(0)
+}
+
+fn cli_pull(
+    serial: Option<&str>,
+    remote: &str,
+    local: &Path,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let result = with_usb_connection(cfg, serial, |conn| async move {
+        watchdog_adb::sync::pull(&conn, remote, local, None).await
+    })?;
+    println!(
+        "pulled {} bytes from {remote} (sha256 {})",
+        result.bytes, result.sha256
+    );
+    Ok(())
+}
+
+fn cli_install(
+    serial: Option<&str>,
+    apk: Option<&Path>,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let Some(apk) = apk else {
+        return Err(not_implemented(
+            "embedded APK install (no embedded APK in development builds)",
+            "M3-T12 (docs/PROGRESS.md)",
+        ));
+    };
+    let options = watchdog_adb::InstallOptions::default();
+    let outcome = with_usb_connection(cfg, serial, |conn| async move {
+        watchdog_adb::install_apk(&conn, apk, &options, None).await
+    })?;
+    println!("{}", outcome.output);
+    if !outcome.success {
+        if let (Some(code), Some(hint)) = (&outcome.failure_code, &outcome.failure_hint) {
+            return Err(watchdog_core::WatchdogError::new(
+                watchdog_core::ErrorCode::InstallFailed,
+                format!("install failed ({code})"),
+            )
+            .with_hint(hint.clone()));
+        }
+        return Err(watchdog_core::WatchdogError::new(
+            watchdog_core::ErrorCode::InstallFailed,
+            "install failed with unknown error",
+        ));
+    }
+    println!("installed {}", apk.display());
+    Ok(())
+}
+
+fn cli_uninstall(
+    serial: Option<&str>,
+    package: Option<&str>,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let package = package.unwrap_or("app.watchdog.remote");
+    let output = with_usb_connection(cfg, serial, |conn| async move {
+        watchdog_adb::install::uninstall_package(&conn, package).await
+    })?;
+    println!("{output}");
+    Ok(())
+}
+
+fn cli_forward(
+    serial: Option<&str>,
+    local_port: u16,
+    remote: &str,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    with_usb_connection(cfg, serial, |conn| async move {
+        let addr: std::net::SocketAddr = format!("127.0.0.1:{local_port}").parse().unwrap();
+        let handle = watchdog_adb::start_forward(conn, addr, remote.to_string()).await?;
+        println!(
+            "forwarding 127.0.0.1:{} -> {}",
+            handle.local_addr().port(),
+            remote
+        );
+        println!("(press Ctrl-C to stop)");
+        std::future::pending::<()>().await;
+        unreachable!()
+    })?;
+    Ok(())
+}
+
+fn cli_usb_doctor() -> watchdog_core::Result<()> {
+    for tip in watchdog_adb::explain_usb_problems() {
+        println!("- {tip}");
+    }
+    Ok(())
 }
