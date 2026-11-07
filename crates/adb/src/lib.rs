@@ -15,9 +15,12 @@ pub mod auth;
 pub mod connection;
 pub mod discovery;
 pub mod error;
+#[allow(unused_imports)]
+use std::sync::Arc;
 pub mod forward;
 pub mod install;
 pub mod lifecycle;
+pub mod manager;
 pub mod packet;
 pub mod pairing;
 pub mod pairing_flow;
@@ -34,6 +37,11 @@ pub use discovery::{discover, discover_default, DiscoveredDevice};
 pub use error::{AdbError, Result};
 pub use forward::{start_forward, ForwardHandle};
 pub use install::{install_apk, install_failure_hint, InstallOptions, InstallOutcome};
+pub(crate) use manager::{connect_tcp, connect_usb};
+pub use manager::{
+    list_usb, refresh_properties, DeviceManager, DeviceState, DeviceSummary, DeviceTable,
+    GoneReason,
+};
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
 pub use pairing::{derive_gcm_key, Spake2, SpakeRole};
 pub use pairing_flow::{pair, pair_with_password, PairingOutcome};
