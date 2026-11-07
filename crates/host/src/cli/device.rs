@@ -377,10 +377,10 @@ fn cli_connect(target: &str, cfg: &Config) -> watchdog_core::Result<()> {
             let (host, port) = split_host_port(target)?;
             let handle =
                 watchdog_adb::manager::connect_tcp(&keys, &host, port, "host::watchdog").await?;
-            Ok::<_, watchdog_adb::AdbError>(handle.info.banner)
+            Ok::<_, watchdog_adb::AdbError>(handle.connection.info.banner)
         } else {
             let handle = watchdog_adb::manager::connect_usb(&keys, "host::watchdog").await?;
-            Ok::<_, watchdog_adb::AdbError>(handle.info.banner)
+            Ok::<_, watchdog_adb::AdbError>(handle.connection.info.banner)
         }
     })?;
     println!("connected: {info}");
