@@ -103,13 +103,13 @@ pub async fn install_apk<T: Transport + 'static>(
     let size = std::fs::metadata(apk)?.len();
     let mut flags = String::new();
     if options.reinstall {
-        flags.push(" -r");
+        flags.push_str(" -r");
     }
     if options.allow_downgrade {
-        flags.push(" -d");
+        flags.push_str(" -d");
     }
     if options.grant_permissions {
-        flags.push(" -g");
+        flags.push_str(" -g");
     }
 
     // Prefer `cmd package install`; fall back to `pm install` if cmd is missing.
@@ -143,7 +143,9 @@ async fn install_with<T: Transport + 'static>(
     } else {
         format!("pm install{flags} -S {size}")
     };
-    let mut stream = connection.open_stream(&format!("shell,v2,raw:{command}")).await?;
+    let mut stream = connection
+        .open_stream(&format!("shell,v2,raw:{command}"))
+        .await?;
 
     // Feed the APK as shell v2 stdin frames.
     let mut file = std::fs::File::open(apk)?;
@@ -155,7 +157,10 @@ async fn install_with<T: Transport + 'static>(
             break;
         }
         stream
-            .write(Bytes::from(shell::encode_shell_packet(ids::STDIN, &buf[..n])))
+            .write(Bytes::from(shell::encode_shell_packet(
+                ids::STDIN,
+                &buf[..n],
+            )))
             .await?;
         sent += n as u64;
         if let Some(cb) = progress.as_deref_mut() {
@@ -163,7 +168,10 @@ async fn install_with<T: Transport + 'static>(
         }
     }
     stream
-        .write(Bytes::from(shell::encode_shell_packet(ids::CLOSE_STDIN, &[])))
+        .write(Bytes::from(shell::encode_shell_packet(
+            ids::CLOSE_STDIN,
+            &[],
+        )))
         .await?;
 
     collect_install_output(stream).await
@@ -174,7 +182,9 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
     let mut stderr = Vec::new();
     let mut pending: Vec<u8> = Vec::new();
     loop {
-        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv()).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv())
+            .await
+        {
             Ok(Some(chunk)) => {
                 pending.extend_from_slice(&chunk);
                 loop {
@@ -195,10 +205,14 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
                                         success: failure.is_none() && output.contains("Success"),
                                         output,
                                         failure_code: failure.clone(),
-                                        failure_hint: failure.as_deref().map(install_failure_hint).map(str::to_string),
+                                        failure_hint: failure
+                                            .as_deref()
+                                            .map(install_failure_hint)
+                                            .map(str::to_string),
                                     });
                                 }
-                                shell::ShellPacket::CloseStdin | shell::ShellPacket::Other(_, _) => {}
+                                shell::ShellPacket::CloseStdin
+                                | shell::ShellPacket::Other(_, _) => {}
                             }
                         }
                         None => break,
@@ -216,7 +230,10 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
                     success: failure.is_none() && output.contains("Success"),
                     output,
                     failure_code: failure.clone(),
-                    failure_hint: failure.as_deref().map(install_failure_hint).map(str::to_string),
+                    failure_hint: failure
+                        .as_deref()
+                        .map(install_failure_hint)
+                        .map(str::to_string),
                 });
             }
             Err(_) => return Err(AdbError::Timeout("package install timed out".into())),
@@ -229,8 +246,13 @@ pub async fn uninstall_package<T: Transport + 'static>(
     connection: &Connection<T>,
     package: &str,
 ) -> Result<String> {
-    let output = crate::shell::run_shell(connection, &format!("pm uninstall {package}"), None).await?;
-    Ok(format!("{}{}", output.stdout_string(), output.stderr_string()))
+    let output =
+        crate::shell::run_shell(connection, &format!("pm uninstall {package}"), None).await?;
+    Ok(format!(
+        "{}{}",
+        output.stdout_string(),
+        output.stderr_string()
+    ))
 }
 
 /// Best-effort package info via `dumpsys package`.
@@ -247,7 +269,8 @@ pub async fn query_package<T: Transport + 'static>(
     connection: &Connection<T>,
     package: &str,
 ) -> Result<Option<PackageInfo>> {
-    let output = crate::shell::run_shell(connection, &format!("dumpsys package {package}"), None).await?;
+    let output =
+        crate::shell::run_shell(connection, &format!("dumpsys package {package}"), None).await?;
     let text = output.stdout_string();
     if text.contains("Unable to find package") || text.contains("Package not found") {
         return Ok(None);

@@ -56,7 +56,8 @@ pub async fn start_forward<T: Transport + 'static>(
         }
     })?;
     let local_addr = listener.local_addr()?;
-    debug!(%local_addr, service, "forwarding listening");
+    let service_clone = service.clone();
+    debug!(%local_addr, service = %service, "forwarding listening");
 
     let join = tokio::spawn(async move {
         loop {
@@ -67,9 +68,9 @@ pub async fn start_forward<T: Transport + 'static>(
                     continue;
                 }
             };
-            debug!(%peer, service, "forward: new connection");
+            debug!(%peer, service = %service_clone, "forward: new connection");
             let conn = Arc::clone(&connection);
-            let service = service.clone();
+            let service = service_clone.clone();
             tokio::spawn(async move {
                 if let Err(err) = proxy_one(conn, socket, service).await {
                     debug!(%peer, "forward proxy ended: {err}");
