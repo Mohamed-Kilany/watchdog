@@ -146,30 +146,28 @@ impl Spake2 {
         let dh = self.my_private * q;
         let dh_encoded = dh.compress().to_bytes();
 
-        // Transcript: SHA-512 over 8-byte-LE-length-prefixed fields.
+        // Transcript: SHA-512 over 8-byte-LE-length-prefixed fields in a
+        // canonical order (client identity/message first) so both peers hash
+        // the same bytes.
         let mut sha = Sha512::new();
-        let ordered: [(&[u8], &[u8]); 4] = if self.role == SpakeRole::Client {
+        let ordered: [&[u8]; 4] = if self.role == SpakeRole::Client {
             [
-                (b"client-name", &self.my_name),
-                (b"server-name", &self.their_name),
-                (b"client-msg", &my_msg),
-                (b"server-msg", &peer_bytes),
+                self.my_name.as_slice(),
+                self.their_name.as_slice(),
+                my_msg.as_slice(),
+                peer_bytes.as_slice(),
             ]
         } else {
             [
-                (b"server-name", &self.my_name),
-                (b"client-name", &self.their_name),
-                (b"server-msg", &my_msg),
-                (b"client-msg", &peer_bytes),
+                self.their_name.as_slice(),
+                self.my_name.as_slice(),
+                peer_bytes.as_slice(),
+                my_msg.as_slice(),
             ]
         };
-        // BoringSSL order: my_name, their_name, my_msg, their_msg — but
-        // roles fix the semantic order (client first) in both views.
-        let _ = ordered;
-        push_lp(&mut sha, &self.my_name);
-        push_lp(&mut sha, &self.their_name);
-        push_lp(&mut sha, &my_msg);
-        push_lp(&mut sha, &peer_bytes);
+        for field in ordered {
+            push_lp(&mut sha, field);
+        }
         push_lp(&mut sha, &dh_encoded);
         push_lp(&mut sha, &self.password_hash);
         let key: [u8; 64] = sha.finalize().into();
