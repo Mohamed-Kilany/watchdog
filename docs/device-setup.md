@@ -52,10 +52,16 @@ First-time watchdog authorization uses **its own** RSA key pair stored in
    debugging port, shown on the same screen).
 4. `watchdog device provision --serial <ip>:<connect_port>`
 
+> **Status (M2):** the pairing core (SPAKE2, GCM PeerInfo, STLS) is implemented, but
+> X509 certificate generation and the TLS exporter wiring are still stubs, so the CLI
+> reports "not implemented" until the on-device verification milestone completes
+> (M2-T07). USB and LAN-without-pairing flows are usable today.
+
 ## 4. `adb tcpip`-style connect (USB → LAN)
 
-With the phone on USB: enable wireless debugging or use `watchdog device forward`-style
-commands once implemented (M2). Details land with M2-T05.
+M2 does not switch a USB device into TCP mode itself. Enable **Wireless debugging**
+on the phone and use `watchdog device connect <ip>:<port>` as in section 3. A
+`watchdog device tcpip` command is not part of M2.
 
 ## 5. Zero-touch provisioning — what it automates
 
@@ -74,7 +80,7 @@ commands once implemented (M2). Details land with M2-T05.
 
 | OEM / OS | Notes | Status |
 |---|---|---|
-| Google Pixel (stock AOSP) | reference device; all steps automated | verified (see docs/verification/) |
+| Google Pixel (stock AOSP) | reference device; all steps automated | pending device verification (M2 [DEVICE] tasks) |
 | Samsung One UI | "Auto blocker" may block unknown installs — allow once; battery "Put unused apps to sleep" must not apply to the app (provision sets it) | partial; verify per device |
 | Xiaomi MIUI / HyperOS | USB debugging (Security settings) toggle also required; MIUI kills background apps aggressively — provision sets Autostart + battery exemption | partial |
 | Huawei EMUI | no Google services needed; wireless debugging absent on some EMUI — use USB | unverified |
