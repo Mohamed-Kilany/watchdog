@@ -19,7 +19,9 @@ pub mod install;
 pub mod lifecycle;
 pub mod packet;
 pub mod shell;
+pub mod stls;
 pub mod sync;
+pub mod tcp;
 pub mod transport;
 
 pub use auth::AdbKeyPair;
@@ -28,4 +30,6 @@ pub use error::{AdbError, Result};
 pub use forward::{start_forward, ForwardHandle};
 pub use install::{install_apk, install_failure_hint, InstallOptions, InstallOutcome};
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
+pub use stls::{upgrade_stls, StlsTransport, STLS_VERSION};
+pub use tcp::TcpTransport;
 pub use transport::Transport;
