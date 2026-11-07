@@ -29,23 +29,25 @@ CI for the M1 branch is green on ubuntu/windows/macos (clippy `-D warnings`, car
 
 ## M2. Native ADB (crate `adb`)
 
-- [ ] M2-T01 Transport trait
-- [ ] M2-T02 Packet codec
-- [ ] M2-T03 Authentication
+Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h, auth, pairing). Host is independent of system adb (port 5037 unused); CI has an isolation job with a foreign server stub on 5037. Real-device proof delivers in `docs/verification/` and is **pending** — until then, device flows are experimental.
+
+- [x] M2-T01 Transport trait
+- [x] M2-T02 Packet codec
+- [x] M2-T03 Authentication
 - [ ] M2-T04 USB transport **[DEVICE]**
-- [ ] M2-T05 TCP transport + LAN connect
-- [ ] M2-T06 mDNS discovery
-- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]**
-- [ ] M2-T08 Stream multiplexer
-- [ ] M2-T09 Shell v2
-- [ ] M2-T10 Sync protocol: **[DEVICE]**
-- [ ] M2-T11 Port forwarding in-process:
-- [ ] M2-T12 Package management: **[DEVICE]**
-- [ ] M2-T13 Device manager:
-- [ ] M2-T14 Fake device
-- [ ] M2-T15 CLI:
-- [ ] M2-T16 Isolation tests
-- [ ] M2-T17 Docs:
+- [x] M2-T05 TCP transport + LAN connect
+- [x] M2-T06 mDNS discovery
+- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (flow implemented; device-verified end-to-end pending)
+- [x] M2-T08 Stream multiplexer
+- [x] M2-T09 Shell v2
+- [ ] M2-T10 Sync protocol: **[DEVICE]** (device-tested 1 GB transfer pending)
+- [x] M2-T11 Port forwarding in-process:
+- [x] M2-T12 Package management: **[DEVICE]** (device-verified pending)
+- [x] M2-T13 Device manager:
+- [x] M2-T14 Fake device
+- [x] M2-T15 CLI:
+- [x] M2-T16 Isolation tests
+- [x] M2-T17 Docs:
 
 ## M3. Android app MVP and zero-touch provisioning
 
