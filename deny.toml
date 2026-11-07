@@ -9,6 +9,7 @@
 # timing over many signatures on a LAN. Accepted risk, revisited in M10;
 # documented in docs/security.md.
 ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2022-0017", "RUSTSEC-2022-0018"]
+unmaintained = "workspace"
 
 [licenses]
 allow = [

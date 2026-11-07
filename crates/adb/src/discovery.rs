@@ -59,22 +59,27 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
             Err(_) => break,
         };
         match event {
-            ServiceEvent::ServiceFound(_, info) => {
+            ServiceEvent::ServiceResolved(info) => {
                 let guid = info
-                    .get_properties()
-                    .iter()
-                    .find(|p| p.key() == "dev")
-                    .map(|p| p.val().to_string())
-                    .unwrap_or_default();
+                    .get_property_val_str("dev")
+                    .unwrap_or_default()
+                    .to_string();
                 let name = info.get_hostname().to_string();
-                let host = info.get_host_name().to_string();
+                let host = info.get_fullname().to_string();
                 let port = info.get_port();
-                let candidates = info.get_addresses();
-                let addr = candidates
-                    .iter()
-                    .copied()
+                // Prefer IPv4 (LAN setups); fall back to any address.
+                let addr = info
+                    .get_addresses_v4()
+                    .into_iter()
                     .next()
-                    .map(|ip| SocketAddr::new(IpAddr::V4(Ipv4Addr::from(ip)), port));
+                    .map(|ip| SocketAddr::new(IpAddr::V4(*ip), port))
+                    .or_else(|| {
+                        info.get_addresses()
+                            .iter()
+                            .copied()
+                            .next()
+                            .map(|ip| SocketAddr::new(ip, port))
+                    });
                 let service_type_str = info.get_type().to_string();
 
                 let entry = by_guid
@@ -92,10 +97,10 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
                     entry.pairing = addr;
                 }
             }
+            ServiceEvent::ServiceFound(..) => {}
             ServiceEvent::ServiceRemoved(..) => {}
             ServiceEvent::SearchStarted(_) => {}
             ServiceEvent::SearchStopped(_) => {}
-            ServiceEvent::ServiceResolved(_) => {}
         }
     }
 

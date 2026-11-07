@@ -170,24 +170,7 @@ pub async fn connect_tcp(
 /// Best-effort refresh of cached properties (model/sdk/abi) via getprop.
 pub async fn refresh_properties<T: Transport + 'static>(handle: &DeviceHandle<T>) {
     let cmd = "getprop ro.product.model;getprop ro.build.version.sdk;getprop ro.product.cpu.abi";
-    match crate::shell::run_shell(&handle.connection, cmd, None).await {
-        Ok(out) => {
-            let text = out.stdout_string();
-            let mut lines = text.lines();
-            let model = lines.next().unwrap_or("").trim().to_string();
-            let sdk = lines
-                .next()
-                .and_then(|s| s.trim().parse::<i64>().ok())
-                .unwrap_or(-1);
-            let abi = lines.next().unwrap_or("").trim().to_string();
-            let mut locked = handle.connection.transport.is_some();
-            if locked {
-                // `handle` is immutable; properties update is best-effort here.
-                let _ = (model, sdk, abi);
-            }
-        }
-        Err(_) => {}
-    }
+    let _ = crate::shell::run_shell(&handle.connection, cmd, None).await;
     let _ = Duration::from_secs(1);
 }
 

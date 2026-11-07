@@ -232,7 +232,6 @@ async fn read_next_peer_info<T: Transport>(transport: &mut T) -> Result<Vec<u8>>
 }
 
 fn client_config(cert_der: &[u8], key_der: &[u8]) -> Result<rustls::ClientConfig> {
-    use rustls::client::danger::HandshakeSignatureValid;
     use rustls::pki_types::PrivateKeyDer;
 
     let key = PrivateKeyDer::try_from(key_der)
