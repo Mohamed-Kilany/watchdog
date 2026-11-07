@@ -27,6 +27,7 @@ aes-gcm = "0.10"
 curve25519-dalek = { version = "4", features = ["rand_core"] }
 num-bigint = "0.4"
 rand = "0.8"
+nusb = "0.2"
 
 [dev-dependencies]
 watchdog-adb-mock = { path = "../adb-mock", version = "0.1.0" }

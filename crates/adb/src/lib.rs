@@ -24,6 +24,7 @@ pub mod stls;
 pub mod sync;
 pub mod tcp;
 pub mod transport;
+pub mod usb;
 
 pub use auth::AdbKeyPair;
 pub use connection::{Connection, SessionInfo, Stream, StreamWriter, OPEN_TIMEOUT};
@@ -35,3 +36,6 @@ pub use pairing::{derive_gcm_key, Spake2, SpakeRole};
 pub use stls::{upgrade_stls, StlsTransport, STLS_VERSION};
 pub use tcp::TcpTransport;
 pub use transport::Transport;
+pub use usb::{
+    enumerate as enumerate_usb_devices, explain_usb_problems, UsbDeviceInfo, UsbTransport,
+};
