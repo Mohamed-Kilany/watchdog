@@ -133,10 +133,7 @@ impl AdbKeyPair {
     pub fn sign_token(&self, token: &[u8]) -> Result<Vec<u8>> {
         let digest = sha1::Sha1::digest(token);
         self.private_key
-            .sign(
-                Pkcs1v15Sign::new::<sha1::Sha1>(),
-                digest.as_slice(),
-            )
+            .sign(Pkcs1v15Sign::new::<sha1::Sha1>(), digest.as_slice())
             .map_err(|e| AdbError::Protocol(format!("token signing failed: {e}")))
     }
 
