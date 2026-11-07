@@ -42,8 +42,14 @@ impl TcpTransport {
 
     /// Peer address.
     #[must_use]
-    pub fn peer(&self) -> SocketAddr {
+    pub fn peer(&self) -> std::net::SocketAddr {
         self.peer
+    }
+
+    /// Consume into the raw TCP stream plus a display name.
+    pub fn into_tcp_parts(self) -> (TcpStream, String) {
+        let name = format!("tcp:{}", self.peer);
+        (self.stream, name)
     }
 }
 
