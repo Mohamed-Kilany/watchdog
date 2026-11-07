@@ -143,9 +143,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - name: install Android SDK platform and build tools
         run: |
+          # The ubuntu runner image already provides the SDK and sdkmanager on
+          # PATH. setup-android@v3 is not used because it tries to install the
+          # retired `tools` package and fails before our steps run.
+          command -v sdkmanager
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"
       - name: derive app version from git tag
