@@ -66,7 +66,7 @@ fn has_adb_interface(device: &DeviceInfo) -> bool {
             .active_configuration()
             .map(|config| {
                 config
-                    .interfaces()
+                    .interface_alt_settings()
                     .any(|i| is_adb_interface(i.class(), i.subclass(), i.protocol()))
             })
             .unwrap_or(false),
@@ -115,7 +115,7 @@ fn claim_adb(info: &DeviceInfo) -> Result<UsbTransport> {
         .active_configuration()
         .map_err(|e| AdbError::Transport(format!("USB active configuration: {e}")))?;
     let interface_desc = config
-        .interfaces()
+        .interface_alt_settings()
         .find(|i| is_adb_interface(i.class(), i.subclass(), i.protocol()))
         .ok_or_else(|| AdbError::Transport("no ADB interface on this device".into()))?;
 

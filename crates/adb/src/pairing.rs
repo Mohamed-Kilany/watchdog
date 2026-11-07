@@ -94,7 +94,9 @@ impl Spake2 {
         self.my_private = Scalar::from_bytes_mod_order(reduced);
 
         // w = H(password) (SHA-512), reduced.
-        let hash: [u8; 64] = Sha512::digest(password).into();
+        let digest = Sha512::digest(password);
+        let mut hash = [0u8; 64];
+        hash.copy_from_slice(&digest);
         self.password_hash = hash;
         let reduced_hash = spake_reduce(&hash);
         // BoringSSL's "password_scalar_hack" adds multiples of the group
