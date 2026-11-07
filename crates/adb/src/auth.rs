@@ -127,10 +127,16 @@ impl AdbKeyPair {
     }
 
     /// Sign `token` (20-byte challenge) with SHA-1 + PKCS#1 v1.5.
+    ///
+    /// AOSP `adb_auth_sign` uses `RSA_sign(NID_sha1, …)`, which prepends the
+    /// SHA-1 DigestInfo prefix; adbd verifies with `RSA_verify(NID_sha1, …)`.
     pub fn sign_token(&self, token: &[u8]) -> Result<Vec<u8>> {
         let digest = sha1::Sha1::digest(token);
         self.private_key
-            .sign(Pkcs1v15Sign::new_unprefixed(), digest.as_slice())
+            .sign(
+                Pkcs1v15Sign::new::<sha1::Sha1>(),
+                digest.as_slice(),
+            )
             .map_err(|e| AdbError::Protocol(format!("token signing failed: {e}")))
     }
 
@@ -270,7 +276,7 @@ mod tests {
         let token = [0x5au8; 20];
         let signature = pair.sign_token(&token).expect("sign");
         let digest = sha1::Sha1::digest(token);
-        let scheme = Pkcs1v15Sign::new_unprefixed();
+        let scheme = Pkcs1v15Sign::new::<sha1::Sha1>();
         pair.public_key
             .verify(scheme, digest.as_slice(), &signature)
             .expect("verify");
