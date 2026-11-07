@@ -132,9 +132,98 @@ jobs:
       - name: run no_system_adb tests
         run: cargo test --locked -p watchdog-adb no_system_adb
 
+  android:
+    name: android (assembleRelease)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: install Android SDK platform and build tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+      - name: derive app version from git tag
+        run: |
+          if TAG=$(git describe --tags --exact-match 2>/dev/null); then
+            VERSION="${TAG#v}"
+          else
+            VERSION="0.1.0-dev+$(git rev-parse --short HEAD)"
+          fi
+          echo "WATCHDOG_APP_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "app version: ${VERSION}"
+      - name: generate CI signing keystore
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/watchdog-ci.jks" \
+            -storepass watchdog-ci -keypass watchdog-ci -alias watchdog \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=watchdog CI,O=watchdog,C=US"
+          {
+            echo "WATCHDOG_KEYSTORE_FILE=$RUNNER_TEMP/watchdog-ci.jks"
+            echo "WATCHDOG_KEYSTORE_PASSWORD=watchdog-ci"
+            echo "WATCHDOG_KEY_ALIAS=watchdog"
+            echo "WATCHDOG_KEY_PASSWORD=watchdog-ci"
+          } >> "$GITHUB_ENV"
+      - name: ktlint
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/ktlint" \
+            https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint
+          chmod +x "$RUNNER_TEMP/ktlint"
+          "$RUNNER_TEMP/ktlint" --relative "android/**/*.kt" "android/**/*.kts"
+      - name: detekt
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/detekt.jar" \
+            https://github.com/detekt/detekt/releases/download/v1.23.8/detekt-cli-1.23.8-all.jar
+          java -jar "$RUNNER_TEMP/detekt.jar" \
+            --input android/app/src/main/kotlin \
+            --build-upon-default-config \
+            --excludes "**/build/**"
+      - name: assembleRelease
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+      - name: verify APK and record metadata
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          "$BT/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner.txt"
+          BADGING=$("$BT/aapt2" dump badging "$APK")
+          echo "$BADGING" | head -n 5
+          VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -n1)
+          SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
+          CERT=$(grep -i "SHA-256 digest" "$RUNNER_TEMP/apksigner.txt" | head -n1 | awk -F': ' '{print $2}')
+          VERSION_NAME="$WATCHDOG_APP_VERSION" VERSION_CODE="$VERSION_CODE" SHA256="$SHA256" CERT="$CERT" \
+          python3 - <<'EOF'
+          import json, os
+          info = {
+              "versionName": os.environ["VERSION_NAME"],
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "sha256": os.environ["SHA256"],
+              "signerSha256": os.environ["CERT"],
+              "commit": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+          }
+          with open("android/build/apk-info.json", "w", encoding="utf-8") as f:
+              json.dump(info, f, indent=2)
+              f.write("\n")
+          EOF
+          cat android/build/apk-info.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-android-apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/build/apk-info.json
+          if-no-files-found: error
+
   gate:
     name: all checks
-    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation]
+    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android]
     runs-on: ubuntu-latest
     steps:
       - run: echo "All required checks passed."

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">watchdog remote</string>
+    <string name="status_not_provisioned">Not provisioned — waiting for host</string>
+    <string name="version_format">version %1$s</string>
+</resources>
