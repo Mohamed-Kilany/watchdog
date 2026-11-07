@@ -29,20 +29,20 @@ CI for the M1 branch is green on ubuntu/windows/macos (clippy `-D warnings`, car
 
 ## M2. Native ADB (crate `adb`)
 
-Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h, auth, pairing). Host is independent of system adb (port 5037 unused); CI has an isolation job with a foreign server stub on 5037. Real-device proof delivers in `docs/verification/` and is **pending** — until then, device flows are experimental.
+Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h, auth, pairing). Host is independent of system adb (port 5037 unused); CI has an isolation job with a foreign server stub on 5037. CI run [42419448704](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42419448704) is green on ubuntu/windows/macos (fmt, clippy `-D warnings`, tests, cargo-deny, docs, fixtures, isolation). Real-device proof delivers in `docs/verification/` and is **pending** — until then, device flows are experimental.
 
 - [x] M2-T01 Transport trait
 - [x] M2-T02 Packet codec
 - [x] M2-T03 Authentication
-- [ ] M2-T04 USB transport **[DEVICE]**
+- [ ] M2-T04 USB transport **[DEVICE]** (nusb transport, `usb-doctor` and `udev-rules` implemented; per-OS device proof pending)
 - [x] M2-T05 TCP transport + LAN connect
 - [x] M2-T06 mDNS discovery
-- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (flow implemented; device-verified end-to-end pending)
+- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (SPAKE2/GCM/STLS core implemented; X509 generation and TLS exporter wiring are stubs, device-verified end-to-end pending)
 - [x] M2-T08 Stream multiplexer
 - [x] M2-T09 Shell v2
-- [ ] M2-T10 Sync protocol: **[DEVICE]** (device-tested 1 GB transfer pending)
+- [ ] M2-T10 Sync protocol: **[DEVICE]** (implemented; device-tested 1 GB transfer pending)
 - [x] M2-T11 Port forwarding in-process:
-- [x] M2-T12 Package management: **[DEVICE]** (device-verified pending)
+- [ ] M2-T12 Package management: **[DEVICE]** (implemented; device-verified install/update/downgrade pending)
 - [x] M2-T13 Device manager:
 - [x] M2-T14 Fake device
 - [x] M2-T15 CLI:
