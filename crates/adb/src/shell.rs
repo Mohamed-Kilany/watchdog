@@ -94,12 +94,14 @@ pub fn decode_shell_packet(buf: &[u8]) -> Option<(ShellPacket, usize)> {
         ids::STDOUT => ShellPacket::Stdout(payload),
         ids::STDERR => ShellPacket::Stderr(payload),
         ids::EXIT => {
-            let code = match payload.len() {
-                1 => i32::from(payload[0]),
-                4 => i32::from_le_bytes(payload[..4].try_into().expect("slice")),
-                _ => i32::from_le_bytes(payload[payload.len() - 4..].try_into().expect("slice")),
-            };
-            ShellPacket::Exit(code)
+            // Accept 1- and 4-byte exits (AOSP) but never panic on malformed
+            // lengths: zero-pad short payloads and keep the last 4 bytes of
+            // longer ones.
+            let mut code = [0u8; 4];
+            let start = payload.len().saturating_sub(4);
+            let tail = &payload[start..];
+            code[..tail.len()].copy_from_slice(tail);
+            ShellPacket::Exit(i32::from_le_bytes(code))
         }
         ids::CLOSE_STDIN => ShellPacket::CloseStdin,
         other => ShellPacket::Other(other, payload),

@@ -60,6 +60,15 @@ fn multiple_packets_in_one_buffer() {
 }
 
 #[test]
+fn malformed_exit_lengths_do_not_panic() {
+    for len in [0usize, 2, 3, 5] {
+        let payload = vec![1u8; len];
+        let (packet, _) = decode_shell_packet(&encode_shell_packet(3, &payload)).expect("decode");
+        assert!(matches!(packet, ShellPacket::Exit(_)));
+    }
+}
+
+#[test]
 fn invalid_id_is_reported_not_fatal() {
     let packet = encode_shell_packet(254, b"x");
     let (decoded, _) = decode_shell_packet(&packet).expect("decode");
