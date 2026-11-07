@@ -114,11 +114,18 @@ impl rustls::client::danger::ServerCertVerifier for AllowAnyVerifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        SignatureScheme::RSA_PKCS1_SHA256
-            .to_tls13_vec()
-            .into_iter()
-            .chain([SignatureScheme::ECDSA_P256_SHA256, SignatureScheme::ED25519])
-            .collect()
+        vec![
+            SignatureScheme::RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            SignatureScheme::ECDSA_NISTP521_SHA512,
+            SignatureScheme::ED25519,
+        ]
     }
 }
 

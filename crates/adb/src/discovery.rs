@@ -35,7 +35,7 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
     let daemon = ServiceDaemon::new()
         .map_err(|e| crate::error::AdbError::Transport(format!("mDNS daemon start failed: {e}")))?;
 
-    daemon.browse("_adb-tls-connect._tcp.local.").map_err(|e| {
+    let receiver = daemon.browse("_adb-tls-connect._tcp.local.").map_err(|e| {
         crate::error::AdbError::Transport(format!("mDNS browse connect failed: {e}"))
     })?;
     daemon.browse("_adb-tls-pairing._tcp.local.").map_err(|e| {
@@ -45,10 +45,20 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
     let mut by_guid: HashMap<String, DiscoveredDevice> = HashMap::new();
     let start = tokio::time::Instant::now();
 
-    while start.elapsed() < timeout {
-        match daemon.recv_timeout(Duration::from_millis(200)) {
-            Ok(ServiceEvent::ServiceFound(info)) => {
-                let service_type = info.get_type().to_string();
+    loop {
+        let remaining = timeout
+            .checked_sub(start.elapsed())
+            .unwrap_or_else(|| Duration::from_secs(0));
+        if remaining.is_zero() {
+            break;
+        }
+        let event = tokio::time::timeout(remaining, receiver.recv_async()).await;
+        let event = match event {
+            Ok(ev) => ev,
+            Err(_) => break,
+        };
+        match event {
+            ServiceEvent::ServiceFound(_service_type, info) => {
                 let guid = info
                     .get_property("dev")
                     .map(|s| s.val().to_string())
@@ -62,6 +72,7 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
                     .copied()
                     .next()
                     .map(|ip| SocketAddr::new(IpAddr::V4(Ipv4Addr::from(ip)), port));
+                let service_type_str = info.get_type().to_string();
 
                 let entry = by_guid
                     .entry(guid.clone())
@@ -72,20 +83,19 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
                         pairing: None,
                         name: host,
                     });
-                if service_type.contains("connect") {
+                if service_type_str.contains("connect") {
                     entry.connect = addr;
-                } else if service_type.contains("pairing") {
+                } else if service_type_str.contains("pairing") {
                     entry.pairing = addr;
                 }
             }
-            Ok(ServiceEvent::ServiceRemoved(_)) => {}
-            Ok(ServiceEvent::SearchStarted(_)) => {}
-            Ok(_) => {}
-            Err(_) => {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
+            ServiceEvent::ServiceRemoved(..) => {}
+            ServiceEvent::SearchStarted(_) => {}
+            ServiceEvent::SearchStopped(_) => {}
+            ServiceEvent::ServiceResolved(_) => {}
+            ServiceEvent::ServiceUpdated(..) => {}
+            ServiceEvent::BrowserStopped(_) => {}
         }
-        tokio::task::yield_now().await;
     }
 
     daemon.shutdown().ok();

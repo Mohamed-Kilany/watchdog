@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use nusb::Interface;
+use nusb::{Direction, Interface, TransferType};
 use tokio::sync::mpsc;
 
 use crate::error::{AdbError, Result};
@@ -132,14 +132,12 @@ fn claim_adb(device: &nusb::Device) -> Result<(Interface, u8, u8, String)> {
 
     let in_endpoint = interface_desc
         .endpoints()
-        .find(|e| e.direction == nusb::Direction::In && e.transfer_type == nusb::TransferType::Bulk)
+        .find(|e| e.direction == Direction::In && e.transfer_type == TransferType::Bulk)
         .map(|e| e.address)
         .ok_or_else(|| AdbError::Transport("no bulk-in endpoint".into()))?;
     let out_endpoint = interface_desc
         .endpoints()
-        .find(|e| {
-            e.direction == nusb::Direction::Out && e.transfer_type == nusb::TransferType::Bulk
-        })
+        .find(|e| e.direction == Direction::Out && e.transfer_type == TransferType::Bulk)
         .map(|e| e.address)
         .ok_or_else(|| AdbError::Transport("no bulk-out endpoint".into()))?;
 

@@ -17,7 +17,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rsa::pkcs8::DecodePrivateKey;
 use tokio::net::TcpStream;
 
 use crate::error::{AdbError, Result};
@@ -35,40 +34,14 @@ pub struct PairingOutcome {
 /// Generate a self-signed X509 cert (DER) from an RSA key, AOSP profile:
 /// serial 1, 10-year validity, C=US/O=Android/CN=Adb, CA:TRUE,
 /// keyUsage keyCertSign+cRLSign+digitalSignature, SHA-256.
-pub fn generate_x509_der(private_key: &rsa::RsaPrivateKey) -> Result<Vec<u8>> {
-    use x509_cert::der::asn1::{ObjectIdentifier, PrintableString, UtcTime};
-    use x509_cert::der::Any;
-    use x509_cert::der::Document;
-    use x509_cert::spki::AlgorithmIdentifier;
-    use x509_cert::{Certificate, Name, RdnSequence, TbsCertificate, Version};
-
-    let key_der = private_key
-        .to_pkcs8_der()
-        .map_err(|e| AdbError::Protocol(format!("encode private key: {e}")))?;
-
-    // Public key subject-public-key-info from the RSA key.
-    let algorithm = AlgorithmIdentifier {
-        oid: ObjectIdentifier::new("1.2.840.113549.1.1.1"),
-        parameters: None,
-    };
-    let pubkey = private_key.to_public_key();
-    let modulus = pubkey.n().to_bytes_be();
-    let exponent = pubkey.e().to_bytes_be();
-    let rsa_pubkey = {
-        let mut seq = vec![0u8, 0x02];
-        seq.extend_from_slice(&(modulus.len() as u32).to_be_bytes());
-        seq.extend_from_slice(&modulus);
-        seq.extend_from_slice(&[0x02]);
-        seq.extend_from_slice(&(exponent.len() as u32).to_be_bytes());
-        seq.extend_from_slice(&exponent);
-        seq
-    };
-    let _ = algorithm;
-    let _ = rsa_pubkey;
-    let _ = key_der;
-
+///
+/// Full X509 construction lands with the on-device pairing verification
+/// milestone (devices reject malformed certs at TLS handshake, so the wire
+/// format must be byte-exact — verified against a real device, not here).
+pub fn generate_x509_der(_private_key: &rsa::RsaPrivateKey) -> Result<Vec<u8>> {
     Err(AdbError::Protocol(
-        "X509 generation requires x509-cert: see pairing scaffold (M2-T07 device-verified)".into(),
+        "X509 generation not yet implemented (on-device pairing verification required first)"
+            .into(),
     ))
 }
 
@@ -264,11 +237,6 @@ fn client_config(cert_der: &[u8], key_der: &[u8]) -> Result<rustls::ClientConfig
 
     let key = PrivateKeyDer::try_from(key_der)
         .map_err(|e| AdbError::Protocol(format!("pairing: invalid private key DER: {e}")))?;
-
-    let mut verifier = rustls::client::danger::AllowAnyVerifier::new(std::sync::Arc::new(
-        crate::stls::AllowAnyVerifier,
-    ));
-    let _ = &mut verifier;
 
     let mut config = rustls::ClientConfig::builder()
         .with_root_certificates(rustls::RootCertStore::empty())
