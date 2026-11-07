@@ -10,7 +10,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use nusb::{Direction, Interface, TransferType};
+use nusb::descriptors::{Direction, TransferType};
+use nusb::Interface;
 use tokio::sync::mpsc;
 
 use crate::error::{AdbError, Result};
