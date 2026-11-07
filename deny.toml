@@ -8,11 +8,7 @@
 # Signing happens once per device connection; an attacker needs precise
 # timing over many signatures on a LAN. Accepted risk, revisited in M10;
 # documented in docs/security.md.
-ignore = ["RUSTSEC-2023-0071"]
-# rustls-pemfile is unmaintained (RUSTSEC-2022-0017 / RUSTSEC-2022-0018) but
-# remains the standard PEM parser for DER certs/keys; we handle parse errors
-# explicitly. Removal would require x509-cert directly (M9).
-unmaintained = ["rustls-pemfile"]
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2022-0017", "RUSTSEC-2022-0018"]
 
 [licenses]
 allow = [

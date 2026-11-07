@@ -1784,6 +1784,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "watchdog-adb",
  "watchdog-core",
  "watchdog-protocol",
 ]
