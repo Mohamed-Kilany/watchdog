@@ -158,13 +158,10 @@ pub async fn run_shell_legacy<T: Transport + 'static>(
     let mut stream = connection.open_stream(&format!("shell:{command}")).await?;
     let mut output = ShellOutput::default();
     let mut buf = Vec::new();
-    loop {
-        match tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv())
-            .await
-        {
-            Ok(Some(chunk)) => buf.extend_from_slice(&chunk),
-            Ok(None) | Err(_) => break,
-        }
+    while let Ok(Some(chunk)) =
+        tokio::time::timeout(std::time::Duration::from_secs(3600), stream.inbound.recv()).await
+    {
+        buf.extend_from_slice(&chunk);
     }
     output.stdout = buf; // legacy merges the streams
     Ok(output)
@@ -181,24 +178,19 @@ async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
         {
             Ok(Some(chunk)) => {
                 pending.extend_from_slice(&chunk);
-                loop {
-                    match decode_shell_packet(&pending) {
-                        Some((packet, consumed)) => {
-                            pending.drain(..consumed);
-                            match packet {
-                                ShellPacket::Stdout(data) => output.stdout.extend_from_slice(&data),
-                                ShellPacket::Stderr(data) => output.stderr.extend_from_slice(&data),
-                                ShellPacket::Exit(code) => {
-                                    output.exit_code = Some(code);
-                                    return Ok(output);
-                                }
-                                ShellPacket::CloseStdin => {}
-                                ShellPacket::Other(id, _) => {
-                                    tracing::debug!(id, "ignoring shell packet");
-                                }
-                            }
+                while let Some((packet, consumed)) = decode_shell_packet(&pending) {
+                    pending.drain(..consumed);
+                    match packet {
+                        ShellPacket::Stdout(data) => output.stdout.extend_from_slice(&data),
+                        ShellPacket::Stderr(data) => output.stderr.extend_from_slice(&data),
+                        ShellPacket::Exit(code) => {
+                            output.exit_code = Some(code);
+                            return Ok(output);
                         }
-                        None => break,
+                        ShellPacket::CloseStdin => {}
+                        ShellPacket::Other(id, _) => {
+                            tracing::debug!(id, "ignoring shell packet");
+                        }
                     }
                 }
             }

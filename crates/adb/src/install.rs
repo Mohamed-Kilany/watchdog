@@ -187,35 +187,29 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
         {
             Ok(Some(chunk)) => {
                 pending.extend_from_slice(&chunk);
-                loop {
-                    match shell::decode_shell_packet(&pending) {
-                        Some((packet, consumed)) => {
-                            pending.drain(..consumed);
-                            match packet {
-                                shell::ShellPacket::Stdout(data) => stdout.extend_from_slice(&data),
-                                shell::ShellPacket::Stderr(data) => stderr.extend_from_slice(&data),
-                                shell::ShellPacket::Exit(_) => {
-                                    let output = format!(
-                                        "{}{}",
-                                        String::from_utf8_lossy(&stdout),
-                                        String::from_utf8_lossy(&stderr)
-                                    );
-                                    let failure = find_failure_code(&output);
-                                    return Ok(InstallOutcome {
-                                        success: failure.is_none() && output.contains("Success"),
-                                        output,
-                                        failure_code: failure.clone(),
-                                        failure_hint: failure
-                                            .as_deref()
-                                            .map(install_failure_hint)
-                                            .map(str::to_string),
-                                    });
-                                }
-                                shell::ShellPacket::CloseStdin
-                                | shell::ShellPacket::Other(_, _) => {}
-                            }
+                while let Some((packet, consumed)) = shell::decode_shell_packet(&pending) {
+                    pending.drain(..consumed);
+                    match packet {
+                        shell::ShellPacket::Stdout(data) => stdout.extend_from_slice(&data),
+                        shell::ShellPacket::Stderr(data) => stderr.extend_from_slice(&data),
+                        shell::ShellPacket::Exit(_) => {
+                            let output = format!(
+                                "{}{}",
+                                String::from_utf8_lossy(&stdout),
+                                String::from_utf8_lossy(&stderr)
+                            );
+                            let failure = find_failure_code(&output);
+                            return Ok(InstallOutcome {
+                                success: failure.is_none() && output.contains("Success"),
+                                output,
+                                failure_code: failure.clone(),
+                                failure_hint: failure
+                                    .as_deref()
+                                    .map(install_failure_hint)
+                                    .map(str::to_string),
+                            });
                         }
-                        None => break,
+                        shell::ShellPacket::CloseStdin | shell::ShellPacket::Other(_, _) => {}
                     }
                 }
             }

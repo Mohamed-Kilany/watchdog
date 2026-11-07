@@ -17,7 +17,9 @@ use crate::transport::Transport;
 
 /// USB class/subclass/protocol for the ADB interface.
 pub const ADB_USB_CLASS: u8 = 0xFF;
+/// ADB interface subclass (`0x42`).
 pub const ADB_USB_SUBCLASS: u8 = 0x42;
+/// ADB interface protocol (`0x01`).
 pub const ADB_USB_PROTOCOL: u8 = 0x01;
 
 /// Transfer buffer size for bulk endpoints (matches ADB's max payload).

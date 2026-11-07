@@ -80,11 +80,14 @@ impl Stream {
 
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
-        let permit = Arc::clone(&self.write_permit);
-        permit
+        let permit = Arc::clone(&self.write_permit)
             .acquire_owned()
             .await
             .map_err(|_| AdbError::StreamClosed)?;
+        // Flow control: the permit is restored by the reader task when the
+        // device acknowledges the WRTE with OKAY. Forget it here so dropping
+        // this future does not return it early.
+        permit.forget();
         self.outbound
             .send(Outbound::Write {
                 local_id: self.local_id,
@@ -117,11 +120,14 @@ pub struct StreamWriter {
 impl StreamWriter {
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
-        let permit = Arc::clone(&self.write_permit);
-        permit
+        let permit = Arc::clone(&self.write_permit)
             .acquire_owned()
             .await
             .map_err(|_| AdbError::StreamClosed)?;
+        // Flow control: the permit is restored by the reader task when the
+        // device acknowledges the WRTE with OKAY. Forget it here so dropping
+        // this future does not return it early.
+        permit.forget();
         self.outbound
             .send(Outbound::Write {
                 local_id: self.local_id,

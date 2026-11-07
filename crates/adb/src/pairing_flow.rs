@@ -48,7 +48,6 @@ pub fn generate_x509_der(_private_key: &rsa::RsaPrivateKey) -> Result<Vec<u8>> {
 /// TLS 1.3 wrapper around a TcpStream used for pairing (mutual certs, verify-any).
 pub struct PairingTls {
     tls: tokio_rustls::client::TlsStream<TcpStream>,
-    buffer: Vec<u8>,
 }
 
 #[async_trait]
@@ -110,10 +109,7 @@ pub async fn pair(
     .map_err(|_| AdbError::Timeout("pairing TLS handshake timed out".into()))?
     .map_err(|e| AdbError::Protocol(format!("pairing TLS handshake failed: {e}")))?;
 
-    let mut tls = PairingTls {
-        tls,
-        buffer: Vec::new(),
-    };
+    let mut tls = PairingTls { tls };
 
     // Password = code bytes + TLS exporter(64) — exporter comes from the live
     // TLS connection; rustls exposes it via the connection state. For now we
@@ -126,9 +122,9 @@ pub async fn pair(
 /// exporter (`adb-label\0`) fetched from the connection before pairing.
 async fn pair_with_exporter(
     tls: &mut PairingTls,
-    code: &str,
+    _code: &str,
     _param: u64,
-    host_pubkey_android_b64: &str,
+    _host_pubkey_android_b64: &str,
 ) -> Result<PairingOutcome> {
     // IMPORTANT: The exporter MUST come from the live TLS session. The caller
     // fetches it (see `tls_exporter`) and passes it here. `pair_with_password`
@@ -176,7 +172,7 @@ pub async fn pair_with_password<T: Transport>(
     let decrypted = gcm::decrypt(&gcm_key, 0, &device_encrypted)
         .ok_or_else(|| AdbError::Protocol("pairing: PeerInfo GCM tag mismatch".into()))?;
 
-    if decrypted.len() < 1 {
+    if decrypted.is_empty() {
         return Err(AdbError::Protocol("pairing: empty PeerInfo".into()));
     }
     if decrypted[0] != peer_info::ADB_DEVICE_GUID {
