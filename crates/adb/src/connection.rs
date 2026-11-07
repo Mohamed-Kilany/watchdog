@@ -197,6 +197,14 @@ pub struct Connection<T: Transport + 'static> {
     writer: Option<JoinHandle<Result<()>>>,
 }
 
+impl<T: Transport + 'static> std::fmt::Debug for Connection<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connection")
+            .field("info", &self.info)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<T: Transport + 'static> Connection<T> {
     /// Negotiate CNXN and complete AUTH on a fresh transport.
     pub async fn connect(mut transport: T, banner: &str, keys: &AdbKeyPair) -> Result<Self> {

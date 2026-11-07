@@ -53,7 +53,7 @@ async fn auth_token_signature_accepted() {
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ))
         .script_packet(&device_cnxn_packet());
 
@@ -75,13 +75,13 @@ async fn signature_rejected_falls_back_to_public_key() {
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ))
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ))
         .script_packet(&device_cnxn_packet());
 
@@ -116,19 +116,19 @@ async fn unauthorized_after_public_key_sent() {
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ))
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ))
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
             0,
-            Bytes::from_static(&token),
+            Bytes::copy_from_slice(&token),
         ));
 
     let err = Connection::connect(transport, HOST_BANNER, &keys)
