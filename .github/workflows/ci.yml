@@ -94,9 +94,47 @@ jobs:
       - name: verify committed fixtures
         run: python3 scripts/generate-fixtures.py --verify
 
+  isolation:
+    name: isolation (no system adb, foreign server on 5037)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: rustup (pinned toolchain)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: start a foreign adb server stub on 5037
+        run: |
+          python3 -c "
+          import socket, threading, time
+          s = socket.socket()
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(('127.0.0.1', 5037))
+          s.listen(8)
+          def accept_loop():
+              while True:
+                  c, _ = s.accept()
+                  c.sendall(b'FAIL0000error: foreign adb server (isolation test)')
+                  c.close()
+          threading.Thread(target=accept_loop, daemon=True).start()
+          time.sleep(300)
+          " &
+          echo "foreign stub bound to 5037 (pid $!)"
+        shell: bash
+      - name: prove PATH has no adb
+        run: |
+          if command -v adb >/dev/null 2>&1; then
+            echo "adb found at $(command -v adb) but watchdog must not use it" >&2
+            echo "CI image includes adb; watchdog independence is proven by the
+          foreign 5037 binding above plus CI running no_system_adb_* tests."
+          else
+            echo "no system adb on PATH (ideal isolation condition)"
+          fi
+      - name: run no_system_adb tests
+        run: cargo test --locked -p watchdog-adb no_system_adb
+
   gate:
     name: all checks
-    needs: [fmt, clippy, test, deny, docs-link-check, fixtures]
+    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation]
     runs-on: ubuntu-latest
     steps:
       - run: echo "All required checks passed."
