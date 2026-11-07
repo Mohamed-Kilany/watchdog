@@ -16,7 +16,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 rsa = { version = "0.9", features = ["sha1", "sha2"] }
-rustls = { version = "0.23", features = ["tls13", "std"] }
+rustls = { version = "0.23", features = ["tls12", "std"] }
 rustls-pemfile = "2.2"
 sha1 = "0.10"
 sha2 = "0.10"
