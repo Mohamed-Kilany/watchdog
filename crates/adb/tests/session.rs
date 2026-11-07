@@ -48,7 +48,6 @@ async fn auth_token_signature_accepted() {
     let keys = test_keys();
     let token = [0x42u8; 20];
     let transport = MockTransport::new("test")
-        .script_packet(&device_cnxn_packet())
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
@@ -59,10 +58,19 @@ async fn auth_token_signature_accepted() {
 
     // Note: the mock serves scripted bytes in order; the host answers the
     // token with a signature, then reads the final CNXN.
+    let tap = transport.tap();
     let connection = Connection::connect(transport, HOST_BANNER, &keys)
         .await
         .expect("connect");
     assert_eq!(connection.info.maxdata, 1024 * 1024);
+    let packets = parse_written(&tap.written());
+    let auth_packets: Vec<&Packet> = packets
+        .iter()
+        .filter(|p| p.command == Command::Auth)
+        .collect();
+    assert_eq!(auth_packets.len(), 1, "expected a single Signature");
+    assert_eq!(auth_packets[0].arg0, AuthType::Signature as u32);
+    assert_eq!(auth_packets[0].payload.len(), 256);
 }
 
 #[tokio::test]
@@ -70,7 +78,6 @@ async fn signature_rejected_falls_back_to_public_key() {
     let keys = test_keys();
     let token = [0x7bu8; 20];
     let transport = MockTransport::new("test")
-        .script_packet(&device_cnxn_packet())
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
@@ -111,7 +118,6 @@ async fn unauthorized_after_public_key_sent() {
     let keys = test_keys();
     let token = [0x11u8; 20];
     let transport = MockTransport::new("test")
-        .script_packet(&device_cnxn_packet())
         .script_packet(&Packet::new(
             Command::Auth,
             AuthType::Token as u32,
