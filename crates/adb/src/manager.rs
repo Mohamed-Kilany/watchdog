@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::auth::AdbKeyPair;
-use crate::connection::{Connection, SessionInfo};
+use crate::connection::Connection;
 use crate::error::{AdbError, Result};
 use crate::tcp::TcpTransport;
 use crate::transport::Transport;

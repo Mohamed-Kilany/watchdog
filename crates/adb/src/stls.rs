@@ -177,7 +177,7 @@ pub async fn upgrade_stls(
 
 fn build_client_config(cert_der: &[u8], key_der: &[u8]) -> Result<ClientConfig> {
     let cert_chain = vec![CertificateDer::from(cert_der.to_vec())];
-    let key = PrivateKeyDer::try_from(key_der)
+    let key = PrivateKeyDer::try_from(key_der.to_vec())
         .map_err(|e| AdbError::Protocol(format!("STLS: invalid private key DER: {e}")))?;
     let mut config = ClientConfig::builder()
         .with_root_certificates(rustls::RootCertStore::empty())

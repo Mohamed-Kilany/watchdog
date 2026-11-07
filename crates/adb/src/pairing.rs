@@ -91,26 +91,24 @@ impl Spake2 {
         // BoringSSL: x25519_sc_reduce then left_shift_3 (in-place, carry propagated).
         let mut reduced = spake_reduce(&tmp);
         left_shift_3(&mut reduced);
-        self.my_private = Scalar::from_bytes_mod_order_wide(&reduced);
+        self.my_private = Scalar::from_bytes_mod_order(reduced);
 
         // w = H(password) (SHA-512), reduced.
-        let hash = Sha512::digest(password);
-        self.password_hash.copy_from_slice(&hash);
+        let hash: [u8; 64] = Sha512::digest(password).into();
+        self.password_hash = hash;
         let reduced_hash = spake_reduce(&hash);
         // BoringSSL's "password_scalar_hack" adds multiples of the group
         // order to clear the cofactor; those are no-ops mod the order, so
         // direct reduction is equivalent.
-        self.password_scalar = Scalar::from_bytes_mod_order_wide(&reduced_hash);
+        self.password_scalar = Scalar::from_bytes_mod_order(reduced_hash);
 
         // P = private * B
         let p = EdwardsPoint::mul_base(&self.my_private);
         // mask = w * M (client) or w * N (server)
         let mask_point = if self.role == SpakeRole::Client {
-            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
-                * decompress(&SPAKE_M)?
+            self.password_scalar * decompress(&SPAKE_M)?
         } else {
-            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
-                * decompress(&SPAKE_N)?
+            self.password_scalar * decompress(&SPAKE_N)?
         };
         // P* = P + mask
         let p_star = p + mask_point;
@@ -136,16 +134,14 @@ impl Spake2 {
 
         // Q = Q* - mask (peer's mask uses the other point).
         let peers_mask = if self.role == SpakeRole::Client {
-            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
-                * decompress(&SPAKE_N)?
+            self.password_scalar * decompress(&SPAKE_N)?
         } else {
-            Scalar::from_bytes_mod_order_wide(&self.password_scalar.to_bytes())
-                * decompress(&SPAKE_M)?
+            self.password_scalar * decompress(&SPAKE_M)?
         };
         let q = q_star - peers_mask;
 
         // dh = private * Q
-        let dh = Scalar::from_bytes_mod_order_wide(&self.my_private.to_bytes()) * q;
+        let dh = self.my_private * q;
         let dh_encoded = dh.compress().to_bytes();
 
         // Transcript: SHA-512 over 8-byte-LE-length-prefixed fields.
@@ -185,7 +181,7 @@ fn push_lp(hasher: &mut Sha512, data: &[u8]) {
 }
 
 fn decompress(bytes: &[u8; 32]) -> Result<EdwardsPoint> {
-    CompressedEdwardsY(bytes)
+    CompressedEdwardsY(*bytes)
         .decompress()
         .ok_or_else(|| AdbError::Protocol("SPAKE2: peer point is not on the curve".into()))
 }
@@ -224,7 +220,7 @@ pub fn derive_gcm_key(spake_key: &[u8]) -> [u8; 16] {
         let mut data = t.clone();
         data.extend_from_slice(info);
         data.push(i);
-        t = hmac_sha256(&prk, &data);
+        t = hmac_sha256(&prk, &data).to_vec();
         okm.extend_from_slice(&t);
         i += 1;
     }

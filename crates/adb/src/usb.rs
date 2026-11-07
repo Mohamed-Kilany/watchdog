@@ -2,16 +2,15 @@
 //!
 //! ADB devices expose an interface with class 0xFF, subclass 0x42, protocol
 //! 0x01. nusb handles discovery on Windows (via SetupAPI), macOS (IOKit) and
-//! Linux (sysfs/libusb compatibility shim). `watchdog device usb-doctor`
-//! explains permission problems; on Linux, `watchdog device udev-rules`
-//! installs them.
-
-use std::sync::Arc;
-use std::time::Duration;
+//! Linux (sysfs/usbfs). `watchdog device usb-doctor` explains permission
+//! problems; on Linux, `watchdog device udev-rules` installs them.
 
 use async_trait::async_trait;
-use nusb::Interface;
-use tokio::sync::mpsc;
+use nusb::descriptors::TransferType;
+use nusb::io::{EndpointRead, EndpointWrite};
+use nusb::transfer::{Bulk, In, Out};
+use nusb::{DeviceInfo, MaybeFuture};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::error::{AdbError, Result};
 use crate::transport::Transport;
@@ -20,6 +19,9 @@ use crate::transport::Transport;
 pub const ADB_USB_CLASS: u8 = 0xFF;
 pub const ADB_USB_SUBCLASS: u8 = 0x42;
 pub const ADB_USB_PROTOCOL: u8 = 0x01;
+
+/// Transfer buffer size for bulk endpoints (matches ADB's max payload).
+const USB_TRANSFER_SIZE: usize = 64 * 1024;
 
 /// A connected USB ADB device.
 #[derive(Debug, Clone)]
@@ -46,60 +48,54 @@ impl UsbDeviceInfo {
     }
 }
 
-fn has_adb_interface(device: &nusb::Device) -> bool {
-    device
-        .open()
-        .ok()
-        .and_then(|d| d.active_configuration())
-        .map(|config| {
-            config.interfaces().any(|i| {
-                i.class == ADB_USB_CLASS
-                    && i.subclass == ADB_USB_SUBCLASS
-                    && i.protocol == ADB_USB_PROTOCOL
-            })
-        })
-        .unwrap_or(false)
+fn is_adb_interface(class: u8, subclass: u8, protocol: u8) -> bool {
+    class == ADB_USB_CLASS && subclass == ADB_USB_SUBCLASS && protocol == ADB_USB_PROTOCOL
 }
 
-/// Enumerate ADB-capable devices (without opening them).
+fn has_adb_interface(device: &DeviceInfo) -> bool {
+    // Most platforms expose interface summaries before opening the device.
+    if device
+        .interfaces()
+        .any(|i| is_adb_interface(i.class(), i.subclass(), i.protocol()))
+    {
+        return true;
+    }
+    // Windows composite devices may hide interface info until opened.
+    match device.open().wait() {
+        Ok(handle) => handle
+            .active_configuration()
+            .map(|config| {
+                config
+                    .interfaces()
+                    .any(|i| is_adb_interface(i.class(), i.subclass(), i.protocol()))
+            })
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+/// Enumerate ADB-capable devices (without claiming interfaces).
 #[must_use]
 pub fn enumerate() -> Vec<UsbDeviceInfo> {
-    let mut out = Vec::new();
-    let Some(devices) = nusb::list_devices() else {
-        return out;
+    let Ok(devices) = nusb::list_devices().wait() else {
+        return Vec::new();
     };
-    for device in devices {
-        if !has_adb_interface(&device) {
-            continue;
-        }
-        let serial = device
-            .open()
-            .ok()
-            .and_then(|d| d.serial_number())
-            .unwrap_or_default();
-        let product = device
-            .open()
-            .ok()
-            .and_then(|d| d.product())
-            .unwrap_or_default();
-        out.push(UsbDeviceInfo {
-            serial,
-            vendor_id: device.id().vendor_id,
-            product_id: device.id().product_id,
-            product,
-        });
-    }
-    out
+    devices
+        .filter(has_adb_interface)
+        .map(|device| UsbDeviceInfo {
+            serial: device.serial_number().unwrap_or_default().to_string(),
+            vendor_id: device.vendor_id(),
+            product_id: device.product_id(),
+            product: device.product_string().unwrap_or_default().to_string(),
+        })
+        .collect()
 }
 
 /// A USB-backed [`Transport`].
-///
-/// A single blocking worker thread owns the `nusb::Interface` and multiplexes
-/// an async read channel and an async write channel over the bulk endpoints.
 pub struct UsbTransport {
     serial: String,
-    read_rx: mpsc::Receiver<Vec<u8>>,
-    write_tx: mpsc::Sender<Vec<u8>>,
+    reader: EndpointRead<Bulk>,
+    writer: EndpointWrite<Bulk>,
 }
 
 impl std::fmt::Debug for UsbTransport {
@@ -110,39 +106,63 @@ impl std::fmt::Debug for UsbTransport {
     }
 }
 
-fn claim_adb(device: &nusb::Device) -> Result<(Interface, u8, u8, String)> {
-    let handle = device
+fn claim_adb(info: &DeviceInfo) -> Result<UsbTransport> {
+    let handle = info
         .open()
-        .map_err(|e| AdbError::Transport(format!("open device: {e}")))?;
+        .wait()
+        .map_err(|e| AdbError::Transport(format!("open USB device: {e}")))?;
     let config = handle
         .active_configuration()
-        .ok_or_else(|| AdbError::Transport("device has no active USB configuration".into()))?;
+        .map_err(|e| AdbError::Transport(format!("USB active configuration: {e}")))?;
     let interface_desc = config
         .interfaces()
-        .find(|i| {
-            i.class == ADB_USB_CLASS
-                && i.subclass == ADB_USB_SUBCLASS
-                && i.protocol == ADB_USB_PROTOCOL
-        })
+        .find(|i| is_adb_interface(i.class(), i.subclass(), i.protocol()))
         .ok_or_else(|| AdbError::Transport("no ADB interface on this device".into()))?;
 
-    let interface = handle.claim_interface(interface_desc.number).map_err(|e| {
-        AdbError::Transport(format!("claim interface {}: {e}", interface_desc.number))
-    })?;
+    let interface_number = interface_desc.interface_number();
+    let bulk = |want_in: bool| {
+        interface_desc
+            .endpoints()
+            .find(|e| {
+                e.transfer_type() == TransferType::Bulk && (e.address() & 0x80 != 0) == want_in
+            })
+            .map(|e| e.address())
+            .ok_or_else(|| {
+                AdbError::Transport(if want_in {
+                    "no bulk-in endpoint".into()
+                } else {
+                    "no bulk-out endpoint".into()
+                })
+            })
+    };
+    let in_endpoint = bulk(true)?;
+    let out_endpoint = bulk(false)?;
 
-    let in_endpoint = interface_desc
-        .endpoints()
-        .find(|e| e.address & 0x80 != 0)
-        .map(|e| e.address)
-        .ok_or_else(|| AdbError::Transport("no bulk-in endpoint".into()))?;
-    let out_endpoint = interface_desc
-        .endpoints()
-        .find(|e| e.address & 0x80 == 0)
-        .map(|e| e.address)
-        .ok_or_else(|| AdbError::Transport("no bulk-out endpoint".into()))?;
+    let interface = handle
+        .claim_interface(interface_number)
+        .wait()
+        .map_err(|e| AdbError::Transport(format!("claim interface {interface_number}: {e}")))?;
 
-    let serial = handle.serial_number().unwrap_or_default();
-    Ok((interface, in_endpoint, out_endpoint, serial))
+    let reader = interface
+        .endpoint::<Bulk, In>(in_endpoint)
+        .map_err(|e| {
+            AdbError::Transport(format!("open bulk-in endpoint 0x{in_endpoint:02x}: {e}"))
+        })?
+        .reader(USB_TRANSFER_SIZE)
+        .with_num_transfers(4);
+    let writer = interface
+        .endpoint::<Bulk, Out>(out_endpoint)
+        .map_err(|e| {
+            AdbError::Transport(format!("open bulk-out endpoint 0x{out_endpoint:02x}: {e}"))
+        })?
+        .writer(USB_TRANSFER_SIZE)
+        .with_num_transfers(4);
+
+    Ok(UsbTransport {
+        serial: info.serial_number().unwrap_or_default().to_string(),
+        reader,
+        writer,
+    })
 }
 
 impl UsbTransport {
@@ -160,95 +180,24 @@ impl UsbTransport {
 
     /// Open the device with the given serial (empty matches the first device).
     pub fn open_by_serial(serial: &str) -> Result<Self> {
-        let devices = nusb::list_devices().ok_or_else(|| {
-            AdbError::Transport(
-                "nusb could not list devices (BIOS/driver blocked enumeration?)".into(),
-            )
-        })?;
+        let devices = nusb::list_devices()
+            .wait()
+            .map_err(|e| AdbError::Transport(format!("nusb could not list devices: {e}")))?;
 
-        let mut target = None;
         for device in devices {
             if !has_adb_interface(&device) {
                 continue;
             }
-            let device_serial = device
-                .open()
-                .ok()
-                .and_then(|d| d.serial_number())
-                .unwrap_or_default();
-            if !serial.is_empty() && device_serial != *serial {
+            let device_serial = device.serial_number().unwrap_or_default();
+            if !serial.is_empty() && device_serial != serial {
                 continue;
             }
-            target = Some(device);
-            break;
+            return claim_adb(&device);
         }
 
-        let device = target.ok_or_else(|| {
-            AdbError::Transport(format!("no USB ADB device with serial {serial:?} found"))
-        })?;
-        let (interface, in_endpoint, out_endpoint, device_serial) = claim_adb(&device)?;
-
-        let (read_tx, read_rx) = mpsc::channel::<Vec<u8>>(64);
-        let (write_tx, write_rx) = mpsc::channel::<Vec<u8>>(64);
-        let interface = Arc::new(interface);
-
-        // Single worker thread: owns the interface, multiplexes channels.
-        // Reads use a short timeout so writes never starve behind a blocked read.
-        std::thread::spawn(move || {
-            let mut write_rx = write_rx;
-            let mut buf = vec![0u8; 64 * 1024];
-            loop {
-                // Drain all pending writes first.
-                let mut pending: Vec<Vec<u8>> = Vec::new();
-                while let Ok(data) = write_rx.try_recv() {
-                    pending.push(data);
-                }
-                for data in pending {
-                    if interface
-                        .write_bulk(out_endpoint, &data, Duration::from_secs(10))
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-                match interface.read_bulk(in_endpoint, &mut buf, Duration::from_millis(200)) {
-                    Ok(n) if n > 0 => {
-                        if read_tx.blocking_send(buf[..n].to_vec()).is_err() {
-                            return;
-                        }
-                    }
-                    Ok(_) => {
-                        // Timeout with no data: wait for at least one write request
-                        // so we never spin hot on an idle device.
-                        let _ = write_rx.blocking_recv();
-                    }
-                    Err(e) => {
-                        // On transport errors, back off unless both channels are closed.
-                        if read_tx.is_closed() && write_rx.is_closed() {
-                            return;
-                        }
-                        if matches!(
-                            e.kind(),
-                            nusb::ErrorKind::Timeout
-                                | nusb::ErrorKind::TimeoutPreviousTransactionIncomplete
-                        ) {
-                            std::thread::sleep(Duration::from_millis(2));
-                        } else {
-                            std::thread::sleep(Duration::from_millis(10));
-                        }
-                    }
-                }
-                if read_tx.is_closed() && write_rx.is_closed() {
-                    return;
-                }
-            }
-        });
-
-        Ok(Self {
-            serial: device_serial,
-            read_rx,
-            write_tx,
-        })
+        Err(AdbError::Transport(format!(
+            "no USB ADB device with serial {serial:?} found"
+        )))
     }
 }
 
@@ -259,33 +208,26 @@ impl Transport for UsbTransport {
     }
 
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        let mut filled = 0;
-        while filled < buf.len() {
-            match self.read_rx.recv().await {
-                Some(chunk) => {
-                    let take = (buf.len() - filled).min(chunk.len());
-                    buf[filled..filled + take].copy_from_slice(&chunk[..take]);
-                    filled += take;
-                    if take < chunk.len() {
-                        return Err(AdbError::Protocol(
-                            "USB chunk larger than the buffer we asked to fill".into(),
-                        ));
-                    }
-                }
-                None => return Err(AdbError::StreamClosed),
-            }
-        }
-        Ok(())
+        self.reader
+            .read_exact(buf)
+            .await
+            .map(|_| ())
+            .map_err(|e| AdbError::Transport(format!("usb read: {e}")))
     }
 
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        self.write_tx
-            .send(buf.to_vec())
+        self.writer
+            .write_all(buf)
             .await
-            .map_err(|_| AdbError::StreamClosed)
+            .map_err(|e| AdbError::Transport(format!("usb write: {e}")))?;
+        self.writer
+            .flush()
+            .await
+            .map_err(|e| AdbError::Transport(format!("usb flush: {e}")))
     }
 
     async fn close(&mut self) -> Result<()> {
+        let _ = self.writer.flush().await;
         Ok(())
     }
 }

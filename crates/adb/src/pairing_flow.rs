@@ -234,7 +234,7 @@ async fn read_next_peer_info<T: Transport>(transport: &mut T) -> Result<Vec<u8>>
 fn client_config(cert_der: &[u8], key_der: &[u8]) -> Result<rustls::ClientConfig> {
     use rustls::pki_types::PrivateKeyDer;
 
-    let key = PrivateKeyDer::try_from(key_der)
+    let key = PrivateKeyDer::try_from(key_der.to_vec())
         .map_err(|e| AdbError::Protocol(format!("pairing: invalid private key DER: {e}")))?;
 
     let mut config = rustls::ClientConfig::builder()

@@ -143,7 +143,7 @@ async fn install_with<T: Transport + 'static>(
     } else {
         format!("pm install{flags} -S {size}")
     };
-    let mut stream = connection
+    let stream = connection
         .open_stream(&format!("shell,v2,raw:{command}"))
         .await?;
 

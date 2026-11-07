@@ -64,6 +64,7 @@ impl Transport for TcpTransport {
         self.stream
             .read_exact(buf)
             .await
+            .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("tcp read: {e}")))
     }
 
@@ -76,7 +77,8 @@ impl Transport for TcpTransport {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let _ = self.stream.shutdown(std::net::Shutdown::Both);
+        use tokio::io::AsyncWriteExt as _;
+        let _ = self.stream.shutdown().await;
         Ok(())
     }
 }

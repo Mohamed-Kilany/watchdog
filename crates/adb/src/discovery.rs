@@ -8,7 +8,7 @@
 //! endpoint with its device GUID (TXT `dev=<guid>`), host and port.
 
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use mdns_sd::{ServiceDaemon, ServiceEvent};
