@@ -25,6 +25,7 @@ base64 = "0.22"
 hex = "0.4"
 aes-gcm = "0.10"
 curve25519-dalek = { version = "4", features = ["rand_core"] }
+mdns-sd = "0.11"
 num-bigint = "0.4"
 rand = "0.8"
 nusb = "0.2"

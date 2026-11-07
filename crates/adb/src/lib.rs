@@ -13,6 +13,7 @@
 
 pub mod auth;
 pub mod connection;
+pub mod discovery;
 pub mod error;
 pub mod forward;
 pub mod install;
@@ -29,6 +30,7 @@ pub mod usb;
 
 pub use auth::AdbKeyPair;
 pub use connection::{Connection, SessionInfo, Stream, StreamWriter, OPEN_TIMEOUT};
+pub use discovery::{discover, discover_default, DiscoveredDevice};
 pub use error::{AdbError, Result};
 pub use forward::{start_forward, ForwardHandle};
 pub use install::{install_apk, install_failure_hint, InstallOptions, InstallOutcome};
