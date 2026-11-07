@@ -32,16 +32,13 @@ pub mod transport;
 pub mod usb;
 
 pub use auth::AdbKeyPair;
-pub use connection::{Connection, SessionInfo, Stream, StreamWriter, OPEN_TIMEOUT};
+pub use connection::{Connection, Stream, StreamWriter, OPEN_TIMEOUT};
 pub use discovery::{discover, discover_default, DiscoveredDevice};
 pub use error::{AdbError, Result};
 pub use forward::{start_forward, ForwardHandle};
 pub use install::{install_apk, install_failure_hint, InstallOptions, InstallOutcome};
-pub(crate) use manager::{connect_tcp, connect_usb};
-pub use manager::{
-    list_usb, refresh_properties, DeviceManager, DeviceState, DeviceSummary, DeviceTable,
-    GoneReason,
-};
+pub use manager::{connect_tcp, connect_usb, list_usb, refresh_properties};
+pub use manager::{DeviceManager, DeviceState, DeviceSummary, DeviceTable, GoneReason};
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
 pub use pairing::{derive_gcm_key, Spake2, SpakeRole};
 pub use pairing_flow::{pair, pair_with_password, PairingOutcome};

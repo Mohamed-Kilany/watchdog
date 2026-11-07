@@ -54,14 +54,17 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
         }
         let result = tokio::time::timeout(remaining, receiver.recv_async()).await;
         let event = match result {
-            Ok(event) => event,
+            Ok(Ok(event)) => event,
+            Ok(Err(_)) => continue,
             Err(_) => break,
         };
         match event {
-            ServiceEvent::ServiceFound(_service_type, info) => {
+            ServiceEvent::ServiceFound(_, info) => {
                 let guid = info
-                    .get_property("dev")
-                    .map(|s| s.val().to_string())
+                    .get_properties()
+                    .iter()
+                    .find(|p| p.key() == "dev")
+                    .map(|p| p.val().to_string())
                     .unwrap_or_default();
                 let name = info.get_hostname().to_string();
                 let host = info.get_host_name().to_string();
@@ -93,8 +96,6 @@ pub async fn discover(timeout: Duration) -> Result<Vec<DiscoveredDevice>> {
             ServiceEvent::SearchStarted(_) => {}
             ServiceEvent::SearchStopped(_) => {}
             ServiceEvent::ServiceResolved(_) => {}
-            ServiceEvent::ServiceUpdated(..) => {}
-            ServiceEvent::BrowserStopped(_) => {}
         }
     }
 
