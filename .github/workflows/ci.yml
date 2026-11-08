@@ -139,19 +139,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - name: install Android SDK platform and build tools
         run: |
-          # The ubuntu runner image already provides the SDK and sdkmanager on
-          # PATH. setup-android@v3 is not used because it tries to install the
-          # retired `tools` package and fails before our steps run.
-          command -v sdkmanager
-          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+          # The runner image provides the SDK but not necessarily sdkmanager on
+          # PATH, and setup-android@v3 fails trying to install the retired
+          # `tools` package. Locate the SDK manager explicitly instead.
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -maxdepth 3 -type f -name sdkmanager 2>/dev/null | head -n1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK/cmdline-tools" >&2
+            ls -la "$SDK" >&2 || true
+            exit 1
+          fi
+          echo "using $SDKMANAGER"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
       - name: derive app version from git tag
         run: |
           if TAG=$(git describe --tags --exact-match 2>/dev/null); then

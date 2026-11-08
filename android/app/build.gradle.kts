@@ -32,7 +32,13 @@ val releaseKeystore = System.getenv("WATCHDOG_KEYSTORE_FILE")
 
 android {
     namespace = "app.watchdog.remote"
-    compileSdk = 37
+    // API 37 is published as platform 37.0 (minor API level 0); the new DSL
+    // resolves platforms/android-37.0 instead of the non-existent android-37.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 0
+        }
+    }
 
     defaultConfig {
         applicationId = "app.watchdog.remote"

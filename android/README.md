@@ -11,7 +11,7 @@ local socket.
 | Gradle | 9.6.0 | committed wrapper (`./gradlew`) |
 | Android Gradle plugin | 9.5.0 | built-in Kotlin 2.2.10 |
 | JDK | 17 | CI uses Temurin 17 |
-| compileSdk / targetSdk | 37 | Android 17 (latest stable at M3) |
+| compileSdk / targetSdk | 37 (platform 37.0) | Android 17 (latest stable at M3); AGP resolves the minor API level 0 |
 | minSdk | 26 | Android 8.0 |
 | Application id | `app.watchdog.remote` | change only via ADR |
 
