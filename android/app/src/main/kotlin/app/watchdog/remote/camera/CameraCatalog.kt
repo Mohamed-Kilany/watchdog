@@ -5,7 +5,7 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
-import android.util.Log
+import app.watchdog.remote.log.DeviceLog
 
 /** Enumerated camera identity, used in `HELLO_ACK` and the on-device UI. */
 data class CameraInfo(
@@ -25,7 +25,7 @@ object CameraCatalog {
         return try {
             manager.cameraIdList.mapNotNull { id -> info(manager, id) }
         } catch (e: CameraAccessException) {
-            Log.e(TAG, "cannot enumerate cameras: ${e.message}")
+            DeviceLog.e(TAG, "cannot enumerate cameras: ${e.message}")
             emptyList()
         }
     }
@@ -42,7 +42,7 @@ object CameraCatalog {
                 physicalIds = physicalIds,
             )
         } catch (e: CameraAccessException) {
-            Log.w(TAG, "camera $id unavailable: ${e.message}")
+            DeviceLog.w(TAG, "camera $id unavailable: ${e.message}")
             null
         }
 

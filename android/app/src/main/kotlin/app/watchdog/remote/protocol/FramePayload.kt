@@ -41,10 +41,7 @@ data class FramePayload(
 
         fun decode(payload: ByteArray): FramePayload {
             if (payload.size < HEADER_SIZE) {
-                throw ProtocolException(
-                    ProtocolError.MessageDecode,
-                    "truncated FRAME header: ${payload.size} bytes",
-                )
+                decodeFailure("truncated FRAME header: ${payload.size} bytes")
             }
             val buffer = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN)
             val sequence = buffer.long
@@ -55,10 +52,10 @@ data class FramePayload(
             val flags = buffer.get().toInt() and BYTE_MASK
             val reserved = buffer.get().toInt() and BYTE_MASK
             if (reserved != 0) {
-                throw ProtocolException(ProtocolError.MessageDecode, "FRAME reserved byte must be 0")
+                decodeFailure("FRAME reserved byte must be 0")
             }
             if (rotation !in VALID_ROTATIONS) {
-                throw ProtocolException(ProtocolError.MessageDecode, "invalid rotation $rotation")
+                decodeFailure("invalid rotation $rotation")
             }
             return FramePayload(
                 sequence = sequence,
@@ -70,5 +67,8 @@ data class FramePayload(
                 jpeg = payload.copyOfRange(HEADER_SIZE, payload.size),
             )
         }
+
+        private fun decodeFailure(message: String): Nothing =
+            throw ProtocolException(ProtocolError.MessageDecode, message)
     }
 }

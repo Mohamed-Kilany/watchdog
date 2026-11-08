@@ -10,9 +10,9 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.TotalCaptureResult
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
 import android.view.Surface
 import androidx.core.content.ContextCompat
+import app.watchdog.remote.log.DeviceLog
 
 /** Camera lifecycle API used by the service and the frame pipeline. */
 interface CameraController {
@@ -93,9 +93,9 @@ class Camera2Controller(context: Context, private val listener: CameraController
                     active.stopRepeating()
                     active.abortCaptures()
                 } catch (e: CameraAccessException) {
-                    Log.w(TAG, "stopRepeating failed: ${e.message}")
+                    DeviceLog.w(TAG, "stopRepeating failed: ${e.message}")
                 } catch (e: IllegalStateException) {
-                    Log.w(TAG, "stopRepeating invalid state: ${e.message}")
+                    DeviceLog.w(TAG, "stopRepeating invalid state: ${e.message}")
                 }
             }
             machine.onEvent(CameraEvent.StreamStopped)
@@ -159,25 +159,26 @@ class Camera2Controller(context: Context, private val listener: CameraController
         val camera = device
         if (camera == null || surfaces.isEmpty()) {
             fail("cannot start streaming: camera or surfaces unavailable")
-        } else {
-            try {
-                val request =
-                    camera
-                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                        .apply {
-                            surfaces.forEach { addTarget(it) }
-                            set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                        }.build()
-                session.setRepeatingRequest(request, captureCallback, handler)
-                machine.onEvent(CameraEvent.StreamStarted)
-                publish()
-            } catch (e: CameraAccessException) {
-                fail("setRepeatingRequest failed: ${e.message}")
-            } catch (e: IllegalStateException) {
-                fail("setRepeatingRequest invalid state: ${e.message}")
-            }
+            return
+        }
+        try {
+            session.setRepeatingRequest(previewRequest(camera), captureCallback, handler)
+            machine.onEvent(CameraEvent.StreamStarted)
+            publish()
+        } catch (e: CameraAccessException) {
+            fail("setRepeatingRequest failed: ${e.message}")
+        } catch (e: IllegalStateException) {
+            fail("setRepeatingRequest invalid state: ${e.message}")
         }
     }
+
+    private fun previewRequest(camera: CameraDevice): CaptureRequest =
+        camera
+            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+            .apply {
+                surfaces.forEach { addTarget(it) }
+                set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+            }.build()
 
     private fun scheduleRecovery(reason: String, baseDelayMs: Long = BASE_RECOVERY_DELAY_MS) {
         if (closedByUser || recoveryScheduled) {
@@ -186,7 +187,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
         recoveryScheduled = true
         val attempt = machine.snapshot.recoveries + 1
         val delayMs = minOf(MAX_RECOVERY_DELAY_MS, baseDelayMs * attempt)
-        Log.i(TAG, "scheduling recovery in ${delayMs}ms after $reason")
+        DeviceLog.i(TAG, "scheduling recovery in ${delayMs}ms after $reason")
         handler.postDelayed(recoveryRunnable, delayMs)
     }
 
@@ -267,7 +268,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
             PackageManager.PERMISSION_GRANTED
 
     private fun fail(reason: String) {
-        Log.e(TAG, reason)
+        DeviceLog.e(TAG, reason)
         machine.onEvent(CameraEvent.Failed(reason))
         publish()
     }

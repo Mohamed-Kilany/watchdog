@@ -3,8 +3,8 @@ package app.watchdog.remote
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.content.ContextCompat
+import app.watchdog.remote.log.DeviceLog
 
 /**
  * Token-protected exported entry point for provisioning.
@@ -22,11 +22,11 @@ class ProvisioningReceiver : BroadcastReceiver() {
         val token = intent.getStringExtra(SessionToken.EXTRA)
         when {
             token == null || !SessionToken.isValid(token) ->
-                Log.w(TAG, "rejected action=$action: missing or malformed session token")
+                DeviceLog.w(TAG, "rejected action=$action: missing or malformed session token")
             action != CaptureService.ACTION_START &&
                 action != CaptureService.ACTION_STOP &&
                 action != CaptureService.ACTION_STATUS ->
-                Log.w(TAG, "rejected unknown action=$action")
+                DeviceLog.w(TAG, "rejected unknown action=$action")
             else -> forward(context, action, token)
         }
     }

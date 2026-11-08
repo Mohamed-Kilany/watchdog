@@ -29,6 +29,7 @@
          transferred over adb sync, which does not need READ/WRITE_EXTERNAL_STORAGE. -->
 
     <application
+        android:name=".WatchdogApp"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"

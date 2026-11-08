@@ -1,6 +1,7 @@
 package app.watchdog.remote.transport
 
 import android.net.LocalSocket
+import app.watchdog.remote.log.DeviceLog
 import java.io.IOException
 
 /** Minimal blocking byte-stream abstraction over a local socket. */
@@ -40,7 +41,7 @@ class SocketPeer(private val socket: LocalSocket) : Peer {
             socket.close()
         } catch (e: IOException) {
             // Closing an already-broken socket is not an error.
-            android.util.Log.d("WatchdogPeer", "close: ${e.message}")
+            DeviceLog.d("WatchdogPeer", "close: ${e.message}")
         }
     }
 }

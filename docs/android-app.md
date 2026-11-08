@@ -88,11 +88,30 @@ name without an extra handshake.
   `BYE{reason:"session_replaced"}`; only one host session is active at a time.
 - **Heartbeat** — the app answers `PING` with `PONG` (echoing `nonce`, adding
   `app_ts_ns` from `CLOCK_BOOTTIME`). 15 s without host traffic closes the session.
-- **Backpressure** — the send queue is bounded (8 frames). `FRAME` is dropped on
-  overflow (host sees sequence gaps); control messages wait briefly, and a control
-  overflow fails the session instead of silently losing state.
+- **Backpressure** — the send queue is bounded (8 packets). `FRAME` and
+  `LOG_CHUNK` are dropped on overflow (the host sees sequence gaps or missing log
+  lines); control messages wait briefly, and a control overflow fails the session
+  instead of silently losing state.
 - **Shutdown** — `BYE` from the host, service stop and `app_shutdown` all close the
   socket cleanly; the camera is released by the service's `onDestroy` path.
+
+## Device log ring (M3-T09)
+
+Every app log line is written to logcat (release builds included) and retained in a
+process-wide 256 KiB ring (`app.watchdog.remote.log.LogRing`). The ring stores whole
+records only: when it is full the oldest record is evicted, so memory is bounded and
+a record is never split.
+
+- On an authenticated session the backlog is flushed as `LOG_CHUNK` frames
+  (`ts_ms u64 LE | level u8 | UTF-8 text`, `docs/protocol.md` §5.9), then new lines
+  stream live until the session closes.
+- Text is capped at 64 KiB per record; longer messages are truncated. The
+  backlog is packed into batches of at most 64 KiB, one `<ts_ms> <LEVEL> <text>`
+  line per record, so a 256 KiB ring needs only a handful of frames.
+- `watchdog device logs [--follow]` prints these frames (host CLI integration lands
+  with the provisioning pipeline, M3-T13/T16).
+- Logs are intentionally lossy under backpressure; they never stall frames or fail
+  a session.
 
 ## Other hardening
 

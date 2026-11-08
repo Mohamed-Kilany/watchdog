@@ -3,7 +3,7 @@ package app.watchdog.remote.transport
 import android.net.LocalServerSocket
 import android.net.LocalSocket
 import android.os.SystemClock
-import android.util.Log
+import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.protocol.JsonMessages
 import app.watchdog.remote.protocol.MessageType
 import app.watchdog.remote.protocol.Packet
@@ -59,7 +59,7 @@ class TransportServer(
                 isDaemon = true
                 start()
             }
-        Log.i(TAG, "listening on localabstract:$sessionName")
+        DeviceLog.i(TAG, "listening on localabstract:$sessionName")
     }
 
     fun stop() {
@@ -69,23 +69,30 @@ class TransportServer(
         try {
             serverSocket?.close()
         } catch (e: IOException) {
-            Log.d(TAG, "server socket close: ${e.message}")
+            DeviceLog.d(TAG, "server socket close: ${e.message}")
         }
         serverSocket = null
         val current = synchronized(lock) { sessions.toList() }
         current.forEach { it.shutdown("app_shutdown") }
         acceptThread?.join(ACCEPT_JOIN_MS)
         acceptThread = null
-        Log.i(TAG, "stopped")
+        DeviceLog.i(TAG, "stopped")
     }
 
     /**
-     * Queues a packet for the active session. `FRAME` packets are dropped when
-     * the send queue is full; control packets fail the session on overflow.
+     * Queues a packet for the active session. `FRAME` and `LOG_CHUNK` packets
+     * are dropped when the send queue is full; control packets fail the
+     * session on overflow.
      */
     fun send(packet: Packet): Boolean {
         val session = synchronized(lock) { sessions.firstOrNull { it.authenticated && !it.isClosed } }
         return session?.send(packet) ?: false
+    }
+
+    /** Best-effort `LOG_CHUNK` send; logs are lossy by design. */
+    fun sendLog(payload: ByteArray): Boolean {
+        val session = synchronized(lock) { sessions.firstOrNull { it.authenticated && !it.isClosed } }
+        return session?.sendLog(payload) ?: false
     }
 
     private fun acceptLoop(socket: LocalServerSocket) {
@@ -95,7 +102,7 @@ class TransportServer(
                     socket.accept()
                 } catch (e: IOException) {
                     if (running.get()) {
-                        Log.w(TAG, "accept failed: ${e.message}")
+                        DeviceLog.w(TAG, "accept failed: ${e.message}")
                     }
                     break
                 }
@@ -138,6 +145,9 @@ class TransportServer(
         var authenticated = false
             private set
 
+        @Volatile
+        private var hostName: String? = null
+
         val isClosed: Boolean
             get() = closed.get()
 
@@ -155,13 +165,14 @@ class TransportServer(
                 authenticated = true
                 register(this)
                 startWriter()
+                listener.onSessionOpen(hostName)
                 reason = readLoop()
             } catch (e: ProtocolException) {
-                Log.w(TAG, "protocol error: ${e.message}")
+                DeviceLog.w(TAG, "protocol error: ${e.message}")
                 sendError(PROTOCOL_ERROR_CODE, e.message ?: "protocol error")
                 reason = "protocol_error"
             } catch (e: IOException) {
-                Log.i(TAG, "session I/O ended: ${e.message}")
+                DeviceLog.i(TAG, "session I/O ended: ${e.message}")
                 reason = "io_error"
             } finally {
                 shutdown(reason)
@@ -174,11 +185,18 @@ class TransportServer(
                 return false
             }
             val accepted = outbound.offer(packet)
-            if (!accepted && packet.type != MessageType.FRAME) {
-                Log.w(TAG, "control send queue overflow; closing session")
+            if (!accepted && packet.type != MessageType.FRAME && packet.type != MessageType.LOG_CHUNK) {
+                DeviceLog.w(TAG, "control send queue overflow; closing session")
                 shutdown("send_queue_overflow")
             }
             return accepted
+        }
+
+        fun sendLog(payload: ByteArray): Boolean {
+            if (closed.get()) {
+                return false
+            }
+            return outbound.offer(Packet(MessageType.LOG_CHUNK, 0, payload))
         }
 
         fun shutdown(reason: String) {
@@ -205,7 +223,7 @@ class TransportServer(
                     try {
                         peer.read(buffer)
                     } catch (e: SocketTimeoutException) {
-                        Log.w(TAG, "handshake timed out")
+                        DeviceLog.w(TAG, "handshake timed out", e)
                         return false
                     }
                 if (read < 0) {
@@ -222,14 +240,14 @@ class TransportServer(
                         val ack = Packet(MessageType.HELLO_ACK, 0, helloAck(decision.protocolVersion))
                         peer.write(PacketCodec.encode(ack))
                         peer.setReadTimeout(HEARTBEAT_TIMEOUT_MS)
-                        listener.onSessionOpen(hello.hostName)
-                        Log.i(TAG, "host session accepted (${hello.hostName ?: "unknown host"})")
+                        hostName = hello.hostName
+                        DeviceLog.i(TAG, "host session accepted (${hello.hostName ?: "unknown host"})")
                         return true
                     }
                     is HandshakeDecision.Rejected -> {
                         sendError(decision.errorCode, decision.message, decision.hint)
                         sendBye("error", decision.errorCode)
-                        Log.w(TAG, "handshake rejected: ${decision.errorCode}")
+                        DeviceLog.w(TAG, "handshake rejected: ${decision.errorCode}")
                         return false
                     }
                 }
@@ -250,7 +268,7 @@ class TransportServer(
                     try {
                         peer.read(buffer)
                     } catch (e: SocketTimeoutException) {
-                        Log.w(TAG, "heartbeat timeout")
+                        DeviceLog.w(TAG, "heartbeat timeout", e)
                         return "heartbeat_timeout"
                     }
                 if (read < 0) {
@@ -302,7 +320,7 @@ class TransportServer(
                 try {
                     peer.write(PacketCodec.encode(packet))
                 } catch (e: IOException) {
-                    Log.w(TAG, "write failed: ${e.message}")
+                    DeviceLog.w(TAG, "write failed: ${e.message}")
                     shutdown("send_failed")
                     return
                 }
@@ -326,7 +344,7 @@ class TransportServer(
             try {
                 peer.write(PacketCodec.encode(packet))
             } catch (e: IOException) {
-                Log.d(TAG, "best-effort send failed: ${e.message}")
+                DeviceLog.d(TAG, "best-effort send failed: ${e.message}")
             }
         }
     }

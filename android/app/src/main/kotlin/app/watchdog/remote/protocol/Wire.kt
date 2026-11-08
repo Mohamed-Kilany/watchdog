@@ -153,28 +153,31 @@ private fun parseHeader(bytes: ByteArray, offset: Int): Header {
     val magic = ByteArray(MAGIC.size)
     header.get(magic)
     if (!magic.contentEquals(MAGIC)) {
-        throw ProtocolException(ProtocolError.BadMagic, "bad magic (expected WDG1)")
+        protocolFailure(ProtocolError.BadMagic, "bad magic (expected WDG1)")
     }
     val version = header.get().toInt() and BYTE_MASK
     if (version != PROTOCOL_VERSION) {
-        throw ProtocolException(ProtocolError.UnsupportedVersion, "unsupported version $version")
+        protocolFailure(ProtocolError.UnsupportedVersion, "unsupported version $version")
     }
     val typeByte = header.get().toInt() and BYTE_MASK
     val flags = header.get().toInt() and BYTE_MASK
     val reserved = header.get().toInt() and BYTE_MASK
     if (reserved != 0) {
-        throw ProtocolException(ProtocolError.ReservedNonZero, "reserved byte must be 0, got $reserved")
+        protocolFailure(ProtocolError.ReservedNonZero, "reserved byte must be 0, got $reserved")
     }
     val payloadLen = header.int
     if (payloadLen < 0 || payloadLen > MAX_PAYLOAD_LEN) {
-        throw ProtocolException(ProtocolError.PayloadTooLarge, "payload too large: $payloadLen")
+        protocolFailure(ProtocolError.PayloadTooLarge, "payload too large: $payloadLen")
     }
     val crc = header.int
     val type =
         MessageType.fromWire(typeByte)
-            ?: throw ProtocolException(ProtocolError.UnknownType, "unknown message type 0x%02x".format(typeByte))
+            ?: protocolFailure(ProtocolError.UnknownType, "unknown message type 0x%02x".format(typeByte))
     return Header(type, flags, payloadLen, crc)
 }
+
+private fun protocolFailure(error: ProtocolError, message: String): Nothing =
+    throw ProtocolException(error, message)
 
 private fun verifyCrc(payload: ByteArray, expected: Int) {
     val actual = crc32(payload)

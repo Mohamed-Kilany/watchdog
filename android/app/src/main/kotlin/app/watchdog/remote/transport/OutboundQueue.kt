@@ -1,6 +1,6 @@
 package app.watchdog.remote.transport
 
-import android.util.Log
+import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.protocol.MessageType
 import app.watchdog.remote.protocol.Packet
 import java.util.concurrent.ArrayBlockingQueue
@@ -8,10 +8,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Bounded outbound queue (`docs/protocol.md` §8). `FRAME` is dropped when the
- * queue is full so a slow host only causes sequence gaps; control messages
- * wait briefly and then report failure, which fails the session instead of
- * silently losing state.
+ * Bounded outbound queue (`docs/protocol.md` §8). `FRAME` and `LOG_CHUNK` are
+ * dropped when the queue is full so a slow host only causes sequence gaps or
+ * missing log lines; control messages wait briefly and then report failure,
+ * which fails the session instead of silently losing state.
  */
 class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAIT_MS) {
     private val queue = ArrayBlockingQueue<Packet>(capacity)
@@ -25,7 +25,7 @@ class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAI
         if (closed) {
             return false
         }
-        if (packet.type == MessageType.FRAME) {
+        if (packet.type == MessageType.FRAME || packet.type == MessageType.LOG_CHUNK) {
             val accepted = queue.offer(packet)
             if (!accepted) {
                 dropped.incrementAndGet()
@@ -35,7 +35,7 @@ class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAI
         return try {
             queue.offer(packet, controlWaitMs, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
-            Log.d(TAG, "control offer interrupted: ${e.message}")
+            DeviceLog.d(TAG, "control offer interrupted: ${e.message}")
             Thread.currentThread().interrupt()
             false
         }
@@ -45,7 +45,7 @@ class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAI
         try {
             queue.poll(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
-            Log.d(TAG, "poll interrupted: ${e.message}")
+            DeviceLog.d(TAG, "poll interrupted: ${e.message}")
             Thread.currentThread().interrupt()
             null
         }

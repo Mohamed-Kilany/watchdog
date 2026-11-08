@@ -12,12 +12,13 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.protocol.MessageType
 import app.watchdog.remote.protocol.Packet
 import app.watchdog.remote.transport.HelloAckBuilder
+import app.watchdog.remote.transport.LogStreamer
 import app.watchdog.remote.transport.TransportServer
 import java.io.IOException
 
@@ -32,6 +33,7 @@ import java.io.IOException
 class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var transport: TransportServer? = null
+    private val logStreamer = LogStreamer()
 
     @Volatile
     private var running = false
@@ -42,13 +44,13 @@ class CaptureService : Service() {
         val action = intent?.action
         val token = intent?.getStringExtra(SessionToken.EXTRA)
         if (token == null || !SessionToken.isValid(token)) {
-            Log.w(TAG, "rejected action=$action: missing or malformed session token")
+            DeviceLog.w(TAG, "rejected action=$action: missing or malformed session token")
         } else {
             when (action) {
                 ACTION_START -> startCapture(token)
                 ACTION_STOP -> stopCapture("host_request")
-                ACTION_STATUS -> Log.i(TAG, "status: running=$running session=${transport?.hasSession == true}")
-                else -> Log.w(TAG, "rejected unknown action=$action")
+                ACTION_STATUS -> DeviceLog.i(TAG, "status: running=$running session=${transport?.hasSession == true}")
+                else -> DeviceLog.w(TAG, "rejected unknown action=$action")
             }
         }
         return START_NOT_STICKY
@@ -56,9 +58,9 @@ class CaptureService : Service() {
 
     private fun startCapture(token: String) {
         when {
-            running -> Log.i(TAG, "capture already running; ignoring duplicate start")
+            running -> DeviceLog.i(TAG, "capture already running; ignoring duplicate start")
             !hasCameraPermission() -> {
-                Log.e(TAG, "CAMERA permission not granted; provisioning must grant it before start")
+                DeviceLog.e(TAG, "CAMERA permission not granted; provisioning must grant it before start")
                 stopSelf()
             }
             !tryStartForeground(token) -> stopSelf()
@@ -66,7 +68,7 @@ class CaptureService : Service() {
                 acquireWakeLock()
                 running = true
                 startTransport(token)
-                Log.i(TAG, "capture service started (session token accepted)")
+                DeviceLog.i(TAG, "capture service started (session token accepted)")
             }
         }
     }
@@ -90,17 +92,17 @@ class CaptureService : Service() {
             }
             true
         } catch (e: SecurityException) {
-            Log.e(TAG, "startForeground denied: ${e.message}", e)
+            DeviceLog.e(TAG, "startForeground denied: ${e.message}", e)
             false
         } catch (e: IllegalStateException) {
-            Log.e(TAG, "startForeground not allowed: ${e.message}", e)
+            DeviceLog.e(TAG, "startForeground not allowed: ${e.message}", e)
             false
         }
     }
 
     private fun stopCapture(reason: String) {
         if (running) {
-            Log.i(TAG, "stopping capture: $reason")
+            DeviceLog.i(TAG, "stopping capture: $reason")
             running = false
             stopTransport()
             releaseWakeLock()
@@ -124,11 +126,12 @@ class CaptureService : Service() {
             server.start()
             transport = server
         } catch (e: IOException) {
-            Log.e(TAG, "transport server failed to start: ${e.message}", e)
+            DeviceLog.e(TAG, "transport server failed to start: ${e.message}", e)
         }
     }
 
     private fun stopTransport() {
+        logStreamer.detach()
         transport?.stop()
         transport = null
     }
@@ -136,19 +139,21 @@ class CaptureService : Service() {
     private val transportListener =
         object : TransportServer.Listener {
             override fun onSessionOpen(hostName: String?) {
-                Log.i(TAG, "host session open: ${hostName ?: "unknown"}")
+                DeviceLog.i(TAG, "host session open: ${hostName ?: "unknown"}")
+                transport?.let(logStreamer::attach)
             }
 
             override fun onSessionClosed(reason: String) {
-                Log.i(TAG, "host session closed: $reason")
+                logStreamer.detach()
+                DeviceLog.i(TAG, "host session closed: $reason")
             }
 
             override fun onPacket(packet: Packet) {
                 if (packet.type == MessageType.COMMAND) {
                     // M4 implements control/capture commands; M3 only carries them.
-                    Log.i(TAG, "COMMAND received (not implemented until M4)")
+                    DeviceLog.i(TAG, "COMMAND received (not implemented until M4)")
                 } else {
-                    Log.d(TAG, "unhandled packet ${packet.type}")
+                    DeviceLog.d(TAG, "unhandled packet ${packet.type}")
                 }
             }
         }
@@ -157,7 +162,7 @@ class CaptureService : Service() {
         running = false
         stopTransport()
         releaseWakeLock()
-        Log.i(TAG, "capture service destroyed")
+        DeviceLog.i(TAG, "capture service destroyed")
         super.onDestroy()
     }
 

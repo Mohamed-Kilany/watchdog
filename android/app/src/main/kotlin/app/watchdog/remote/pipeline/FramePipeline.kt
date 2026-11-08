@@ -7,8 +7,8 @@ import android.media.Image
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
 import android.view.Surface
+import app.watchdog.remote.log.DeviceLog
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicLong
 
@@ -88,7 +88,7 @@ class FramePipeline(private val config: PipelineConfig, private val sink: FrameS
         val width = image.width
         val height = image.height
         if (width % 2 != 0 || height % 2 != 0) {
-            Log.w(TAG, "dropping odd frame size ${width}x$height (NV21 needs even dimensions)")
+            DeviceLog.w(TAG, "dropping odd frame size ${width}x$height (NV21 needs even dimensions)")
             return null
         }
         val ySize = width * height
@@ -106,7 +106,7 @@ class FramePipeline(private val config: PipelineConfig, private val sink: FrameS
         return if (ok && jpegBuffer.size() > 0) {
             jpegBuffer.toByteArray()
         } else {
-            Log.w(TAG, "JPEG encode produced no data")
+            DeviceLog.w(TAG, "JPEG encode produced no data")
             null
         }
     }
@@ -145,7 +145,7 @@ class FramePipeline(private val config: PipelineConfig, private val sink: FrameS
                 try {
                     queue.poll(POLL_TIMEOUT_MS)
                 } catch (e: InterruptedException) {
-                    Log.d(TAG, "sender interrupted: ${e.message}")
+                    DeviceLog.d(TAG, "sender interrupted: ${e.message}")
                     break
                 }
             if (frame != null) {
