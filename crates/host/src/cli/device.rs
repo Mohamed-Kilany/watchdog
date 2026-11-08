@@ -4,10 +4,20 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::{Args, Subcommand};
 
 use watchdog_core::config::Config;
+use watchdog_core::error::{ErrorCode, WatchdogError};
+use watchdog_core::paths::DataPaths;
+use watchdog_device::apk::{self, ApkSource};
+use watchdog_device::connection::DeviceConnection;
+use watchdog_device::provision::{
+    self, ProvisionOptions, ProvisionReport, RestoreRecord, StatusReport, StepStatus,
+};
+use watchdog_device::session::{LiveSession, Polled};
+use watchdog_protocol::{LogChunk, LogLevel, Message};
 
 use super::not_implemented;
 
@@ -110,12 +120,33 @@ pub enum DeviceCommand {
         /// Target device; omit when only one is connected.
         #[arg(long, value_name = "SERIAL")]
         serial: Option<String>,
+        /// Install a specific APK instead of the embedded one (debug only).
+        #[arg(long, value_name = "APK")]
+        apk: Option<PathBuf>,
+        /// Skip handshake/first-frame verification after launching.
+        #[arg(long)]
+        no_verify: bool,
+        /// Do not change screen settings (stay-on, keyguard).
+        #[arg(long)]
+        no_screen: bool,
+        /// Seconds to wait for the app socket to appear.
+        #[arg(long, value_name = "SECS", default_value_t = 20)]
+        socket_timeout: u64,
+        /// Seconds to wait for the first camera frame.
+        #[arg(long, value_name = "SECS", default_value_t = 30)]
+        frame_timeout: u64,
+        /// Emit the provisioning report as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Show provisioning/app status for the device.
     Status {
         /// Target device; omit when only one is connected.
         #[arg(long, value_name = "SERIAL")]
         serial: Option<String>,
+        /// Emit the status snapshot as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Revert host-side device changes made by provisioning
     /// (wake/stay-on settings), recorded per device.
@@ -254,32 +285,36 @@ pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
             serial,
         } => cli_forward(serial.as_deref(), *local_port, remote, cfg),
         DeviceCommand::UsbDoctor => cli_usb_doctor(),
+        DeviceCommand::Logs { serial, follow } => cli_logs(serial.as_deref(), *follow, cfg),
+        DeviceCommand::Provision {
+            serial,
+            apk,
+            no_verify,
+            no_screen,
+            socket_timeout,
+            frame_timeout,
+            json,
+        } => cli_provision(
+            serial.as_deref(),
+            apk.as_deref(),
+            !*no_verify,
+            !*no_screen,
+            *socket_timeout,
+            *frame_timeout,
+            *json,
+            cfg,
+        ),
+        DeviceCommand::Status { serial, json } => cli_status(serial.as_deref(), *json, cfg),
+        DeviceCommand::Restore { serial } => cli_restore(serial.as_deref(), cfg),
         other => Err(match other {
-            DeviceCommand::Provision { .. }
-            | DeviceCommand::Status { .. }
-            | DeviceCommand::Restore { .. }
-            | DeviceCommand::Capabilities { .. } => not_implemented(
-                "zero-touch provisioning / capability dump",
-                "M3-M4 (docs/PROGRESS.md)",
-            ),
-            DeviceCommand::Disconnect { .. }
-            | DeviceCommand::Info { .. }
-            | DeviceCommand::Logs { .. } => not_implemented(
+            DeviceCommand::Capabilities { .. } => {
+                not_implemented("capability descriptor dump", "M4 (docs/PROGRESS.md)")
+            }
+            DeviceCommand::Disconnect { .. } | DeviceCommand::Info { .. } => not_implemented(
                 "device session management in this CLI process",
                 "M2-T13 (docs/PROGRESS.md)",
             ),
-            DeviceCommand::UdevRules { .. }
-            | DeviceCommand::List(_)
-            | DeviceCommand::Discover
-            | DeviceCommand::Connect { .. }
-            | DeviceCommand::Pair { .. }
-            | DeviceCommand::Shell { .. }
-            | DeviceCommand::Push { .. }
-            | DeviceCommand::Pull { .. }
-            | DeviceCommand::Install { .. }
-            | DeviceCommand::Uninstall { .. }
-            | DeviceCommand::Forward { .. }
-            | DeviceCommand::UsbDoctor => unreachable!("handled above"),
+            _ => unreachable!("handled above"),
         }),
     }
 }
@@ -493,18 +528,30 @@ fn cli_pull(
 
 fn cli_install(
     serial: Option<&str>,
-    apk: Option<&Path>,
+    apk_path: Option<&Path>,
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
-    let Some(apk) = apk else {
-        return Err(not_implemented(
-            "embedded APK install (no embedded APK in development builds)",
-            "M3-T12 (docs/PROGRESS.md)",
-        ));
+    let source = apk::resolve(apk_path).map_err(|error| {
+        WatchdogError::new(ErrorCode::NotFound, error.to_string()).with_hint(
+            "build the host with WATCHDOG_APK set (CI release builds do), or pass --apk <path>",
+        )
+    })?;
+    let apk_path = match &source {
+        ApkSource::Local { path, .. } => path.clone(),
+        ApkSource::Embedded(embedded) => {
+            let paths = DataPaths::resolve(&cfg.data_dir);
+            std::fs::create_dir_all(&paths.tmp)?;
+            let path = paths
+                .tmp
+                .join(format!("watchdog-{}.apk", embedded.version_name));
+            std::fs::write(&path, embedded.bytes)?;
+            path
+        }
     };
     let options = watchdog_adb::InstallOptions::default();
+    let display_path = apk_path.clone();
     let outcome = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::install_apk(&conn, apk, &options, None).await
+        watchdog_adb::install_apk(&conn, &apk_path, &options, None).await
     })?;
     println!("{}", outcome.output);
     if !outcome.success {
@@ -520,7 +567,7 @@ fn cli_install(
             "install failed with unknown error",
         ));
     }
-    println!("installed {}", apk.display());
+    println!("installed {}", display_path.display());
     Ok(())
 }
 
@@ -563,4 +610,242 @@ fn cli_usb_doctor() -> watchdog_core::Result<()> {
         println!("- {tip}");
     }
     Ok(())
+}
+
+fn device_runtime() -> watchdog_core::Result<tokio::runtime::Runtime> {
+    Ok(tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?)
+}
+
+/// Connect to the selected device (USB serial or `host[:port]`) and run `f`
+/// with the connection and its resolved device id.
+fn with_device<T, F, Fut>(cfg: &Config, serial: Option<&str>, f: F) -> watchdog_core::Result<T>
+where
+    F: FnOnce(DeviceConnection, String) -> Fut,
+    Fut: std::future::Future<Output = watchdog_core::Result<T>>,
+{
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        f(connection, id).await
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cli_provision(
+    serial: Option<&str>,
+    apk_path: Option<&Path>,
+    verify_frame: bool,
+    screen: bool,
+    socket_timeout: u64,
+    frame_timeout: u64,
+    json: bool,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let options = ProvisionOptions {
+        apk: apk_path.map(Path::to_path_buf),
+        token: None,
+        verify_frame,
+        socket_timeout: Duration::from_secs(socket_timeout),
+        handshake_timeout: Duration::from_secs(10),
+        frame_timeout: Duration::from_secs(frame_timeout),
+        skip_screen: !screen,
+    };
+    let report = with_device(cfg, serial, |connection, id| async move {
+        Ok(provision::provision(&connection, &id, &paths, &options).await)
+    })?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_report(&report);
+    }
+    if let Some(step) = report.failure() {
+        let mut error = WatchdogError::new(
+            ErrorCode::ProvisioningFailed,
+            format!("provisioning failed at step {}: {}", step.name, step.detail),
+        );
+        if let Some(hint) = &step.hint {
+            error = error.with_hint(hint.clone());
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn print_report(report: &ProvisionReport) {
+    println!("provisioning {}", report.serial);
+    for step in &report.steps {
+        let label = match step.status {
+            StepStatus::Passed => "PASS",
+            StepStatus::Failed => "FAIL",
+            StepStatus::Skipped => "SKIP",
+        };
+        println!(
+            "  [{label}] {:<12} {:>6} ms  {}",
+            step.name, step.duration_ms, step.detail
+        );
+        if let Some(hint) = &step.hint {
+            println!("         hint: {hint}");
+        }
+    }
+    if let Some(token) = &report.token {
+        println!("session token: {token}");
+    }
+    if report.passed() {
+        println!("provisioning complete");
+    } else {
+        println!("provisioning failed");
+    }
+}
+
+fn cli_status(serial: Option<&str>, json: bool, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let report = with_device(cfg, serial, |connection, id| async move {
+        provision::status(&connection, &id, &paths).await
+    })?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_status(&report);
+    }
+    Ok(())
+}
+
+fn print_status(status: &StatusReport) {
+    println!("serial:  {}", status.serial);
+    println!("device:  {}", status.props.summary());
+    match (
+        status.version_code,
+        &status.expected_version_name,
+        status.expected_version_code,
+    ) {
+        (Some(installed), Some(name), Some(expected)) => {
+            println!("app:     installed versionCode {installed}; embedded {name} ({expected})");
+            match status.up_to_date {
+                Some(true) => println!("         up to date"),
+                Some(false) => println!("         OUTDATED - run `watchdog device provision`"),
+                None => {}
+            }
+        }
+        (Some(installed), _, _) => {
+            println!("app:     installed versionCode {installed} (no embedded APK in this build)")
+        }
+        (None, _, _) => println!("app:     not installed - run `watchdog device provision`"),
+    }
+    println!(
+        "service: {}",
+        status
+            .service_pid
+            .map_or_else(|| "not running".to_string(), |pid| format!("pid {pid}"))
+    );
+    println!(
+        "appops:  CAMERA={}, RECORD_AUDIO={}",
+        status.appops_camera.as_deref().unwrap_or("unknown"),
+        status.appops_record_audio.as_deref().unwrap_or("unknown")
+    );
+    println!(
+        "token:   {}",
+        status.token.as_deref().unwrap_or("(none recorded)")
+    );
+    if let Some(record) = &status.restore {
+        if record.originals.is_empty() {
+            println!("restore: no settings changed");
+        } else {
+            println!(
+                "restore: {} recorded setting(s); `watchdog device restore` reverts them",
+                record.originals.len()
+            );
+        }
+    }
+}
+
+fn cli_restore(serial: Option<&str>, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let (id, steps) = with_device(cfg, serial, |connection, id| async move {
+        let steps = provision::restore(&connection, &id, &paths).await?;
+        Ok((id, steps))
+    })?;
+    if steps.is_empty() {
+        println!("no recorded settings to restore on {id}");
+        return Ok(());
+    }
+    for step in &steps {
+        println!(
+            "{} {} = {}",
+            if step.applied { "restored" } else { "FAILED  " },
+            step.setting,
+            step.value
+        );
+    }
+    println!("restored {} setting(s) on {id}", steps.len());
+    Ok(())
+}
+
+fn cli_logs(serial: Option<&str>, follow: bool, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = RestoreRecord::load(&paths, &id)?
+            .and_then(|record| record.token)
+            .ok_or_else(|| {
+                WatchdogError::new(
+                    ErrorCode::NotFound,
+                    format!("no session token recorded for {id}"),
+                )
+                .with_hint("run `watchdog device provision` first; logs reuse its session token")
+            })?;
+        let (mut live, ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        println!(
+            "# connected to {id} (app {} versionCode {})",
+            ack.app.version_name, ack.app.version_code
+        );
+        let idle = Duration::from_millis(1000);
+        loop {
+            match live.session().poll(idle).await? {
+                Polled::Message(Message::LogChunk(chunk)) => print_log_chunk(&chunk),
+                Polled::Message(Message::Error(error)) => {
+                    eprintln!("app error: {} ({})", error.message, error.code);
+                }
+                Polled::Message(Message::Bye(bye)) => {
+                    println!("# app closed the session: {}", bye.reason);
+                    break;
+                }
+                Polled::Message(_) => {}
+                Polled::Timeout => {
+                    if !follow {
+                        break;
+                    }
+                }
+                Polled::Closed => {
+                    println!("# app closed the connection");
+                    break;
+                }
+            }
+        }
+        Ok(())
+    })
+}
+
+fn print_log_chunk(chunk: &LogChunk) {
+    let level = match chunk.level {
+        LogLevel::Trace => "T",
+        LogLevel::Debug => "D",
+        LogLevel::Info => "I",
+        LogLevel::Warn => "W",
+        LogLevel::Error => "E",
+    };
+    for line in chunk.text.lines() {
+        println!("[{level}] {line}");
+    }
 }
