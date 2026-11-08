@@ -8,7 +8,7 @@ use watchdog_adb::install::{self, PackageInfo};
 use watchdog_adb::manager;
 use watchdog_adb::shell::{self, ShellOutput};
 use watchdog_adb::{
-    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, LanTransport, Transport,
+    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, LanTransport,
     UsbTransport,
 };
 use watchdog_core::error::{ErrorCode, WatchdogError};
@@ -93,6 +93,34 @@ impl DeviceConnection {
                 .await
                 .map_err(Into::into),
             Self::Tcp(connection) => install::uninstall_package(connection, package)
+                .await
+                .map_err(Into::into),
+        }
+    }
+
+    /// Upload a file over the `sync:` service.
+    pub async fn push(&self, local: &Path, remote: &str, mode: u32, mtime: u32) -> Result<u64> {
+        match self {
+            Self::Usb(connection) => {
+                watchdog_adb::sync::push(connection, local, remote, mode, mtime, None)
+                    .await
+                    .map_err(Into::into)
+            }
+            Self::Tcp(connection) => {
+                watchdog_adb::sync::push(connection, local, remote, mode, mtime, None)
+                    .await
+                    .map_err(Into::into)
+            }
+        }
+    }
+
+    /// Download a file over the `sync:` service.
+    pub async fn pull(&self, remote: &str, local: &Path) -> Result<watchdog_adb::sync::PullResult> {
+        match self {
+            Self::Usb(connection) => watchdog_adb::sync::pull(connection, remote, local, None)
+                .await
+                .map_err(Into::into),
+            Self::Tcp(connection) => watchdog_adb::sync::pull(connection, remote, local, None)
                 .await
                 .map_err(Into::into),
         }

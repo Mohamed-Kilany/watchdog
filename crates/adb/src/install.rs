@@ -143,14 +143,18 @@ async fn install_with<T: Transport + 'static>(
     } else {
         format!("pm install{flags} -S {size}")
     };
-    let stream = connection
+    // Keep every shell frame (5-byte header + payload) within the peer's
+    // advertised maxdata.
+    let chunk = shell::shell_chunk(connection.info.maxdata).min(CHUNK);
+    tracing::debug!(%command, size, chunk, "streaming install starting");
+    let mut stream = connection
         .open_stream(&format!("shell,v2,raw:{command}"))
         .await?;
 
     // Feed the APK as shell v2 stdin frames.
     let mut file = std::fs::File::open(apk)?;
     let mut sent: u64 = 0;
-    let mut buf = vec![0u8; CHUNK];
+    let mut buf = vec![0u8; chunk];
     loop {
         let n = file.read(&mut buf)?;
         if n == 0 {
@@ -167,6 +171,7 @@ async fn install_with<T: Transport + 'static>(
             cb(sent, size);
         }
     }
+    tracing::debug!(sent, size, "streaming install sent APK");
     stream
         .write(Bytes::from(shell::encode_shell_packet(
             ids::CLOSE_STDIN,
@@ -174,10 +179,12 @@ async fn install_with<T: Transport + 'static>(
         )))
         .await?;
 
-    collect_install_output(stream).await
+    let result = collect_install_output(&mut stream).await;
+    let _ = stream.close().await;
+    result
 }
 
-async fn collect_install_output(mut stream: crate::connection::Stream) -> Result<InstallOutcome> {
+async fn collect_install_output(stream: &mut crate::connection::Stream) -> Result<InstallOutcome> {
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
     let mut pending: Vec<u8> = Vec::new();
@@ -192,13 +199,18 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
                     match packet {
                         shell::ShellPacket::Stdout(data) => stdout.extend_from_slice(&data),
                         shell::ShellPacket::Stderr(data) => stderr.extend_from_slice(&data),
-                        shell::ShellPacket::Exit(_) => {
+                        shell::ShellPacket::Exit(code) => {
                             let output = format!(
                                 "{}{}",
                                 String::from_utf8_lossy(&stdout),
                                 String::from_utf8_lossy(&stderr)
                             );
                             let failure = find_failure_code(&output);
+                            tracing::debug!(
+                                code,
+                                success = failure.is_none() && output.contains("Success"),
+                                "streaming install finished"
+                            );
                             return Ok(InstallOutcome {
                                 success: failure.is_none() && output.contains("Success"),
                                 output,
@@ -220,6 +232,10 @@ async fn collect_install_output(mut stream: crate::connection::Stream) -> Result
                     String::from_utf8_lossy(&stderr)
                 );
                 let failure = find_failure_code(&output);
+                tracing::debug!(
+                    success = failure.is_none() && output.contains("Success"),
+                    "install stream closed without EXIT"
+                );
                 return Ok(InstallOutcome {
                     success: failure.is_none() && output.contains("Success"),
                     output,

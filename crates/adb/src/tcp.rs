@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use tokio::net::TcpStream;
 
 use crate::error::{AdbError, Result};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportReader, TransportWriter};
 
 /// Default TCP connect timeout.
 pub const TCP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -54,11 +54,7 @@ impl TcpTransport {
 }
 
 #[async_trait]
-impl Transport for TcpTransport {
-    fn name(&self) -> String {
-        format!("tcp:{}", self.peer)
-    }
-
+impl TransportReader for TcpTransport {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         use tokio::io::AsyncReadExt;
         self.stream
@@ -67,13 +63,30 @@ impl Transport for TcpTransport {
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("tcp read: {e}")))
     }
+}
 
+#[async_trait]
+impl TransportWriter for TcpTransport {
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         use tokio::io::AsyncWriteExt;
         self.stream
             .write_all(buf)
             .await
             .map_err(|e| AdbError::Transport(format!("tcp write: {e}")))
+    }
+}
+
+#[async_trait]
+impl Transport for TcpTransport {
+    fn name(&self) -> String {
+        format!("tcp:{}", self.peer)
+    }
+
+    type Reader = tokio::io::ReadHalf<TcpStream>;
+    type Writer = tokio::io::WriteHalf<TcpStream>;
+
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        tokio::io::split(self.stream)
     }
 
     async fn close(&mut self) -> Result<()> {

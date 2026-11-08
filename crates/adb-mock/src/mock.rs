@@ -1,8 +1,10 @@
 //! Scripted fake device: queued byte stream for reads, recording for writes.
 
+use std::sync::{Arc, Mutex};
+
 use async_trait::async_trait;
 
-use watchdog_adb::transport::Transport;
+use watchdog_adb::transport::{Transport, TransportReader, TransportWriter};
 use watchdog_adb::Result;
 
 /// What the fake should do for one request/response round.
@@ -17,7 +19,7 @@ pub enum ScriptStep {
 /// Cloneable inspection handle for [`MockTransport`] writes.
 #[derive(Debug, Clone)]
 pub struct MockTap {
-    written: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    written: Arc<Mutex<Vec<u8>>>,
 }
 
 impl MockTap {
@@ -26,6 +28,21 @@ impl MockTap {
     pub fn written(&self) -> Vec<u8> {
         self.written.lock().expect("tap lock").clone()
     }
+}
+
+/// Read half of [`MockTransport`].
+#[derive(Debug)]
+pub struct MockReader {
+    incoming: Vec<u8>,
+    read_pos: usize,
+    close_after_reads: bool,
+    block_after_reads: bool,
+}
+
+/// Write half of [`MockTransport`].
+#[derive(Debug)]
+pub struct MockWriter {
+    written: Arc<Mutex<Vec<u8>>>,
 }
 
 /// In-memory scripted transport implementing [`Transport`].
@@ -38,7 +55,8 @@ pub struct MockTransport {
     incoming: Vec<u8>,
     read_pos: usize,
     close_after_reads: bool,
-    written: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    block_after_reads: bool,
+    written: Arc<Mutex<Vec<u8>>>,
 }
 
 impl Default for MockTransport {
@@ -56,7 +74,8 @@ impl MockTransport {
             incoming: Vec::new(),
             read_pos: 0,
             close_after_reads: true,
-            written: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+            block_after_reads: false,
+            written: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -64,7 +83,7 @@ impl MockTransport {
     #[must_use]
     pub fn tap(&self) -> MockTap {
         MockTap {
-            written: std::sync::Arc::clone(&self.written),
+            written: Arc::clone(&self.written),
         }
     }
 
@@ -88,19 +107,25 @@ impl MockTransport {
         self.close_after_reads = false;
         self
     }
+
+    /// Block forever once the script is exhausted (simulates an idle device
+    /// that has nothing to say while the host writes).
+    #[must_use]
+    pub fn block_after_script(mut self) -> Self {
+        self.block_after_reads = true;
+        self
+    }
 }
 
 #[async_trait]
-impl Transport for MockTransport {
-    fn name(&self) -> String {
-        format!("mock:{}", self.name)
-    }
-
+impl TransportReader for MockTransport {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         for slot in buf.iter_mut() {
             if self.read_pos < self.incoming.len() {
                 *slot = self.incoming[self.read_pos];
                 self.read_pos += 1;
+            } else if self.block_after_reads {
+                std::future::pending::<()>().await;
             } else if self.close_after_reads {
                 return Err(watchdog_adb::AdbError::StreamClosed);
             } else {
@@ -109,7 +134,10 @@ impl Transport for MockTransport {
         }
         Ok(())
     }
+}
 
+#[async_trait]
+impl TransportWriter for MockTransport {
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         self.written
             .lock()
@@ -117,9 +145,63 @@ impl Transport for MockTransport {
             .extend_from_slice(buf);
         Ok(())
     }
+}
+
+#[async_trait]
+impl Transport for MockTransport {
+    fn name(&self) -> String {
+        format!("mock:{}", self.name)
+    }
+
+    type Reader = MockReader;
+    type Writer = MockWriter;
+
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        (
+            MockReader {
+                incoming: self.incoming,
+                read_pos: self.read_pos,
+                close_after_reads: self.close_after_reads,
+                block_after_reads: self.block_after_reads,
+            },
+            MockWriter {
+                written: self.written,
+            },
+        )
+    }
 
     async fn close(&mut self) -> Result<()> {
         self.read_pos = self.incoming.len();
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TransportReader for MockReader {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        for slot in buf.iter_mut() {
+            if self.read_pos < self.incoming.len() {
+                *slot = self.incoming[self.read_pos];
+                self.read_pos += 1;
+            } else if self.block_after_reads {
+                std::future::pending::<()>().await;
+            } else if self.close_after_reads {
+                return Err(watchdog_adb::AdbError::StreamClosed);
+            } else {
+                *slot = 0;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TransportWriter for MockWriter {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        self.written
+            .lock()
+            .expect("tap lock")
+            .extend_from_slice(buf);
         Ok(())
     }
 }

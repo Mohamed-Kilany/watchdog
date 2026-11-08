@@ -128,26 +128,40 @@ pub async fn run_shell<T: Transport + 'static>(
     command: &str,
     stdin: Option<&[u8]>,
 ) -> Result<ShellOutput> {
-    let stream = connection
+    let mut stream = connection
         .open_stream(&format!("shell,v2,raw:{command}"))
         .await?;
+    tracing::debug!(
+        command,
+        stdin_len = stdin.map_or(0, <[u8]>::len),
+        "shell v2"
+    );
+
+    // Keep each shell frame (5-byte header + payload) within the peer's
+    // advertised maxdata so old adbd versions never see an oversized WRTE.
+    let chunk = shell_chunk(connection.info.maxdata).min(16 * 1024);
 
     if let Some(input) = stdin {
-        for chunk in input.chunks(16 * 1024) {
+        for part in input.chunks(chunk) {
             stream
-                .write(Bytes::from(encode_shell_packet(ids::STDIN, chunk)))
+                .write(Bytes::from(encode_shell_packet(ids::STDIN, part)))
                 .await?;
         }
-        stream
-            .write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[])))
-            .await?;
-    } else {
-        stream
-            .write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[])))
-            .await?;
     }
+    stream
+        .write(Bytes::from(encode_shell_packet(ids::CLOSE_STDIN, &[])))
+        .await?;
 
-    collect_shell(stream).await
+    let result = collect_shell(&mut stream).await;
+    let _ = stream.close().await;
+    result
+}
+
+/// Maximum stdin payload per shell frame for the negotiated `maxdata`.
+#[must_use]
+pub fn shell_chunk(maxdata: u32) -> usize {
+    let max = usize::try_from(maxdata).unwrap_or(0);
+    max.saturating_sub(5).clamp(1, 256 * 1024)
 }
 
 /// Run `command` via the legacy `shell:` service (combined stdout+stderr, no exit code).
@@ -165,12 +179,13 @@ pub async fn run_shell_legacy<T: Transport + 'static>(
     {
         buf.extend_from_slice(&chunk);
     }
+    let _ = stream.close().await;
     output.stdout = buf; // legacy merges the streams
     Ok(output)
 }
 
 /// Read packets until EXIT or stream end.
-async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
+async fn collect_shell(stream: &mut Stream) -> Result<ShellOutput> {
     let mut output = ShellOutput::default();
     let mut pending: Vec<u8> = Vec::new();
 
@@ -187,6 +202,12 @@ async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
                         ShellPacket::Stderr(data) => output.stderr.extend_from_slice(&data),
                         ShellPacket::Exit(code) => {
                             output.exit_code = Some(code);
+                            tracing::debug!(
+                                code,
+                                stdout = output.stdout.len(),
+                                stderr = output.stderr.len(),
+                                "shell v2 exit"
+                            );
                             return Ok(output);
                         }
                         ShellPacket::CloseStdin => {}
@@ -197,6 +218,7 @@ async fn collect_shell(mut stream: Stream) -> Result<ShellOutput> {
                 }
             }
             Ok(None) => {
+                tracing::debug!("shell stream closed without EXIT");
                 return Ok(output); // stream ended without EXIT
             }
             Err(_) => {

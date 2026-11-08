@@ -20,7 +20,7 @@ use tokio_rustls::client::TlsStream;
 use crate::error::{AdbError, Result};
 use crate::packet::{Command, Packet};
 use crate::tcp::TcpTransport;
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportReader, TransportWriter};
 
 /// STLS version we offer ([`crate::packet::A_STLS_VERSION`]).
 pub const STLS_VERSION: u32 = crate::packet::A_STLS_VERSION;
@@ -43,11 +43,7 @@ impl StlsTransport {
 }
 
 #[async_trait]
-impl Transport for StlsTransport {
-    fn name(&self) -> String {
-        self.peer.clone()
-    }
-
+impl TransportReader for StlsTransport {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         self.tls
             .read_exact(buf)
@@ -55,13 +51,30 @@ impl Transport for StlsTransport {
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("stls read: {e}")))
     }
+}
 
+#[async_trait]
+impl TransportWriter for StlsTransport {
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         self.tls
             .write_all(buf)
             .await
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("stls write: {e}")))
+    }
+}
+
+#[async_trait]
+impl Transport for StlsTransport {
+    fn name(&self) -> String {
+        self.peer.clone()
+    }
+
+    type Reader = tokio::io::ReadHalf<TlsStream<tokio::net::TcpStream>>;
+    type Writer = tokio::io::WriteHalf<TlsStream<tokio::net::TcpStream>>;
+
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        tokio::io::split(self.tls)
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -129,6 +142,64 @@ impl LanTransport {
     }
 }
 
+/// Read half of a [`LanTransport`].
+pub enum LanReader {
+    /// Plain-TCP read half.
+    Plain(tokio::io::ReadHalf<tokio::net::TcpStream>),
+    /// TLS read half.
+    Tls(tokio::io::ReadHalf<TlsStream<tokio::net::TcpStream>>),
+}
+
+/// Write half of a [`LanTransport`].
+pub enum LanWriter {
+    /// Plain-TCP write half.
+    Plain(tokio::io::WriteHalf<tokio::net::TcpStream>),
+    /// TLS write half.
+    Tls(tokio::io::WriteHalf<TlsStream<tokio::net::TcpStream>>),
+}
+
+#[async_trait]
+impl TransportReader for LanTransport {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        match self {
+            Self::Plain(transport) => transport.read_exact(buf).await,
+            Self::Tls(transport) => transport.read_exact(buf).await,
+            Self::Upgrading => Err(AdbError::Protocol("STLS: transport upgrading".into())),
+        }
+    }
+}
+
+#[async_trait]
+impl TransportWriter for LanTransport {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        match self {
+            Self::Plain(transport) => transport.write_all(buf).await,
+            Self::Tls(transport) => transport.write_all(buf).await,
+            Self::Upgrading => Err(AdbError::Protocol("STLS: transport upgrading".into())),
+        }
+    }
+}
+
+#[async_trait]
+impl TransportReader for LanReader {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        match self {
+            Self::Plain(reader) => TransportReader::read_exact(reader, buf).await,
+            Self::Tls(reader) => TransportReader::read_exact(reader, buf).await,
+        }
+    }
+}
+
+#[async_trait]
+impl TransportWriter for LanWriter {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        match self {
+            Self::Plain(writer) => TransportWriter::write_all(writer, buf).await,
+            Self::Tls(writer) => TransportWriter::write_all(writer, buf).await,
+        }
+    }
+}
+
 #[async_trait]
 impl Transport for LanTransport {
     fn name(&self) -> String {
@@ -139,19 +210,21 @@ impl Transport for LanTransport {
         }
     }
 
-    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        match self {
-            Self::Plain(transport) => transport.read_exact(buf).await,
-            Self::Tls(transport) => transport.read_exact(buf).await,
-            Self::Upgrading => Err(AdbError::Protocol("STLS: transport upgrading".into())),
-        }
-    }
+    type Reader = LanReader;
+    type Writer = LanWriter;
 
-    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+    fn split(self) -> (Self::Reader, Self::Writer) {
         match self {
-            Self::Plain(transport) => transport.write_all(buf).await,
-            Self::Tls(transport) => transport.write_all(buf).await,
-            Self::Upgrading => Err(AdbError::Protocol("STLS: transport upgrading".into())),
+            Self::Plain(transport) => {
+                let (reader, writer) = transport.split();
+                (LanReader::Plain(reader), LanWriter::Plain(writer))
+            }
+            Self::Tls(transport) => {
+                let transport = *transport;
+                let (reader, writer) = transport.split();
+                (LanReader::Tls(reader), LanWriter::Tls(writer))
+            }
+            Self::Upgrading => unreachable!("STLS transport split while upgrading"),
         }
     }
 

@@ -13,7 +13,7 @@ use nusb::{DeviceInfo, MaybeFuture};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::error::{AdbError, Result};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportReader, TransportWriter};
 
 /// USB class/subclass/protocol for the ADB interface.
 pub const ADB_USB_CLASS: u8 = 0xFF;
@@ -203,12 +203,18 @@ impl UsbTransport {
     }
 }
 
-#[async_trait]
-impl Transport for UsbTransport {
-    fn name(&self) -> String {
-        format!("usb:{}", self.serial)
-    }
+/// Read half of a [`UsbTransport`].
+pub struct UsbReader {
+    reader: EndpointRead<Bulk>,
+}
 
+/// Write half of a [`UsbTransport`].
+pub struct UsbWriter {
+    writer: EndpointWrite<Bulk>,
+}
+
+#[async_trait]
+impl TransportReader for UsbTransport {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         self.reader
             .read_exact(buf)
@@ -216,7 +222,10 @@ impl Transport for UsbTransport {
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("usb read: {e}")))
     }
+}
 
+#[async_trait]
+impl TransportWriter for UsbTransport {
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         self.writer
             .write_all(buf)
@@ -226,6 +235,52 @@ impl Transport for UsbTransport {
             .flush()
             .await
             .map_err(|e| AdbError::Transport(format!("usb flush: {e}")))
+    }
+}
+
+#[async_trait]
+impl TransportReader for UsbReader {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        self.reader
+            .read_exact(buf)
+            .await
+            .map(|_| ())
+            .map_err(|e| AdbError::Transport(format!("usb read: {e}")))
+    }
+}
+
+#[async_trait]
+impl TransportWriter for UsbWriter {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        self.writer
+            .write_all(buf)
+            .await
+            .map_err(|e| AdbError::Transport(format!("usb write: {e}")))?;
+        self.writer
+            .flush()
+            .await
+            .map_err(|e| AdbError::Transport(format!("usb flush: {e}")))
+    }
+}
+
+#[async_trait]
+impl Transport for UsbTransport {
+    fn name(&self) -> String {
+        format!("usb:{}", self.serial)
+    }
+
+    type Reader = UsbReader;
+    type Writer = UsbWriter;
+
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        (
+            UsbReader {
+                reader: self.reader,
+            },
+            UsbWriter {
+                writer: self.writer,
+            },
+        )
     }
 
     async fn close(&mut self) -> Result<()> {
