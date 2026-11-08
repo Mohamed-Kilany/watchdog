@@ -3,4 +3,9 @@
     <string name="app_name">watchdog remote</string>
     <string name="status_not_provisioned">Not provisioned — waiting for host</string>
     <string name="version_format">version %1$s</string>
+    <string name="notification_channel_capture">Capture session</string>
+    <string name="notification_channel_capture_description">Shown while the camera is streaming to the host</string>
+    <string name="notification_capture_title">watchdog remote is streaming</string>
+    <string name="notification_capture_text">Camera session active — tap Stop to end it</string>
+    <string name="notification_stop">Stop</string>
 </resources>

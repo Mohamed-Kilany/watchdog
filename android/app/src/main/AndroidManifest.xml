@@ -45,6 +45,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Exported for provisioning (`am start-foreground-service`); every
+             intent must carry a valid SessionToken extra. -->
+        <service
+            android:name=".CaptureService"
+            android:exported="true"
+            android:foregroundServiceType="camera|microphone" />
+
+        <!-- Exported for broadcast-based provisioning (`am broadcast`); also
+             token protected. -->
+        <receiver
+            android:name=".ProvisioningReceiver"
+            android:exported="true" />
     </application>
 
 </manifest>
