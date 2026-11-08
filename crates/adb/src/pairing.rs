@@ -24,8 +24,15 @@
 //! `M` (`5ada7e4b…`) and `N` (`10e3df0a…`), SHA-512 password hashing reduced
 //! mod the group order, and cofactor clearing. This module implements exactly
 //! that profile, matching BoringSSL's `SPAKE2_*` API bit-for-bit.
+//!
+//! Scalars are multiplied as **256-bit integers**, not reduced mod the group
+//! order: BoringSSL's ephemeral scalar is a multiple of eight and the peer's
+//! mask carries a small-order component, so reducing would leave a torsion
+//! residue in the DH point and break the transcript hash.
 
+use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
 use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
+use curve25519_dalek::traits::Identity;
 use curve25519_dalek::Scalar;
 use sha2::{Digest, Sha512};
 
@@ -62,9 +69,11 @@ pub struct Spake2 {
     my_name: Vec<u8>,
     their_name: Vec<u8>,
     my_msg: Option<[u8; 32]>,
-    my_private: Scalar,
+    /// Unreduced 256-bit ephemeral scalar (multiple of eight).
+    my_private: [u8; 32],
     password_hash: [u8; 64],
-    password_scalar: Scalar,
+    /// SHA-512(password) reduced mod the group order.
+    password_scalar: [u8; 32],
 }
 
 impl Spake2 {
@@ -78,9 +87,9 @@ impl Spake2 {
             my_name: my_name.to_vec(),
             their_name: their_name.to_vec(),
             my_msg: None,
-            my_private: Scalar::from_bytes_mod_order_wide(&[0u8; 64]),
+            my_private: [0u8; 32],
             password_hash: [0u8; 64],
-            password_scalar: Scalar::from_bytes_mod_order_wide(&[0u8; 64]),
+            password_scalar: [0u8; 32],
         }
     }
 
@@ -89,29 +98,27 @@ impl Spake2 {
         // Random ephemeral: 64 bytes reduced mod order, times cofactor (x8).
         let mut tmp = [0u8; 64];
         rand_fill(&mut tmp);
-        // BoringSSL: x25519_sc_reduce then left_shift_3 (in-place, carry propagated).
+        // BoringSSL: x25519_sc_reduce then left_shift_3 (in-place, carry
+        // propagated). The result is used as a 256-bit integer, not reduced
+        // again.
         let mut reduced = spake_reduce(&tmp);
         left_shift_3(&mut reduced);
-        self.my_private = Scalar::from_bytes_mod_order(reduced);
+        self.my_private = reduced;
 
         // w = H(password) (SHA-512), reduced.
         let digest = Sha512::digest(password);
         let mut hash = [0u8; 64];
         hash.copy_from_slice(&digest);
         self.password_hash = hash;
-        let reduced_hash = spake_reduce(&hash);
-        // BoringSSL's "password_scalar_hack" adds multiples of the group
-        // order to clear the cofactor; those are no-ops mod the order, so
-        // direct reduction is equivalent.
-        self.password_scalar = Scalar::from_bytes_mod_order(reduced_hash);
+        self.password_scalar = spake_reduce(&hash);
 
         // P = private * B
-        let p = EdwardsPoint::mul_base(&self.my_private);
+        let p = mul_integer(&ED25519_BASEPOINT_POINT, &self.my_private);
         // mask = w * M (client) or w * N (server)
         let mask_point = if self.role == SpakeRole::Client {
-            self.password_scalar * decompress(&SPAKE_M)?
+            mul_integer(&decompress(&SPAKE_M)?, &self.password_scalar)
         } else {
-            self.password_scalar * decompress(&SPAKE_N)?
+            mul_integer(&decompress(&SPAKE_N)?, &self.password_scalar)
         };
         // P* = P + mask
         let p_star = p + mask_point;
@@ -122,6 +129,14 @@ impl Spake2 {
 
     /// Process the peer's SPAKE2 message and derive the 64-byte key.
     pub fn process_msg(&mut self, their_msg: &[u8]) -> Result<[u8; SPAKE2_KEY_LEN]> {
+        let (_, key) = self.process_msg_inner(their_msg)?;
+        Ok(key)
+    }
+
+    fn process_msg_inner(
+        &mut self,
+        their_msg: &[u8],
+    ) -> Result<(EdwardsPoint, [u8; SPAKE2_KEY_LEN])> {
         let my_msg = self
             .my_msg
             .ok_or_else(|| AdbError::Protocol("SPAKE2: process_msg before generate_msg".into()))?;
@@ -137,14 +152,15 @@ impl Spake2 {
 
         // Q = Q* - mask (peer's mask uses the other point).
         let peers_mask = if self.role == SpakeRole::Client {
-            self.password_scalar * decompress(&SPAKE_N)?
+            mul_integer(&decompress(&SPAKE_N)?, &self.password_scalar)
         } else {
-            self.password_scalar * decompress(&SPAKE_M)?
+            mul_integer(&decompress(&SPAKE_M)?, &self.password_scalar)
         };
         let q = q_star - peers_mask;
 
-        // dh = private * Q
-        let dh = self.my_private * q;
+        // dh = private * Q. Exact integer multiplication: the scalar is a
+        // multiple of eight, which clears any small-order component in Q.
+        let dh = mul_integer(&q, &self.my_private);
         let dh_encoded = dh.compress().to_bytes();
 
         // Transcript: SHA-512 over 8-byte-LE-length-prefixed fields in a
@@ -172,13 +188,30 @@ impl Spake2 {
         push_lp(&mut sha, &dh_encoded);
         push_lp(&mut sha, &self.password_hash);
         let key: [u8; 64] = sha.finalize().into();
-        Ok(key)
+        Ok((dh, key))
     }
 }
 
 fn push_lp(hasher: &mut Sha512, data: &[u8]) {
     hasher.update((data.len() as u64).to_le_bytes());
     hasher.update(data);
+}
+
+/// Exact 256-bit little-endian scalar multiplication, without reducing the
+/// scalar mod the group order. BoringSSL's `x25519_ge_scalarmult` works this
+/// way; the ephemeral scalar is a multiple of eight, which clears small-order
+/// components from the peer's point.
+fn mul_integer(point: &EdwardsPoint, scalar_le: &[u8; 32]) -> EdwardsPoint {
+    let mut result = EdwardsPoint::identity();
+    for byte in scalar_le.iter().rev() {
+        for bit in (0..8).rev() {
+            result = result + result;
+            if (byte >> bit) & 1 == 1 {
+                result += point;
+            }
+        }
+    }
+    result
 }
 
 fn decompress(bytes: &[u8; 32]) -> Result<EdwardsPoint> {
@@ -377,6 +410,31 @@ mod tests {
         let client_key = client.process_msg(&s_msg).unwrap();
         let server_key = server.process_msg(&c_msg).unwrap();
         assert_eq!(client_key, server_key);
+    }
+
+    #[test]
+    fn shared_secret_is_torsion_free() {
+        // BoringSSL's ephemeral scalar is a multiple of eight, so the DH point
+        // must have no small-order component. Reducing the scalar mod the
+        // group order leaves a torsion residue and makes the transcript hash
+        // diverge from the device (observed as a GCM tag mismatch).
+        let mut client = Spake2::new(
+            SpakeRole::Client,
+            b"adb pair client\0",
+            b"adb pair server\0",
+        );
+        let mut server = Spake2::new(
+            SpakeRole::Server,
+            b"adb pair server\0",
+            b"adb pair client\0",
+        );
+        let c_msg = client.generate_msg(b"503942").unwrap();
+        let s_msg = server.generate_msg(b"503942").unwrap();
+        let (client_dh, client_key) = client.process_msg_inner(&s_msg).unwrap();
+        let (server_dh, server_key) = server.process_msg_inner(&c_msg).unwrap();
+        assert_eq!(client_key, server_key);
+        assert!(client_dh.is_torsion_free(), "client DH has torsion");
+        assert!(server_dh.is_torsion_free(), "server DH has torsion");
     }
 
     #[test]
