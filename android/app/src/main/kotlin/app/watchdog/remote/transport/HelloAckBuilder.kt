@@ -15,8 +15,8 @@ import org.json.JSONObject
 /**
  * Builds the `HELLO_ACK` payload (`docs/protocol.md` §5.2): app identity,
  * device information, camera list and per-camera capabilities. Capability
- * descriptors are filled in M4 (control introspection); until then the map is
- * empty and the host treats controls as unsupported.
+ * descriptors come from `CapabilityDescriptor` (M4-T01) and are the contract
+ * for every control command the host may send.
  */
 object HelloAckBuilder {
     fun build(context: Context, protocolVersion: Int, capabilities: JSONObject = JSONObject()): ByteArray {

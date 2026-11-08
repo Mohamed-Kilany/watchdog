@@ -73,7 +73,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 
 ## M4. Controls and state (the feature-rich core)
 
-- [ ] M4-T01 Capability descriptor
+- [x] M4-T01 Capability descriptor — app builds one descriptor per camera from `CameraCharacteristics` without opening it (hardware level, capabilities, lens, controls with modes or min/max/step, streams/FPS/high-speed, full `{name,type}` key inventories, `unsupported` reasons) and embeds the map in `HELLO_ACK`; `watchdog device capabilities [--serial] [--json]` prints it via the provisioned session. Instrumented schema test and host summary unit tests. Per-device JSON dumps pending **[DEVICE]** (method: `docs/verification/m4-capabilities.md`).
 - [ ] M4-T02 State model and sync
 - [ ] M4-T03 Command pipeline
 - [ ] M4-T04 Exposure

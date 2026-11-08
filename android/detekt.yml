@@ -8,6 +8,9 @@
 complexity:
   TooManyFunctions:
     thresholdInClasses: 20
+    # The capability descriptor has one small helper per control family
+    # (modes/ranges/locks/streams/keys); splitting them would hide the schema.
+    thresholdInObjects: 30
 
 style:
   ReturnCount:

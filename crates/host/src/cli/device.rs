@@ -17,7 +17,7 @@ use watchdog_device::provision::{
     self, ProvisionOptions, ProvisionReport, RestoreRecord, StatusReport, StepStatus,
 };
 use watchdog_device::session::{LiveSession, Polled};
-use watchdog_protocol::{LogChunk, LogLevel, Message};
+use watchdog_protocol::{HelloAck, LogChunk, LogLevel, Message};
 
 use super::not_implemented;
 
@@ -306,10 +306,10 @@ pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
         ),
         DeviceCommand::Status { serial, json } => cli_status(serial.as_deref(), *json, cfg),
         DeviceCommand::Restore { serial } => cli_restore(serial.as_deref(), cfg),
+        DeviceCommand::Capabilities { serial, json } => {
+            cli_capabilities(serial.as_deref(), *json, cfg)
+        }
         other => Err(match other {
-            DeviceCommand::Capabilities { .. } => {
-                not_implemented("capability descriptor dump", "M4 (docs/PROGRESS.md)")
-            }
             DeviceCommand::Disconnect { .. } | DeviceCommand::Info { .. } => not_implemented(
                 "device session management in this CLI process",
                 "M2-T13 (docs/PROGRESS.md)",
@@ -790,15 +790,7 @@ fn cli_logs(serial: Option<&str>, follow: bool, cfg: &Config) -> watchdog_core::
     let rt = device_runtime()?;
     rt.block_on(async {
         let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
-        let token = RestoreRecord::load(&paths, &id)?
-            .and_then(|record| record.token)
-            .ok_or_else(|| {
-                WatchdogError::new(
-                    ErrorCode::NotFound,
-                    format!("no session token recorded for {id}"),
-                )
-                .with_hint("run `watchdog device provision` first; logs reuse its session token")
-            })?;
+        let token = session_token(&paths, &id, "logs")?;
         let (mut live, ack) = LiveSession::open_authenticated(
             &connection,
             &token,
@@ -839,6 +831,210 @@ fn cli_logs(serial: Option<&str>, follow: bool, cfg: &Config) -> watchdog_core::
     })
 }
 
+fn cli_capabilities(serial: Option<&str>, json: bool, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "capabilities")?;
+        let (live, ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        // The handshake is the whole exchange; closing releases the app's slot.
+        drop(live);
+        if json {
+            println!("{}", serde_json::to_string_pretty(&ack.capabilities)?);
+        } else {
+            print!("{}", render_capabilities(&id, &ack));
+        }
+        Ok(())
+    })
+}
+
+fn session_token(paths: &DataPaths, id: &str, command: &str) -> watchdog_core::Result<String> {
+    RestoreRecord::load(paths, id)?
+        .and_then(|record| record.token)
+        .ok_or_else(|| {
+            WatchdogError::new(
+                ErrorCode::NotFound,
+                format!("no session token recorded for {id}"),
+            )
+            .with_hint(format!(
+                "run `watchdog device provision` first; {command} reuses its session token"
+            ))
+        })
+}
+
+/// Human-readable capability summary. Kept pure so it can be unit-tested
+/// without a device.
+fn render_capabilities(serial: &str, ack: &HelloAck) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "serial:  {serial}");
+    let _ = writeln!(
+        out,
+        "app:     {} ({})",
+        ack.app.version_name, ack.app.version_code
+    );
+    let _ = writeln!(
+        out,
+        "device:  {} {} (SDK {})",
+        ack.device.manufacturer, ack.device.model, ack.device.sdk
+    );
+    let _ = writeln!(out, "cameras: {}", ack.capabilities.len());
+    for (id, descriptor) in &ack.capabilities {
+        let _ = writeln!(out, "camera {id}:");
+        if let Some(error) = descriptor.get("error").and_then(serde_json::Value::as_str) {
+            let _ = writeln!(out, "  error: {error}");
+            continue;
+        }
+        let _ = writeln!(
+            out,
+            "  lens: {} / {}, capabilities: {}",
+            descriptor
+                .get("lens_facing")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("unknown"),
+            descriptor
+                .get("hardware_level")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("UNKNOWN"),
+            array_len(descriptor, "capabilities")
+        );
+        render_controls(&mut out, descriptor);
+        render_streams(&mut out, descriptor);
+        let _ = writeln!(
+            out,
+            "  keys: {} request, {} result, {} characteristics",
+            array_len(descriptor, "available_request_keys"),
+            array_len(descriptor, "available_result_keys"),
+            array_len(descriptor, "available_characteristics_keys")
+        );
+        let unsupported = descriptor
+            .get("unsupported")
+            .and_then(serde_json::Value::as_array)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(|entry| {
+                        format!(
+                            "{} ({})",
+                            entry
+                                .get("control")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("?"),
+                            entry
+                                .get("reason")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if !unsupported.is_empty() {
+            let _ = writeln!(out, "  unsupported: {}", unsupported.join(", "));
+        }
+    }
+    out
+}
+
+fn render_controls(out: &mut String, descriptor: &serde_json::Value) {
+    use std::fmt::Write as _;
+
+    const METADATA: &[&str] = &[
+        "hardware_level",
+        "lens_facing",
+        "sensor_orientation",
+        "capabilities",
+        "physical_ids",
+        "lens",
+        "streams",
+        "available_request_keys",
+        "available_result_keys",
+        "available_characteristics_keys",
+        "unsupported",
+    ];
+    let Some(fields) = descriptor.as_object() else {
+        return;
+    };
+    let mut controls = Vec::new();
+    for (name, value) in fields {
+        if METADATA.contains(&name.as_str())
+            || value.get("supported").and_then(serde_json::Value::as_bool) != Some(true)
+        {
+            continue;
+        }
+        if let Some(modes) = value.get("modes").and_then(serde_json::Value::as_array) {
+            let modes = modes
+                .iter()
+                .map(serde_json::Value::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            controls.push(format!("{name}[{modes}]"));
+        } else if let (Some(min), Some(max)) = (value.get("min"), value.get("max")) {
+            let step = value
+                .get("step")
+                .map_or_else(|| "1".to_string(), serde_json::Value::to_string);
+            controls.push(format!("{name}[{min}..{max} step {step}]"));
+        } else {
+            controls.push(name.clone());
+        }
+    }
+    if !controls.is_empty() {
+        let _ = writeln!(out, "  controls: {}", controls.join(", "));
+    }
+}
+
+fn render_streams(out: &mut String, descriptor: &serde_json::Value) {
+    use std::fmt::Write as _;
+
+    let Some(streams) = descriptor.get("streams") else {
+        return;
+    };
+    if streams
+        .get("available")
+        .and_then(serde_json::Value::as_bool)
+        != Some(true)
+    {
+        let _ = writeln!(out, "  streams: unavailable");
+        return;
+    }
+    let formats = streams
+        .get("formats")
+        .and_then(serde_json::Value::as_object)
+        .map(|formats| {
+            formats
+                .iter()
+                .map(|(name, sizes)| format!("{name} {}", sizes.as_array().map_or(0, Vec::len)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default();
+    let _ = writeln!(out, "  streams: {formats} size(s)");
+    let _ = writeln!(
+        out,
+        "  fps: {} range(s); high-speed: {} size(s)",
+        array_len(streams, "fps_ranges"),
+        streams
+            .get("high_speed_video")
+            .map_or(0, |video| array_len(video, "sizes"))
+    );
+}
+
+fn array_len(value: &serde_json::Value, field: &str) -> usize {
+    value
+        .get(field)
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len)
+}
+
 fn print_log_chunk(chunk: &LogChunk) {
     let level = match chunk.level {
         LogLevel::Trace => "T",
@@ -849,5 +1045,95 @@ fn print_log_chunk(chunk: &LogChunk) {
     };
     for line in chunk.text.lines() {
         println!("[{level}] {line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn ack(capabilities: serde_json::Value) -> HelloAck {
+        HelloAck {
+            protocol_version: 1,
+            app: watchdog_protocol::AppInfo {
+                version_code: 7,
+                version_name: "1.2.3".to_string(),
+                package: "app.watchdog.remote".to_string(),
+            },
+            device: watchdog_protocol::DeviceInfo {
+                manufacturer: "Acme".to_string(),
+                model: "Cam".to_string(),
+                device: "cam".to_string(),
+                sdk: 34,
+                release: "14".to_string(),
+                abi: "arm64-v8a".to_string(),
+                battery_percent: Some(80),
+                storage_free_mb: Some(1024),
+                temperature_c: None,
+            },
+            cameras: Vec::new(),
+            capabilities: capabilities
+                .as_object()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn renders_controls_streams_and_keys() {
+        let ack = ack(json!({
+            "0": {
+                "hardware_level": "LEVEL_3",
+                "lens_facing": "back",
+                "sensor_orientation": 90,
+                "capabilities": ["BACKWARD_COMPATIBLE", "RAW"],
+                "physical_ids": [],
+                "lens": {},
+                "control_mode": {"supported": true, "modes": [0, 1]},
+                "iso": {"supported": true, "min": 50, "max": 12800, "step": 1},
+                "zoom_ratio": {"supported": false},
+                "streams": {
+                    "available": true,
+                    "formats": {"JPEG": [{"width": 1920, "height": 1080}], "YUV_420_888": []},
+                    "fps_ranges": [[15, 30]],
+                    "high_speed_video": {"sizes": [], "fps_ranges": []}
+                },
+                "available_request_keys": [
+                    {"name": "android.sensor.iso", "type": "java.lang.Integer"}
+                ],
+                "available_result_keys": [],
+                "available_characteristics_keys": [
+                    {"name": "android.sensor.info.sensitivityRange", "type": "android.util.Range"}
+                ],
+                "unsupported": [{"control": "zoom_ratio", "reason": "no digital zoom"}]
+            }
+        }));
+        let text = render_capabilities("emulator-5554", &ack);
+        assert!(text.contains("serial:  emulator-5554"));
+        assert!(text.contains("app:     1.2.3 (7)"));
+        assert!(text.contains("camera 0:"));
+        assert!(text.contains("lens: back / LEVEL_3, capabilities: 2"));
+        assert!(text.contains("control_mode[0,1]"));
+        assert!(text.contains("iso[50..12800 step 1]"));
+        assert!(!text.contains("zoom_ratio["));
+        assert!(text.contains("streams: JPEG 1, YUV_420_888 0 size(s)"));
+        assert!(text.contains("fps: 1 range(s); high-speed: 0 size(s)"));
+        assert!(text.contains("keys: 1 request, 0 result, 1 characteristics"));
+        assert!(text.contains("unsupported: zoom_ratio (no digital zoom)"));
+    }
+
+    #[test]
+    fn renders_camera_errors_and_unavailable_streams() {
+        let ack = ack(json!({
+            "1": {"error": "camera disconnected"},
+            "2": {"streams": {"available": false}}
+        }));
+        let text = render_capabilities("serial", &ack);
+        assert!(text.contains("camera 1:\n  error: camera disconnected"));
+        assert!(text.contains("camera 2:"));
+        assert!(text.contains("streams: unavailable"));
     }
 }

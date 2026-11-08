@@ -20,3 +20,4 @@ Rules (from TASK.md §6/§7):
 |---|---|---|---|---|
 | _pending_ | M1 (foundations) | n/a — CLI only | n/a | see PROGRESS.md |
 | _pending_ | M3 (Android MVP) | CI `android` job APK | real phone (USB + LAN) | method: [m3-measurements.md](m3-measurements.md) |
+| _pending_ | M4-T01 (capabilities) | CI `android` job APK | every available phone | method: [m4-capabilities.md](m4-capabilities.md) |
