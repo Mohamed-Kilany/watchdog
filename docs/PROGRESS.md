@@ -51,7 +51,9 @@ Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h,
 
 ## M3. Android app MVP and zero-touch provisioning
 
-- [ ] M3-T01 Project setup
+Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target API 37.0. CI run [42452948701](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42452948701) is green and produces the signed `watchdog-android-apk` artifact plus `apk-info.json` (versionCode 1000, versionName `0.1.0-dev+<sha>`). Device-gated tasks stay open until `docs/verification/` records exist.
+
+- [x] M3-T01 Project setup — Gradle Kotlin DSL + version catalog, `app.watchdog.remote`, minSdk 26, API 37.0, R8, ktlint + detekt in CI, env/secret signing with debug fallback, git-tag versioning.
 - [ ] M3-T02 Manifest and permissions
 - [ ] M3-T03 Capture foreground service **[DEVICE]**
 - [ ] M3-T04 Camera controller (Camera2)

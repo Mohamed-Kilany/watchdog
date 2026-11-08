@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Live viewfinder + JPEG frames. Runtime permission. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Audio in recordings (M5). Runtime permission. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Capture keeps running with the screen off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- API 34+: typed foreground service while the camera is in use. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- API 34+: typed foreground service while the microphone is in use. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- API 33+: the mandatory foreground-service notification. Runtime permission. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Partial wake lock while streaming with the screen off. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- TCP/LAN transport and the loopback socket server. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Fallback prompt for battery-optimization exemption; provisioning uses
+         `dumpsys deviceidle whitelist` so no user interaction is needed. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- The app is useless without a camera. -->
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="true" />
+    <!-- No storage permissions: media lives in app-specific storage and is
+         transferred over adb sync, which does not need READ/WRITE_EXTERNAL_STORAGE. -->
+
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
@@ -8,6 +35,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WatchdogRemote">
 
+        <!-- Launcher only. Opens the on-device UI; performs no privileged work. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
