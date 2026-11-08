@@ -17,7 +17,6 @@ import org.json.JSONObject
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
-import java.lang.reflect.Type
 
 /**
  * M4-T01 capability descriptor: one JSON object per camera id, built only from
@@ -464,7 +463,13 @@ object CapabilityDescriptor {
         val generic = field.genericType as? ParameterizedType ?: return null
         val key = runCatching { field.get(null) }.getOrNull() ?: return null
         val argument = generic.actualTypeArguments.firstOrNull() ?: return null
-        return keyName(key) to rawTypeName(argument)
+        val typeName =
+            when (argument) {
+                is Class<*> -> argument.name
+                is ParameterizedType -> (argument.rawType as Class<*>).name
+                else -> argument.typeName
+            }
+        return keyName(key) to typeName
     }
 
     private fun keyName(key: Any?): String =
@@ -473,13 +478,6 @@ object CapabilityDescriptor {
             is CaptureRequest.Key<*> -> key.name
             is CaptureResult.Key<*> -> key.name
             else -> key?.toString() ?: UNKNOWN_TYPE
-        }
-
-    private fun rawTypeName(type: Type): String =
-        when (type) {
-            is Class<*> -> type.name
-            is ParameterizedType -> (type.rawType as Class<*>).name
-            else -> type.typeName
         }
 
     private fun capabilityNames(values: IntArray?): JSONArray {
