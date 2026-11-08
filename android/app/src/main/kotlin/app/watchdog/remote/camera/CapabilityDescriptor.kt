@@ -14,6 +14,7 @@ import android.util.Size
 import app.watchdog.remote.log.DeviceLog
 import org.json.JSONArray
 import org.json.JSONObject
+import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
@@ -450,15 +451,20 @@ object CapabilityDescriptor {
         val out = HashMap<String, String>()
         for (holder in KEY_HOLDERS) {
             for (field in holder.declaredFields) {
-                if (!Modifier.isPublic(field.modifiers) || !Modifier.isStatic(field.modifiers)) continue
-                if (KEY_CLASSES.none { it.isAssignableFrom(field.type) }) continue
-                val generic = field.genericType as? ParameterizedType ?: continue
-                val key = runCatching { field.get(null) }.getOrNull() ?: continue
-                val argument = generic.actualTypeArguments.firstOrNull() ?: continue
-                out.putIfAbsent(keyName(key), rawTypeName(argument))
+                val entry = keyTypeEntry(field) ?: continue
+                out.putIfAbsent(entry.first, entry.second)
             }
         }
         return out
+    }
+
+    private fun keyTypeEntry(field: Field): Pair<String, String>? {
+        if (!Modifier.isPublic(field.modifiers) || !Modifier.isStatic(field.modifiers)) return null
+        if (KEY_CLASSES.none { it.isAssignableFrom(field.type) }) return null
+        val generic = field.genericType as? ParameterizedType ?: return null
+        val key = runCatching { field.get(null) }.getOrNull() ?: return null
+        val argument = generic.actualTypeArguments.firstOrNull() ?: return null
+        return keyName(key) to rawTypeName(argument)
     }
 
     private fun keyName(key: Any?): String =
