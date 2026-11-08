@@ -201,12 +201,15 @@ fn encode_android_public_key(public_key: &RsaPublicKey) -> [u8; ANDROID_PUBKEY_E
     out[0..4].copy_from_slice(&MODULUS_SIZE_WORDS.to_le_bytes());
     out[4..8].copy_from_slice(&n0inv.to_le_bytes());
 
+    // `to_bytes_le` is minimal-length: a value whose top byte is zero is
+    // shorter than 256 bytes, and the remaining high bytes are already zero
+    // in `out`.
     let mut offset = 8;
     let modulus_le = modulus.to_bytes_le();
-    out[offset..offset + 256].copy_from_slice(&modulus_le);
+    out[offset..offset + modulus_le.len()].copy_from_slice(&modulus_le);
     offset += 256;
     let rr_le = rr.to_bytes_le();
-    out[offset..offset + 256].copy_from_slice(&rr_le);
+    out[offset..offset + rr_le.len()].copy_from_slice(&rr_le);
     offset += 256;
     out[offset..offset + 4].copy_from_slice(&exponent.to_le_bytes());
     out
@@ -259,6 +262,33 @@ mod tests {
         assert_eq!(
             rr,
             num_bigint::BigUint::from(2u8).modpow(&num_bigint::BigUint::from(4096u32), &n)
+        );
+    }
+
+    #[test]
+    fn android_pubkey_pads_short_values() {
+        // `to_bytes_le` drops high zero bytes: a value whose top byte is zero
+        // must still occupy its full fixed-width field. A random 2048-bit key
+        // hit this on macOS (regression from the session auth fallback test).
+        let modulus = num_bigint::BigUint::from(0x0102_0304_0506_0709_u64);
+        let public_key = RsaPublicKey::new(modulus.clone(), num_bigint::BigUint::from(65537u32))
+            .expect("small odd modulus");
+        let encoded = encode_android_public_key(&public_key);
+
+        let mut expected_modulus = [0u8; 256];
+        let modulus_le = modulus.to_bytes_le();
+        expected_modulus[..modulus_le.len()].copy_from_slice(&modulus_le);
+        assert_eq!(&encoded[8..264], &expected_modulus);
+
+        let mut expected_rr = [0u8; 256];
+        let rr =
+            num_bigint::BigUint::from(2u8).modpow(&num_bigint::BigUint::from(4096u32), &modulus);
+        let rr_le = rr.to_bytes_le();
+        expected_rr[..rr_le.len()].copy_from_slice(&rr_le);
+        assert_eq!(&encoded[264..520], &expected_rr);
+        assert_eq!(
+            u32::from_le_bytes(encoded[520..524].try_into().unwrap()),
+            65537
         );
     }
 

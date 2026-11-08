@@ -221,7 +221,9 @@ jobs:
             --excludes "**/build/**"
       - name: unit tests
         working-directory: android
-        run: gradle --no-daemon testReleaseUnitTest
+        # AGP 9 only creates unit-test components for the tested build type
+        # (debug by default); the release variant is covered by assembleRelease.
+        run: gradle --no-daemon testDebugUnitTest
       - name: assembleRelease
         working-directory: android
         run: gradle --no-daemon --stacktrace assembleRelease
