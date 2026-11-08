@@ -100,6 +100,7 @@ dependencies {
     // Real org.json for JVM unit tests (android.jar only ships throwing stubs).
     testImplementation(libs.json)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
 }

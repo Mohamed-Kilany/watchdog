@@ -134,6 +134,22 @@ host session.
 - **Clean stop** — the notification STOP action, host `BYE`/stop command and
   `onDestroy` all close the camera and pipeline before the socket.
 
+## Tests (M3-T11)
+
+- **JVM unit tests** (`./gradlew testReleaseUnitTest`): wire codec against every
+  golden vector and the invalid corpus, stream decoder byte-at-a-time chaos,
+  handshake policy, bounded queue drop policy, camera state machine (including
+  100 recovery cycles), frame queue policy, log ring/`LOG_CHUNK` and JSON codecs.
+- **Instrumented tests** (`./gradlew connectedDebugAndroidTest`) run in CI on an
+  API 34 `google_apis` x86_64 emulator with `-camera-back virtualscene`:
+  - `MainLayoutTest` — side panels never overlap the preview and the permission
+    gate only replaces them when a permission is missing.
+  - `ServiceTransportTest` — foreground service start with a token, `HOST_HELLO`
+    → `HELLO_ACK`, a real JPEG `FRAME` from the virtual scene camera, rejection
+    of a wrong token, and takeover (`session_replaced`) by a second session.
+- The emulator job is `android-instrumented` in `.github/workflows/ci.yml` and is
+  required by the `all checks` gate.
+
 ## Other hardening
 
 - `android:allowBackup="false"` so tokens/logs are never uploaded to cloud backup.
