@@ -16,9 +16,6 @@ import app.watchdog.remote.protocol.MessageType
 import app.watchdog.remote.protocol.Packet
 import app.watchdog.remote.protocol.PacketCodec
 import app.watchdog.remote.protocol.StreamDecoder
-import java.io.Closeable
-import java.io.IOException
-import java.net.SocketTimeoutException
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -27,6 +24,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.Closeable
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 /**
  * M3-T11 end-to-end contract on the CI emulator: the foreground service opens

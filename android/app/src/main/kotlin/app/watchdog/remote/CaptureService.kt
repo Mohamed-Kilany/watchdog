@@ -31,8 +31,8 @@ import app.watchdog.remote.protocol.Packet
 import app.watchdog.remote.transport.HelloAckBuilder
 import app.watchdog.remote.transport.LogStreamer
 import app.watchdog.remote.transport.TransportServer
-import java.io.IOException
 import org.json.JSONObject
+import java.io.IOException
 
 /**
  * Foreground service that owns the camera, the frame pipeline and the host
@@ -51,6 +51,9 @@ class CaptureService : Service() {
 
     private var lastCameraStatus: CameraStatus? = null
     private var streamedBefore = false
+
+    @Volatile
+    private var activeToken: String? = null
 
     @Volatile
     private var running = false
@@ -77,7 +80,18 @@ class CaptureService : Service() {
 
     private fun startCapture(token: String) {
         when {
-            running -> DeviceLog.i(TAG, "capture already running; ignoring duplicate start")
+            running -> {
+                if (token == activeToken) {
+                    DeviceLog.i(TAG, "capture already running; ignoring duplicate start")
+                } else {
+                    // Re-provisioning issues a fresh token; rebind the transport
+                    // without restarting the camera so the new host can connect.
+                    DeviceLog.i(TAG, "session token changed; restarting transport")
+                    stopTransport()
+                    startTransport(token)
+                    activeToken = token
+                }
+            }
             !hasCameraPermission() -> {
                 DeviceLog.e(TAG, "CAMERA permission not granted; provisioning must grant it before start")
                 stopSelf()
@@ -86,6 +100,7 @@ class CaptureService : Service() {
             else -> {
                 acquireWakeLock()
                 running = true
+                activeToken = token
                 startTransport(token)
                 startCamera()
                 DeviceLog.i(TAG, "capture service started (session token accepted)")
@@ -124,6 +139,7 @@ class CaptureService : Service() {
         if (running) {
             DeviceLog.i(TAG, "stopping capture: $reason")
             running = false
+            activeToken = null
             stopCamera()
             stopTransport()
             releaseWakeLock()

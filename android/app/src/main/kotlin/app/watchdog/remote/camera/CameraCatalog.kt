@@ -48,7 +48,7 @@ object CameraCatalog {
 
     private fun logicalIds(chars: CameraCharacteristics): List<String> =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            chars.get(CameraCharacteristics.LOGICAL_MULTI_CAMERA)?.physicalCameraIds?.sorted() ?: emptyList()
+            chars.physicalCameraIds.sorted()
         } else {
             emptyList()
         }
