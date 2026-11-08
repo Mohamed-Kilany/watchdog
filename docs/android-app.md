@@ -113,6 +113,27 @@ a record is never split.
 - Logs are intentionally lossy under backpressure; they never stall frames or fail
   a session.
 
+## Resilience (M3-T10)
+
+The service opens the default back camera into the analysis pipeline as soon as a
+token-validated start is accepted, and streams JPEG `FRAME` packets to the active
+host session.
+
+- **Interruptions** — `Camera2Controller` treats `onDisconnected` and
+  `onError` (camera in use, policy disabled, service crash) as recoverable: the
+  device and session are closed and a bounded-backoff reopen (1 s · attempt,
+  capped) is scheduled on the camera thread.
+- **Events** — the host is told what happened: `EVENT{kind:"camera_disconnected"}`
+  when the camera is lost, `camera_reopened` after the stream resumes, and
+  `error` with the reason if the state machine reports a failure.
+- **Process death** — `onStartCommand` returns `START_REDELIVER_INTENT`, so Android
+  redelivers the token-bearing start intent if it kills the process. The host's
+  provisioning loop additionally re-issues
+  `am start-foreground-service … --es <SessionToken.EXTRA> <hex>` when the socket
+  or heartbeat disappears (M3-T13).
+- **Clean stop** — the notification STOP action, host `BYE`/stop command and
+  `onDestroy` all close the camera and pipeline before the socket.
+
 ## Other hardening
 
 - `android:allowBackup="false"` so tokens/logs are never uploaded to cloud backup.

@@ -60,9 +60,9 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [x] M3-T05 Frame pipeline **[DEVICE]** — bounded drop-oldest queue, YUV_420_888 → NV21 → JPEG pipeline and unit tests implemented; 720p/15 fps measurement pending
 - [x] M3-T06 Transport server — abstract socket `localabstract:watchdog-<token>`, single authenticated session with takeover, framing/heartbeat/backpressure; Kotlin codec passes all golden vectors + chaos tests (host-side forward wiring in M3-T13)
 - [x] M3-T07 Handshake and device info — HOST_HELLO validation, version negotiation, HELLO_ACK with app/device/battery/storage/camera data; host-side refusal message lands with M3-T13
-- [ ] M3-T08 On-device UI (MVP)
-- [ ] M3-T09 Log ring buffer
-- [ ] M3-T10 Resilience
+- [x] M3-T08 On-device UI (MVP) - landscape side panels around the preview surface, manual permission gate and display-cutout insets; layout contract test runs on the M3-T11 emulator job.
+- [x] M3-T09 Log ring buffer - 256 KiB byte-accounted ring, batched backlog flush and live `LOG_CHUNK` streaming, unit tests; `watchdog device logs` end-to-end lands with the host CLI (M3-T13/T16).
+- [x] M3-T10 Resilience **[DEVICE]** - camera auto-reopen with bounded backoff, `camera_disconnected`/`camera_reopened`/`error` events and `START_REDELIVER_INTENT`; adb-kill and camera-occupation device checks pending.
 - [ ] M3-T11 Tests
 - [ ] M3-T12 Embedding
 - [ ] M3-T13 Provisioning pipeline

@@ -176,8 +176,7 @@ private fun parseHeader(bytes: ByteArray, offset: Int): Header {
     return Header(type, flags, payloadLen, crc)
 }
 
-private fun protocolFailure(error: ProtocolError, message: String): Nothing =
-    throw ProtocolException(error, message)
+private fun protocolFailure(error: ProtocolError, message: String): Nothing = throw ProtocolException(error, message)
 
 private fun verifyCrc(payload: ByteArray, expected: Int) {
     val actual = crc32(payload)

@@ -9,18 +9,30 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.hardware.camera2.TotalCaptureResult
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import app.watchdog.remote.camera.Camera2Controller
+import app.watchdog.remote.camera.CameraCatalog
+import app.watchdog.remote.camera.CameraController
+import app.watchdog.remote.camera.CameraSnapshot
+import app.watchdog.remote.camera.CameraStatus
 import app.watchdog.remote.log.DeviceLog
+import app.watchdog.remote.pipeline.Frame
+import app.watchdog.remote.pipeline.FramePipeline
+import app.watchdog.remote.pipeline.PipelineConfig
+import app.watchdog.remote.protocol.FramePayload
+import app.watchdog.remote.protocol.JsonMessages
 import app.watchdog.remote.protocol.MessageType
 import app.watchdog.remote.protocol.Packet
 import app.watchdog.remote.transport.HelloAckBuilder
 import app.watchdog.remote.transport.LogStreamer
 import app.watchdog.remote.transport.TransportServer
 import java.io.IOException
+import org.json.JSONObject
 
 /**
  * Foreground service that owns the camera, the frame pipeline and the host
@@ -33,7 +45,12 @@ import java.io.IOException
 class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var transport: TransportServer? = null
+    private var camera: Camera2Controller? = null
+    private var pipeline: FramePipeline? = null
     private val logStreamer = LogStreamer()
+
+    private var lastCameraStatus: CameraStatus? = null
+    private var streamedBefore = false
 
     @Volatile
     private var running = false
@@ -45,15 +62,17 @@ class CaptureService : Service() {
         val token = intent?.getStringExtra(SessionToken.EXTRA)
         if (token == null || !SessionToken.isValid(token)) {
             DeviceLog.w(TAG, "rejected action=$action: missing or malformed session token")
-        } else {
-            when (action) {
-                ACTION_START -> startCapture(token)
-                ACTION_STOP -> stopCapture("host_request")
-                ACTION_STATUS -> DeviceLog.i(TAG, "status: running=$running session=${transport?.hasSession == true}")
-                else -> DeviceLog.w(TAG, "rejected unknown action=$action")
-            }
+            return START_NOT_STICKY
         }
-        return START_NOT_STICKY
+        when (action) {
+            ACTION_START -> startCapture(token)
+            ACTION_STOP -> stopCapture("host_request")
+            ACTION_STATUS -> DeviceLog.i(TAG, "status: running=$running session=${transport?.hasSession == true}")
+            else -> DeviceLog.w(TAG, "rejected unknown action=$action")
+        }
+        // Redeliver the token-bearing intent if Android kills the process, so a
+        // host-side `am start-foreground-service` is not the only recovery path.
+        return START_REDELIVER_INTENT
     }
 
     private fun startCapture(token: String) {
@@ -68,6 +87,7 @@ class CaptureService : Service() {
                 acquireWakeLock()
                 running = true
                 startTransport(token)
+                startCamera()
                 DeviceLog.i(TAG, "capture service started (session token accepted)")
             }
         }
@@ -104,6 +124,7 @@ class CaptureService : Service() {
         if (running) {
             DeviceLog.i(TAG, "stopping capture: $reason")
             running = false
+            stopCamera()
             stopTransport()
             releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -158,8 +179,106 @@ class CaptureService : Service() {
             }
         }
 
+    private fun startCamera() {
+        if (camera != null) {
+            return
+        }
+        val cameraId = defaultCameraId()
+        if (cameraId == null) {
+            DeviceLog.e(TAG, "no camera available")
+            sendEvent("error", JSONObject().put("message", "no camera available"))
+            return
+        }
+        val framePipeline = FramePipeline(PipelineConfig()) { frame -> sendFrame(frame) }
+        framePipeline.start()
+        val surface = framePipeline.surface
+        if (surface == null) {
+            DeviceLog.e(TAG, "frame pipeline produced no capture surface")
+            framePipeline.stop()
+            return
+        }
+        val controller = Camera2Controller(this, cameraListener)
+        camera = controller
+        pipeline = framePipeline
+        controller.open(cameraId, listOf(surface))
+        controller.startStreaming()
+        DeviceLog.i(TAG, "camera $cameraId opening")
+    }
+
+    private fun stopCamera() {
+        camera?.release()
+        camera = null
+        pipeline?.stop()
+        pipeline = null
+        lastCameraStatus = null
+        streamedBefore = false
+    }
+
+    private fun defaultCameraId(): String? {
+        val cameras = CameraCatalog.list(this)
+        return (cameras.firstOrNull { it.facing == "back" } ?: cameras.firstOrNull())?.id
+    }
+
+    private fun sendFrame(frame: Frame) {
+        val server = transport ?: return
+        if (!server.hasSession) {
+            return
+        }
+        val payload =
+            FramePayload(
+                sequence = frame.sequence,
+                sensorTimestampNs = frame.sensorTimestampNs,
+                width = frame.width,
+                height = frame.height,
+                rotation = frame.rotation,
+                flags = 0,
+                jpeg = frame.jpeg,
+            ).encode()
+        server.send(Packet(MessageType.FRAME, 0, payload))
+    }
+
+    private fun sendEvent(kind: String, data: JSONObject? = null) {
+        val server = transport ?: return
+        server.send(Packet(MessageType.EVENT, 0, JsonMessages.encodeEvent(kind, data = data)))
+    }
+
+    private val cameraListener =
+        object : CameraController.Listener {
+            override fun onStateChanged(snapshot: CameraSnapshot) {
+                val previous = lastCameraStatus
+                lastCameraStatus = snapshot.status
+                DeviceLog.i(TAG, "camera ${snapshot.status} (was ${previous ?: "none"})")
+                when (snapshot.status) {
+                    CameraStatus.RECOVERING ->
+                        if (previous != CameraStatus.RECOVERING) {
+                            sendEvent("camera_disconnected", cameraData(snapshot))
+                        }
+                    CameraStatus.STREAMING ->
+                        if (streamedBefore) {
+                            sendEvent("camera_reopened", cameraData(snapshot))
+                        } else {
+                            streamedBefore = true
+                        }
+                    CameraStatus.ERROR ->
+                        if (previous != CameraStatus.ERROR) {
+                            sendEvent(
+                                "error",
+                                cameraData(snapshot).put("message", snapshot.lastError ?: "camera error"),
+                            )
+                        }
+                    else -> Unit
+                }
+            }
+
+            override fun onCaptureResult(result: TotalCaptureResult) = Unit
+
+            private fun cameraData(snapshot: CameraSnapshot): JSONObject =
+                JSONObject().put("camera_id", snapshot.cameraId ?: "").put("recoveries", snapshot.recoveries)
+        }
+
     override fun onDestroy() {
         running = false
+        stopCamera()
         stopTransport()
         releaseWakeLock()
         DeviceLog.i(TAG, "capture service destroyed")

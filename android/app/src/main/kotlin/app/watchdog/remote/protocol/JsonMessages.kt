@@ -70,6 +70,19 @@ object JsonMessages {
         return json.toString().toByteArray(Charsets.UTF_8)
     }
 
+    /** `EVENT` payload (§5.7): async app → host notification. */
+    fun encodeEvent(
+        kind: String,
+        timestampMs: Long = System.currentTimeMillis(),
+        data: JSONObject? = null,
+    ): ByteArray {
+        val json = JSONObject().put("kind", kind).put("timestamp_ms", timestampMs)
+        if (data != null) {
+            json.put("data", data)
+        }
+        return json.toString().toByteArray(Charsets.UTF_8)
+    }
+
     fun encodeBye(reason: String, detail: String? = null): ByteArray {
         val json = JSONObject().put("reason", reason)
         if (detail != null) {

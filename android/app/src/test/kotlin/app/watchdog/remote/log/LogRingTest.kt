@@ -8,8 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LogRingTest {
-    private fun record(seq: Int, text: String = "message $seq") =
-        LogRecord(seq.toLong(), LogLevel.INFO, text)
+    private fun record(seq: Int, text: String = "message $seq") = LogRecord(seq.toLong(), LogLevel.INFO, text)
 
     @Test
     fun keepsRecordsInAppendOrder() {
