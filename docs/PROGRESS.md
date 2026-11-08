@@ -56,8 +56,8 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [x] M3-T01 Project setup — Gradle Kotlin DSL + version catalog, `app.watchdog.remote`, minSdk 26, API 37.0, R8, ktlint + detekt in CI, env/secret signing with debug fallback, git-tag versioning.
 - [x] M3-T02 Manifest and permissions — required permissions and their reasons in `docs/android-app.md`, with `pm grant`/appops commands; exported entry points are token protected; no broad storage permission.
 - [ ] M3-T03 Capture foreground service **[DEVICE]** (token-protected service + provisioning receiver implemented; 30-minute screen-off device run pending)
-- [ ] M3-T04 Camera controller (Camera2)
-- [ ] M3-T05 Frame pipeline
+- [x] M3-T04 Camera controller (Camera2) **[DEVICE]** — state machine, catalog, recovery/backoff and unit tests implemented; on-device handle-leak check pending
+- [x] M3-T05 Frame pipeline **[DEVICE]** — bounded drop-oldest queue, YUV_420_888 → NV21 → JPEG pipeline and unit tests implemented; 720p/15 fps measurement pending
 - [ ] M3-T06 Transport server
 - [ ] M3-T07 Handshake and device info
 - [ ] M3-T08 On-device UI (MVP)

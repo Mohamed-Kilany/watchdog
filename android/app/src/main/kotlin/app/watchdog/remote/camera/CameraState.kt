@@ -61,59 +61,66 @@ class CameraStateMachine(initial: CameraSnapshot = CameraSnapshot()) {
 
     private fun reduce(state: CameraSnapshot, event: CameraEvent): CameraSnapshot =
         when (event) {
-            is CameraEvent.Open ->
-                when (state.status) {
-                    CameraStatus.CLOSED, CameraStatus.ERROR, CameraStatus.RECOVERING ->
-                        state.copy(
-                            status = CameraStatus.OPENING,
-                            cameraId = event.cameraId,
-                            lastError = null,
-                        )
-                    else -> state
-                }
+            is CameraEvent.Open -> onOpen(state, event.cameraId)
+            is CameraEvent.Failed -> onFailed(state, event)
+            CameraEvent.Disconnected -> onDisconnected(state)
+            CameraEvent.Recover -> onRecover(state)
+            CameraEvent.Close -> state.copy(status = CameraStatus.CLOSED, lastError = null)
+            else -> onTransition(state, event)
+        }
+
+    private fun onOpen(state: CameraSnapshot, cameraId: String): CameraSnapshot =
+        if (state.status in REOPENABLE) {
+            state.copy(status = CameraStatus.OPENING, cameraId = cameraId, lastError = null)
+        } else {
+            state
+        }
+
+    private fun onFailed(state: CameraSnapshot, event: CameraEvent.Failed): CameraSnapshot =
+        if (state.status == CameraStatus.CLOSED) {
+            state
+        } else {
+            state.copy(status = CameraStatus.ERROR, lastError = event.reason)
+        }
+
+    private fun onDisconnected(state: CameraSnapshot): CameraSnapshot =
+        if (state.status == CameraStatus.CLOSED || state.status == CameraStatus.ERROR) {
+            state
+        } else {
+            state.copy(status = CameraStatus.RECOVERING, lastError = "camera disconnected")
+        }
+
+    private fun onRecover(state: CameraSnapshot): CameraSnapshot =
+        if (state.status == CameraStatus.ERROR || state.status == CameraStatus.RECOVERING) {
+            state.copy(status = CameraStatus.OPENING, recoveries = state.recoveries + 1)
+        } else {
+            state
+        }
+
+    private fun onTransition(state: CameraSnapshot, event: CameraEvent): CameraSnapshot =
+        when (event) {
             CameraEvent.Opened ->
-                when (state.status) {
-                    CameraStatus.OPENING, CameraStatus.RECOVERING ->
-                        state.copy(status = CameraStatus.OPEN)
-                    else -> state
+                if (state.status == CameraStatus.OPENING || state.status == CameraStatus.RECOVERING) {
+                    state.copy(status = CameraStatus.OPEN)
+                } else {
+                    state
                 }
             CameraEvent.Configured ->
-                when (state.status) {
-                    CameraStatus.OPEN -> state.copy(status = CameraStatus.CONFIGURED)
-                    else -> state
-                }
+                if (state.status == CameraStatus.OPEN) state.copy(status = CameraStatus.CONFIGURED) else state
             CameraEvent.StreamStarted ->
-                when (state.status) {
-                    CameraStatus.CONFIGURED, CameraStatus.STREAMING ->
-                        state.copy(status = CameraStatus.STREAMING)
-                    else -> state
+                if (state.status == CameraStatus.CONFIGURED || state.status == CameraStatus.STREAMING) {
+                    state.copy(status = CameraStatus.STREAMING)
+                } else {
+                    state
                 }
             CameraEvent.StreamStopped ->
-                when (state.status) {
-                    CameraStatus.STREAMING -> state.copy(status = CameraStatus.CONFIGURED)
-                    else -> state
-                }
-            is CameraEvent.Failed ->
-                when (state.status) {
-                    CameraStatus.CLOSED -> state
-                    else -> state.copy(status = CameraStatus.ERROR, lastError = event.reason)
-                }
-            CameraEvent.Disconnected ->
-                when (state.status) {
-                    CameraStatus.CLOSED, CameraStatus.ERROR -> state
-                    else -> state.copy(status = CameraStatus.RECOVERING, lastError = "camera disconnected")
-                }
-            CameraEvent.Recover ->
-                when (state.status) {
-                    CameraStatus.ERROR, CameraStatus.RECOVERING ->
-                        state.copy(status = CameraStatus.OPENING, recoveries = state.recoveries + 1)
-                    else -> state
-                }
-            CameraEvent.Close -> state.copy(status = CameraStatus.CLOSED, lastError = null)
+                if (state.status == CameraStatus.STREAMING) state.copy(status = CameraStatus.CONFIGURED) else state
             CameraEvent.Closed ->
-                when (state.status) {
-                    CameraStatus.CLOSED -> state
-                    else -> state.copy(status = CameraStatus.CLOSED)
-                }
+                if (state.status == CameraStatus.CLOSED) state else state.copy(status = CameraStatus.CLOSED)
+            else -> state
         }
+
+    private companion object {
+        private val REOPENABLE = setOf(CameraStatus.CLOSED, CameraStatus.ERROR, CameraStatus.RECOVERING)
+    }
 }

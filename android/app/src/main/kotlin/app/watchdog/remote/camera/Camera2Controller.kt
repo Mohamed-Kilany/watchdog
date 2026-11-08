@@ -165,10 +165,13 @@ class Camera2Controller(
         } else {
             try {
                 val request =
-                    camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-                        surfaces.forEach { addTarget(it) }
-                        set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                    }.build()
+                    camera
+                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                        .apply {
+                            surfaces.forEach { addTarget(it) }
+                            set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                        }
+                        .build()
                 session.setRepeatingRequest(request, captureCallback, handler)
                 machine.onEvent(CameraEvent.StreamStarted)
                 publish()
