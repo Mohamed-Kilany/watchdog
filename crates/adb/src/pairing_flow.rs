@@ -240,7 +240,7 @@ async fn read_next_spake_msg<T: Transport>(transport: &mut T) -> Result<Vec<u8>>
         transport.read_exact(&mut header).await?;
         let ty = header[1];
         let len = u32::from_be_bytes(header[2..6].try_into().expect("slice")) as usize;
-        if len > 8192 {
+        if len > packet::MAX_PAYLOAD_LEN {
             return Err(AdbError::Protocol("pairing packet too large".into()));
         }
         let mut payload = vec![0u8; len];
@@ -258,7 +258,7 @@ async fn read_next_peer_info<T: Transport>(transport: &mut T) -> Result<Vec<u8>>
         transport.read_exact(&mut header).await?;
         let ty = header[1];
         let len = u32::from_be_bytes(header[2..6].try_into().expect("slice")) as usize;
-        if len > 8192 {
+        if len > packet::MAX_PAYLOAD_LEN {
             return Err(AdbError::Protocol("pairing packet too large".into()));
         }
         let mut payload = vec![0u8; len];
