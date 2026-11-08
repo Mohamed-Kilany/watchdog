@@ -25,8 +25,8 @@ fun appVersionCode(name: String): Int {
     return major * 1_000_000 + minor * 1_000 + patch
 }
 
-val versionName = appVersionName()
-val versionCode = appVersionCode(versionName)
+val embeddedVersionName = appVersionName()
+val embeddedVersionCode = appVersionCode(embeddedVersionName)
 
 val releaseKeystore = System.getenv("WATCHDOG_KEYSTORE_FILE")
 
@@ -45,8 +45,8 @@ android {
         applicationId = "app.watchdog.remote"
         minSdk = 26
         targetSdk = 37
-        versionCode = versionCode
-        versionName = versionName
+        versionCode = embeddedVersionCode
+        versionName = embeddedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

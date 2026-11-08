@@ -207,6 +207,10 @@ jobs:
           BADGING=$("$BT/aapt2" dump badging "$APK")
           echo "$BADGING" | head -n 5
           VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -n1)
+          if [ -z "$VERSION_CODE" ]; then
+            echo "could not parse versionCode from aapt2 badging output" >&2
+            exit 1
+          fi
           SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
           CERT=$(grep -i "SHA-256 digest" "$RUNNER_TEMP/apksigner.txt" | head -n1 | awk -F': ' '{print $2}')
           VERSION_NAME="$WATCHDOG_APP_VERSION" VERSION_CODE="$VERSION_CODE" SHA256="$SHA256" CERT="$CERT" \
