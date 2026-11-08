@@ -160,6 +160,15 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+      - name: install Gradle (retry-safe)
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION=9.6.0
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/gradle-bin.zip" \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          unzip -q "$RUNNER_TEMP/gradle-bin.zip" -d "$RUNNER_TEMP/gradle-dist"
+          echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
       - name: derive app version from git tag
         run: |
           if TAG=$(git describe --tags --exact-match 2>/dev/null); then
@@ -183,13 +192,15 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: ktlint
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/ktlint" \
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/ktlint" \
             https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" --relative "android/**/*.kt" "android/**/*.kts"
       - name: detekt
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/detekt.jar" \
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/detekt.jar" \
             https://github.com/detekt/detekt/releases/download/v1.23.8/detekt-cli-1.23.8-all.jar
           java -jar "$RUNNER_TEMP/detekt.jar" \
             --input android/app/src/main/kotlin \
@@ -198,10 +209,10 @@ jobs:
             --excludes "**/build/**"
       - name: unit tests
         working-directory: android
-        run: ./gradlew --no-daemon testReleaseUnitTest
+        run: gradle --no-daemon testReleaseUnitTest
       - name: assembleRelease
         working-directory: android
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
+        run: gradle --no-daemon --stacktrace assembleRelease
       - name: verify APK and record metadata
         run: |
           set -euo pipefail
@@ -283,6 +294,15 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+      - name: install Gradle (retry-safe)
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION=9.6.0
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/gradle-bin.zip" \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          unzip -q "$RUNNER_TEMP/gradle-bin.zip" -d "$RUNNER_TEMP/gradle-dist"
+          echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
       - name: enable KVM for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -300,7 +320,7 @@ jobs:
           emulator-options: >-
             -no-snapshot -no-window -no-audio -no-boot-anim
             -gpu swiftshader_indirect -camera-back virtualscene -camera-front none
-          script: cd android && ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest
+          script: cd android && gradle --no-daemon --stacktrace connectedDebugAndroidTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:
