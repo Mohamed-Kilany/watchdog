@@ -8,7 +8,7 @@ use watchdog_adb::install::{self, PackageInfo};
 use watchdog_adb::manager;
 use watchdog_adb::shell::{self, ShellOutput};
 use watchdog_adb::{
-    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, LanTransport,
+    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, LanTransport, Transport,
     UsbTransport,
 };
 use watchdog_core::error::{ErrorCode, WatchdogError};
