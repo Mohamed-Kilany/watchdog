@@ -205,7 +205,7 @@ fn mul_integer(point: &EdwardsPoint, scalar_le: &[u8; 32]) -> EdwardsPoint {
     let mut result = EdwardsPoint::identity();
     for byte in scalar_le.iter().rev() {
         for bit in (0..8).rev() {
-            result = &result + &result;
+            result = result + result;
             if (byte >> bit) & 1 == 1 {
                 result += point;
             }
