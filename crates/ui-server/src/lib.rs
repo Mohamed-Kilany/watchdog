@@ -89,12 +89,43 @@ impl Request {
             .map_or(self.target.as_str(), |(path, _)| path)
     }
 
-    fn query(&self, key: &str) -> Option<&str> {
+    fn query(&self, key: &str) -> Option<String> {
         let (_, query) = self.target.split_once('?')?;
         query.split('&').find_map(|pair| {
             let (name, value) = pair.split_once('=')?;
-            (name == key).then_some(value)
+            (name == key).then(|| percent_decode(value))
         })
+    }
+}
+
+/// Decode `%XX` escapes in a query value (the test page uses
+/// `encodeURIComponent`, so arbitrary bearer tokens survive the round trip).
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let (Some(high), Some(low)) =
+                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+            {
+                decoded.push(high << 4 | low);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -237,7 +268,7 @@ fn authorized(request: &Request, expected: Option<&str>) -> bool {
     }
     request
         .query("token")
-        .is_some_and(|given| constant_time_eq(given, expected))
+        .is_some_and(|given| constant_time_eq(&given, expected))
 }
 
 /// Compare two secrets without an early exit on the first differing byte.
@@ -324,8 +355,20 @@ mod tests {
         let parsed = request("/api/stats?token=abc");
         assert_eq!(parsed.method, "GET");
         assert_eq!(parsed.path(), "/api/stats");
-        assert_eq!(parsed.query("token"), Some("abc"));
+        assert_eq!(parsed.query("token"), Some("abc".to_string()));
         assert_eq!(parsed.header("host"), Some("localhost"));
+    }
+
+    #[test]
+    fn decodes_percent_escapes_in_query_values() {
+        assert_eq!(
+            request("/?token=a%2Bb%20c").query("token"),
+            Some("a+b c".to_string())
+        );
+        assert_eq!(
+            request("/?token=100%").query("token"),
+            Some("100%".to_string())
+        );
     }
 
     #[test]

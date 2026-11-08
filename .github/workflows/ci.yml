@@ -201,16 +201,19 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: ktlint
         run: |
+          # Maven Central instead of GitHub releases: the release download host
+          # returned persistent 504s from CI. Pinned artifact + checksum.
           curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            -o "$RUNNER_TEMP/ktlint" \
-            https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint
-          chmod +x "$RUNNER_TEMP/ktlint"
-          "$RUNNER_TEMP/ktlint" --relative "android/**/*.kt" "android/**/*.kts"
+            -o "$RUNNER_TEMP/ktlint.jar" \
+            https://repo1.maven.org/maven2/com/pinterest/ktlint/ktlint-cli/1.5.0/ktlint-cli-1.5.0-all.jar
+          echo "a27854622198800f50971a049dcdba38f2105d47e7e7258786c7d28045c5735d  $RUNNER_TEMP/ktlint.jar" | sha256sum -c -
+          java -jar "$RUNNER_TEMP/ktlint.jar" --relative "android/**/*.kt" "android/**/*.kts"
       - name: detekt
         run: |
           curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
             -o "$RUNNER_TEMP/detekt.jar" \
-            https://github.com/detekt/detekt/releases/download/v1.23.8/detekt-cli-1.23.8-all.jar
+            https://repo1.maven.org/maven2/io/gitlab/arturbosch/detekt/detekt-cli/1.23.8/detekt-cli-1.23.8-all.jar
+          echo "3afe89a11120303c73c9bdda3d8fe558dd9070a6937d27819ddc04b275381245  $RUNNER_TEMP/detekt.jar" | sha256sum -c -
           java -jar "$RUNNER_TEMP/detekt.jar" \
             --input android/app/src/main/kotlin \
             --config android/detekt.yml \
