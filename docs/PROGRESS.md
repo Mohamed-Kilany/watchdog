@@ -58,8 +58,8 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [ ] M3-T03 Capture foreground service **[DEVICE]** (token-protected service + provisioning receiver implemented; 30-minute screen-off device run pending)
 - [x] M3-T04 Camera controller (Camera2) **[DEVICE]** — state machine, catalog, recovery/backoff and unit tests implemented; on-device handle-leak check pending
 - [x] M3-T05 Frame pipeline **[DEVICE]** — bounded drop-oldest queue, YUV_420_888 → NV21 → JPEG pipeline and unit tests implemented; 720p/15 fps measurement pending
-- [ ] M3-T06 Transport server
-- [ ] M3-T07 Handshake and device info
+- [x] M3-T06 Transport server — abstract socket `localabstract:watchdog-<token>`, single authenticated session with takeover, framing/heartbeat/backpressure; Kotlin codec passes all golden vectors + chaos tests (host-side forward wiring in M3-T13)
+- [x] M3-T07 Handshake and device info — HOST_HELLO validation, version negotiation, HELLO_ACK with app/device/battery/storage/camera data; host-side refusal message lands with M3-T13
 - [ ] M3-T08 On-device UI (MVP)
 - [ ] M3-T09 Log ring buffer
 - [ ] M3-T10 Resilience

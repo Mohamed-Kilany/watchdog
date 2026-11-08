@@ -20,10 +20,7 @@ import java.util.concurrent.atomic.AtomicLong
  * A sender thread drains the queue into [sink]; a slow sink only causes
  * drop-oldest, never unbounded memory or a blocked camera thread.
  */
-class FramePipeline(
-    private val config: PipelineConfig,
-    private val sink: FrameSink,
-) {
+class FramePipeline(private val config: PipelineConfig, private val sink: FrameSink) {
     private val queue = FrameQueue(config.queueCapacity)
     private val sequence = AtomicLong(0)
     private val jpegBuffer = ByteArrayOutputStream(INITIAL_JPEG_BUFFER)

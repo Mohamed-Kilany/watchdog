@@ -45,10 +45,7 @@ interface CameraController {
  * errors) move the machine to RECOVERING/ERROR and schedule a bounded-backoff
  * reopen unless the user closed the camera.
  */
-class Camera2Controller(
-    context: Context,
-    private val listener: CameraController.Listener,
-) : CameraController {
+class Camera2Controller(context: Context, private val listener: CameraController.Listener) : CameraController {
     private val appContext = context.applicationContext
     private val manager = appContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val thread = HandlerThread("watchdog-camera").apply { start() }
@@ -170,8 +167,7 @@ class Camera2Controller(
                         .apply {
                             surfaces.forEach { addTarget(it) }
                             set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                        }
-                        .build()
+                        }.build()
                 session.setRepeatingRequest(request, captureCallback, handler)
                 machine.onEvent(CameraEvent.StreamStarted)
                 publish()

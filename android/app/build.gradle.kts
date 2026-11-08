@@ -97,4 +97,6 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
     testImplementation(libs.junit)
+    // Real org.json for JVM unit tests (android.jar only ships throwing stubs).
+    testImplementation(libs.json)
 }

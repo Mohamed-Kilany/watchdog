@@ -15,6 +15,11 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import app.watchdog.remote.protocol.MessageType
+import app.watchdog.remote.protocol.Packet
+import app.watchdog.remote.transport.HelloAckBuilder
+import app.watchdog.remote.transport.TransportServer
+import java.io.IOException
 
 /**
  * Foreground service that owns the camera, the frame pipeline and the host
@@ -26,6 +31,7 @@ import androidx.core.content.ContextCompat
  */
 class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
+    private var transport: TransportServer? = null
 
     @Volatile
     private var running = false
@@ -41,7 +47,7 @@ class CaptureService : Service() {
             when (action) {
                 ACTION_START -> startCapture(token)
                 ACTION_STOP -> stopCapture("host_request")
-                ACTION_STATUS -> Log.i(TAG, "status: running=$running")
+                ACTION_STATUS -> Log.i(TAG, "status: running=$running session=${transport?.hasSession == true}")
                 else -> Log.w(TAG, "rejected unknown action=$action")
             }
         }
@@ -59,8 +65,8 @@ class CaptureService : Service() {
             else -> {
                 acquireWakeLock()
                 running = true
+                startTransport(token)
                 Log.i(TAG, "capture service started (session token accepted)")
-                // M3-T04/T05/T06 attach the camera, pipeline and transport server here.
             }
         }
     }
@@ -96,14 +102,60 @@ class CaptureService : Service() {
         if (running) {
             Log.i(TAG, "stopping capture: $reason")
             running = false
+            stopTransport()
             releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
         }
         stopSelf()
     }
 
+    private fun startTransport(token: String) {
+        if (transport != null) {
+            return
+        }
+        val server =
+            TransportServer(
+                sessionName = SOCKET_PREFIX + token,
+                sessionToken = token,
+                helloAck = { version -> HelloAckBuilder.build(this, version) },
+                listener = transportListener,
+            )
+        try {
+            server.start()
+            transport = server
+        } catch (e: IOException) {
+            Log.e(TAG, "transport server failed to start: ${e.message}", e)
+        }
+    }
+
+    private fun stopTransport() {
+        transport?.stop()
+        transport = null
+    }
+
+    private val transportListener =
+        object : TransportServer.Listener {
+            override fun onSessionOpen(hostName: String?) {
+                Log.i(TAG, "host session open: ${hostName ?: "unknown"}")
+            }
+
+            override fun onSessionClosed(reason: String) {
+                Log.i(TAG, "host session closed: $reason")
+            }
+
+            override fun onPacket(packet: Packet) {
+                if (packet.type == MessageType.COMMAND) {
+                    // M4 implements control/capture commands; M3 only carries them.
+                    Log.i(TAG, "COMMAND received (not implemented until M4)")
+                } else {
+                    Log.d(TAG, "unhandled packet ${packet.type}")
+                }
+            }
+        }
+
     override fun onDestroy() {
         running = false
+        stopTransport()
         releaseWakeLock()
         Log.i(TAG, "capture service destroyed")
         super.onDestroy()
@@ -175,6 +227,7 @@ class CaptureService : Service() {
         private const val CHANNEL_ID = "watchdog-capture"
         private const val NOTIFICATION_ID = 1001
         private const val WAKE_LOCK_TAG = "watchdog:capture"
+        private const val SOCKET_PREFIX = "watchdog-"
 
         const val ACTION_START = "app.watchdog.remote.action.START"
         const val ACTION_STOP = "app.watchdog.remote.action.STOP"

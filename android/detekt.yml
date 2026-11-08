@@ -11,3 +11,8 @@ complexity:
   ReturnCount:
     max: 6
     excludeGuardClauses: true
+
+style:
+  MagicNumber:
+    # Protocol constants are meaningful as hex wire values.
+    ignoreEnums: true

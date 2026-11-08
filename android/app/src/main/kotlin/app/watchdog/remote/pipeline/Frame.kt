@@ -26,8 +26,4 @@ fun interface FrameSink {
 }
 
 /** Snapshot of queue counters for the on-device UI and `STATE`. */
-data class QueueStats(
-    val offered: Long,
-    val dropped: Long,
-    val depth: Int,
-)
+data class QueueStats(val offered: Long, val dropped: Long, val depth: Int)
