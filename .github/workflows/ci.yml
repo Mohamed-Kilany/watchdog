@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -291,8 +292,13 @@ jobs:
             android/build/apk-info.json
           if-no-files-found: error
 
+  # Physical-device verification is performed with the CI-built release host
+  # binary (see `host-windows`). Instrumented emulator tests are kept for
+  # manual runs only: they need KVM and a virtual-scene camera, and the real
+  # device is the source of truth for this milestone.
   android-instrumented:
     name: android (instrumented, emulator)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       WATCHDOG_GRADLE_MIRRORS: "https://repo.huaweicloud.com/repository/maven/,https://maven.aliyun.com/repository/public/"
@@ -371,9 +377,58 @@ jobs:
           path: android/app/build/reports/androidTests
           if-no-files-found: ignore
 
+  host-windows:
+    name: host (windows release, embedded APK)
+    needs: android
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: watchdog-android-apk
+          # The artifact root is `android/`, so restore the same relative paths
+          # the android job used.
+          path: android
+      - name: rustup (pinned toolchain)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: read embedded APK metadata
+        shell: pwsh
+        run: |
+          $info = Get-Content android/build/apk-info.json | ConvertFrom-Json
+          $apk = (Resolve-Path android/app/build/outputs/apk/release/app-release.apk).Path
+          @(
+            "WATCHDOG_APK=$apk"
+            "WATCHDOG_APK_VERSION_NAME=$($info.versionName)"
+            "WATCHDOG_APK_VERSION_CODE=$($info.versionCode)"
+            "WATCHDOG_APK_SHA256=$($info.sha256)"
+            "WATCHDOG_APK_SIGNER_SHA256=$($info.signerSha256)"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: build release host with the embedded APK
+        run: cargo build --locked --release -p watchdog
+      - name: verify embedded APK metadata
+        shell: pwsh
+        run: |
+          $out = (& target/release/watchdog.exe version) -join "`n"
+          Write-Output $out
+          if (-not $out.Contains("embedded APK  $env:WATCHDOG_APK_VERSION_NAME")) {
+            throw "embedded APK version name mismatch"
+          }
+          if (-not $out.Contains($env:WATCHDOG_APK_SHA256)) {
+            throw "embedded APK sha256 mismatch"
+          }
+          if (-not $out.Contains($env:WATCHDOG_APK_SIGNER_SHA256)) {
+            throw "embedded APK signer mismatch"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-host-windows-x86_64
+          path: target/release/watchdog.exe
+          if-no-files-found: error
+
   gate:
     name: all checks
-    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android, android-instrumented]
+    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android, host-windows]
     runs-on: ubuntu-latest
     steps:
       - run: echo "All required checks passed."

@@ -51,7 +51,7 @@ Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h,
 
 ## M3. Android app MVP and zero-touch provisioning
 
-Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target API 37.0. CI run [42452948701](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42452948701) is green and produces the signed `watchdog-android-apk` artifact plus `apk-info.json` (versionCode 1000, versionName `0.1.0-dev+<sha>`). Device-gated tasks stay open until `docs/verification/` records exist.
+Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target API 37.0. CI run [42452948701](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42452948701) is green and produces the signed `watchdog-android-apk` artifact plus `apk-info.json` (versionCode 1000, versionName `0.1.0-dev+<sha>`). The `host-windows` job now uploads `watchdog-host-windows-x86_64`, a release host binary with the same APK embedded, so real-device runs use CI release builds only. The instrumented emulator job is manual (`workflow_dispatch`) and no longer gates merges. Device-gated tasks stay open until `docs/verification/` records exist.
 
 - [x] M3-T01 Project setup — Gradle Kotlin DSL + version catalog, `app.watchdog.remote`, minSdk 26, API 37.0, R8, ktlint + detekt in CI, env/secret signing with debug fallback, git-tag versioning.
 - [x] M3-T02 Manifest and permissions — required permissions and their reasons in `docs/android-app.md`, with `pm grant`/appops commands; exported entry points are token protected; no broad storage permission.
@@ -60,7 +60,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [x] M3-T05 Frame pipeline **[DEVICE]** — bounded drop-oldest queue, YUV_420_888 → NV21 → JPEG pipeline and unit tests implemented; 720p/15 fps measurement pending
 - [x] M3-T06 Transport server — abstract socket `localabstract:watchdog-<token>`, single authenticated session with takeover, framing/heartbeat/backpressure; Kotlin codec passes all golden vectors + chaos tests (host-side forward wiring in M3-T13)
 - [x] M3-T07 Handshake and device info — HOST_HELLO validation, version negotiation, HELLO_ACK with app/device/battery/storage/camera data; host-side refusal message lands with M3-T13
-- [x] M3-T08 On-device UI (MVP) - landscape side panels around the preview surface, manual permission gate and display-cutout insets; layout contract test runs on the M3-T11 emulator job.
+- [x] M3-T08 On-device UI (MVP) - landscape side panels around the preview surface, manual permission gate and display-cutout insets; layout contract test runs on the manual M3-T11 emulator job.
 - [x] M3-T09 Log ring buffer - 256 KiB byte-accounted ring, batched backlog flush and live `LOG_CHUNK` streaming, unit tests; `watchdog device logs` end-to-end lands with the host CLI (M3-T13/T16).
 - [x] M3-T10 Resilience **[DEVICE]** - camera auto-reopen with bounded backoff, `camera_disconnected`/`camera_reopened`/`error` events and `START_REDELIVER_INTENT`; adb-kill and camera-occupation device checks pending.
 - [x] M3-T11 Tests - JVM unit tests (codec golden vectors + invalid corpus, state machine, queue, log ring) and emulator instrumented tests (`MainLayoutTest`, `ServiceTransportTest`) run in the `android` and `android-instrumented` CI jobs.
