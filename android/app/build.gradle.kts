@@ -35,9 +35,10 @@ android {
     // API 37 is published as platform 37.0 (minor API level 0); the new DSL
     // resolves platforms/android-37.0 instead of the non-existent android-37.
     compileSdk {
-        version = release(37) {
-            minorApiLevel = 0
-        }
+        version =
+            release(37) {
+                minorApiLevel = 0
+            }
     }
 
     defaultConfig {
@@ -64,11 +65,12 @@ android {
         release {
             // CI provides a keystore; local release builds fall back to the
             // debug key so `assembleRelease` always yields an installable APK.
-            signingConfig = if (releaseKeystore != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig =
+                if (releaseKeystore != null) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
