@@ -80,10 +80,10 @@ on the phone and use `watchdog device connect <ip>:<port>` as in section 3. A
 
 | OEM / OS | Notes | Status |
 |---|---|---|
-| Google Pixel (stock AOSP) | reference device; all steps automated | pending device verification (M2 [DEVICE] tasks) |
-| Samsung One UI | "Auto blocker" may block unknown installs — allow once; battery "Put unused apps to sleep" must not apply to the app (provision sets it) | partial; verify per device |
-| Xiaomi MIUI / HyperOS | USB debugging (Security settings) toggle also required; MIUI kills background apps aggressively — provision sets Autostart + battery exemption | partial |
-| Huawei EMUI | no Google services needed; wireless debugging absent on some EMUI — use USB | unverified |
+| Google Pixel (stock AOSP) | reference device; all steps automated | provisioning implemented; device verification pending (M2/M3 **[DEVICE]** tasks) |
+| Samsung One UI | "Auto blocker" may block unknown installs — allow once. Battery "Put unused apps to sleep" is counteracted by the Doze whitelist, standby bucket and appops grants; verify per build. | partial; verify per device |
+| Xiaomi MIUI / HyperOS | USB debugging (Security settings) must be enabled manually; MIUI kills background apps aggressively — provisioning applies the Doze whitelist/appops, but "Autostart" is a manual toggle in MIUI settings. | partial; manual Autostart |
+| Huawei EMUI | no Google services needed; wireless debugging absent on some EMUI — use USB. | unverified |
 | OnePlus OxygenOS | near-stock; works like Pixel | unverified |
 | Android 8–10 | no wireless-debugging pairing (Android 11+); use USB | supported for USB |
 

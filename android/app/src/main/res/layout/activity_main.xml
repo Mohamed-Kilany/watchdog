@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/watchdog_background"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:id="@+id/mainLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <ScrollView
+            android:id="@+id/leftPanel"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@color/watchdog_panel"
+            android:fillViewport="true"
+            android:paddingStart="12dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/PanelTitle"
+                    android:text="@string/panel_connection" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_status" />
+
+                <TextView
+                    android:id="@+id/connectionStatus"
+                    style="@style/PanelValue"
+                    android:text="@string/value_waiting" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_host" />
+
+                <TextView
+                    android:id="@+id/hostName"
+                    style="@style/PanelValue"
+                    android:text="@string/value_none" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_session" />
+
+                <TextView
+                    android:id="@+id/sessionState"
+                    style="@style/PanelValue"
+                    android:text="@string/value_idle" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_fps" />
+
+                <TextView
+                    android:id="@+id/fps"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_resolution" />
+
+                <TextView
+                    android:id="@+id/resolution"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_quality" />
+
+                <TextView
+                    android:id="@+id/jpegQuality"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_dropped" />
+
+                <TextView
+                    android:id="@+id/droppedFrames"
+                    style="@style/PanelValue"
+                    android:text="@string/value_zero" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_latency" />
+
+                <TextView
+                    android:id="@+id/latency"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    android:id="@+id/version"
+                    style="@style/PanelValue"
+                    android:layout_marginTop="16dp"
+                    android:textColor="@color/watchdog_text_secondary" />
+            </LinearLayout>
+        </ScrollView>
+
+        <FrameLayout
+            android:id="@+id/previewContainer"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2.4"
+            android:background="@android:color/black">
+
+            <SurfaceView
+                android:id="@+id/preview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+
+        <ScrollView
+            android:id="@+id/rightPanel"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@color/watchdog_panel"
+            android:fillViewport="true"
+            android:paddingStart="12dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/PanelTitle"
+                    android:text="@string/panel_camera" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_camera" />
+
+                <TextView
+                    android:id="@+id/cameraId"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_camera_state" />
+
+                <TextView
+                    android:id="@+id/cameraState"
+                    style="@style/PanelValue"
+                    android:text="@string/value_closed" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_recording" />
+
+                <TextView
+                    android:id="@+id/recordingState"
+                    style="@style/PanelValue"
+                    android:text="@string/value_not_recording" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_storage" />
+
+                <TextView
+                    android:id="@+id/storage"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_battery" />
+
+                <TextView
+                    android:id="@+id/battery"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+
+                <TextView
+                    style="@style/PanelLabel"
+                    android:text="@string/label_temperature" />
+
+                <TextView
+                    android:id="@+id/temperature"
+                    style="@style/PanelValue"
+                    android:text="@string/value_placeholder" />
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/permissionLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/permission_title"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall"
+            android:textColor="@color/watchdog_text_primary" />
+
+        <TextView
+            android:id="@+id/permissionMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="@color/watchdog_text_secondary" />
+
+        <Button
+            android:id="@+id/permissionSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/permission_open_settings" />
+    </LinearLayout>
+</FrameLayout>

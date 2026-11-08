@@ -1787,7 +1787,9 @@ dependencies = [
  "tracing",
  "watchdog-adb",
  "watchdog-core",
+ "watchdog-device",
  "watchdog-protocol",
+ "watchdog-ui-server",
 ]
 
 [[package]]
@@ -1874,6 +1876,8 @@ dependencies = [
 name = "watchdog-device"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "rand",
  "serde",
  "serde_json",
  "thiserror",
@@ -1940,6 +1944,7 @@ dependencies = [
  "tokio",
  "tracing",
  "watchdog-core",
+ "watchdog-device",
 ]
 
 [[package]]

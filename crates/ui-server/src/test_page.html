@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>watchdog — live test page</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: #eee; font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; align-items: baseline; padding: .5rem 1rem; background: #1b1b1b; border-bottom: 1px solid #333; }
+  header strong { color: #7fd1ff; letter-spacing: .02em; }
+  #state { color: #9be29b; }
+  #stats { color: #bbb; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  main { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 3.2rem); padding: .5rem; }
+  img { max-width: 100%; max-height: calc(100vh - 4rem); background: #000; border: 1px solid #333; }
+</style>
+</head>
+<body>
+<header>
+  <strong>watchdog</strong>
+  <span id="state">connecting…</span>
+  <span id="stats">waiting for stats…</span>
+</header>
+<main>
+  <img id="feed" alt="Live camera feed from the phone">
+</main>
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token");
+  const suffix = token ? "?token=" + encodeURIComponent(token) : "";
+  const feed = document.getElementById("feed");
+  const state = document.getElementById("state");
+  const stats = document.getElementById("stats");
+  feed.src = "/stream.mjpg" + suffix;
+  feed.addEventListener("error", () => { state.textContent = "stream closed"; });
+
+  function number(value, digits) {
+    return typeof value === "number" ? value.toFixed(digits) : "—";
+  }
+
+  async function poll() {
+    try {
+      const response = await fetch("/api/stats" + suffix, { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const s = await response.json();
+      state.textContent = s.closed ? "stream closed" : s.subscribers + " viewer(s)";
+      stats.textContent =
+        number(s.fps, 1) + " fps · " +
+        number(s.bitrate_kbps / 1000, 2) + " Mbit/s · " +
+        "latency " + number(s.latency_ms, 0) + " ms · " +
+        "rtt " + number(s.rtt_ms, 0) + " ms · " +
+        "seq " + (s.last_seq ?? "—") + " · " +
+        "dropped " + s.dropped + " · dup " + s.duplicates;
+    } catch (error) {
+      state.textContent = String(error);
+    }
+    setTimeout(poll, 1000);
+  }
+
+  poll();
+</script>
+</body>
+</html>

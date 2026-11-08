@@ -42,6 +42,12 @@ impl ForwardHandle {
     }
 }
 
+impl Drop for ForwardHandle {
+    fn drop(&mut self) {
+        self.join.abort();
+    }
+}
+
 /// Bind `listen` and forward every accepted connection to `service` on the device.
 pub async fn start_forward<T: Transport + 'static>(
     connection: Arc<Connection<T>>,

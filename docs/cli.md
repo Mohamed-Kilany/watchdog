@@ -38,8 +38,15 @@ any required path is unusable.
 - `path` — resolved `watchdog.toml` path + existence.
 - `validate` — parse/validate all layers; write-probe data dir; prints ok + ports.
 
-### `watchdog serve`
-Start web UI (:7700), MCP (:7701) and integration API (:7702). *(lands with M3/M6/M9; currently reports the owning milestone.)*
+### `watchdog serve [--serial S]`
+Start the web UI on `--ui-port` (default 7700). M3 serves the minimal test page:
+`/` is a live MJPEG view of the provisioned phone camera with FPS, bitrate, latency,
+RTT, sequence, drop and duplicate counters polled from `/api/stats`; `/stream.mjpg`
+is the multipart MJPEG stream and `/healthz` is a liveness probe. The page reuses the
+session token stored by `watchdog device provision` (run it first). `--serial` selects
+a USB serial or `host[:port]` (wireless debugging over LAN). When a bearer token is
+configured, every request needs `?token=…` or `Authorization: Bearer …`. MCP (:7701)
+and the integration API (:7702) land with M6/M9.
 
 ### `watchdog device <subcommand>`
 | Command | Purpose | Status |
@@ -57,7 +64,9 @@ Start web UI (:7700), MCP (:7701) and integration API (:7702). *(lands with M3/M
 | `uninstall [package] [--serial]` | uninstall (default app.watchdog.remote) | M2 |
 | `forward <local_port> <remote> [--serial]` | host port → device socket | M2 |
 | `logs [--serial] [--follow]` | app log ring buffer | M3 |
-| `provision` / `status` / `restore [--serial]` | zero-touch provisioning | M3 |
+| `provision [--serial] [--apk PATH] [--no-verify] [--no-screen] [--socket-timeout S] [--frame-timeout S] [--json]` | zero-touch provisioning | M3 |
+| `status [--serial] [--json]` | installed version, permissions, battery/screen state and session token age | M3 |
+| `restore [--serial]` | revert screen settings recorded by provisioning | M3 |
 | `capabilities [--serial] [--json]` | dump capability descriptor | M4 |
 | `udev-rules [--write]` | print/install Linux udev rules | **done (this release)** |
 | `usb-doctor` | diagnose USB permission problems | M2 |
@@ -85,6 +94,9 @@ watchdog doctor
 watchdog config show
 sudo watchdog device udev-rules --write
 watchdog device provision --serial 1a2b3c4d
+watchdog serve --serial 1a2b3c4d          # live test page at http://127.0.0.1:7700/
+watchdog device status --serial 1a2b3c4d
+watchdog device restore --serial 1a2b3c4d
 watchdog capture still --serial 1a2b3c4d --output frame.jpg
 watchdog schedule add --name "every 30 min" --preset every-30m --device 1a2b3c4d --record-secs 10
 ```

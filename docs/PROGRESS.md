@@ -51,23 +51,25 @@ Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h,
 
 ## M3. Android app MVP and zero-touch provisioning
 
-- [ ] M3-T01 Project setup
-- [ ] M3-T02 Manifest and permissions
-- [ ] M3-T03 Capture foreground service **[DEVICE]**
-- [ ] M3-T04 Camera controller (Camera2)
-- [ ] M3-T05 Frame pipeline
-- [ ] M3-T06 Transport server
-- [ ] M3-T07 Handshake and device info
-- [ ] M3-T08 On-device UI (MVP)
-- [ ] M3-T09 Log ring buffer
-- [ ] M3-T10 Resilience
-- [ ] M3-T11 Tests
-- [ ] M3-T12 Embedding
-- [ ] M3-T13 Provisioning pipeline
-- [ ] M3-T14 Frame receiver + broadcast hub
-- [ ] M3-T15 Minimal test page **[DEVICE]**
-- [ ] M3-T16 CLI:
-- [ ] M3-T17 Measurements
+Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target API 37.0. CI run [42452948701](https://github.com/Mohamed-Kilany/watchdog/actions/runs/42452948701) is green and produces the signed `watchdog-android-apk` artifact plus `apk-info.json` (versionCode 1000, versionName `0.1.0-dev+<sha>`). The `host-windows` job now uploads `watchdog-host-windows-x86_64`, a release host binary with the same APK embedded, so real-device runs use CI release builds only. The instrumented emulator job is manual (`workflow_dispatch`) and no longer gates merges. Device-gated tasks stay open until `docs/verification/` records exist.
+
+- [x] M3-T01 Project setup — Gradle Kotlin DSL + version catalog, `app.watchdog.remote`, minSdk 26, API 37.0, R8, ktlint + detekt in CI, env/secret signing with debug fallback, git-tag versioning.
+- [x] M3-T02 Manifest and permissions — required permissions and their reasons in `docs/android-app.md`, with `pm grant`/appops commands; exported entry points are token protected; no broad storage permission.
+- [ ] M3-T03 Capture foreground service **[DEVICE]** (token-protected service + provisioning receiver implemented; 30-minute screen-off device run pending)
+- [x] M3-T04 Camera controller (Camera2) **[DEVICE]** — state machine, catalog, recovery/backoff and unit tests implemented; on-device handle-leak check pending
+- [x] M3-T05 Frame pipeline **[DEVICE]** — bounded drop-oldest queue, YUV_420_888 → NV21 → JPEG pipeline and unit tests implemented; 720p/15 fps measurement pending
+- [x] M3-T06 Transport server — abstract socket `localabstract:watchdog-<token>`, single authenticated session with takeover, framing/heartbeat/backpressure; Kotlin codec passes all golden vectors + chaos tests (host-side forward wiring in M3-T13)
+- [x] M3-T07 Handshake and device info — HOST_HELLO validation, version negotiation, HELLO_ACK with app/device/battery/storage/camera data; host-side refusal message lands with M3-T13
+- [x] M3-T08 On-device UI (MVP) - landscape side panels around the preview surface, manual permission gate and display-cutout insets; layout contract test runs on the manual M3-T11 emulator job.
+- [x] M3-T09 Log ring buffer - 256 KiB byte-accounted ring, batched backlog flush and live `LOG_CHUNK` streaming, unit tests; `watchdog device logs` end-to-end lands with the host CLI (M3-T13/T16).
+- [x] M3-T10 Resilience **[DEVICE]** - camera auto-reopen with bounded backoff, `camera_disconnected`/`camera_reopened`/`error` events and `START_REDELIVER_INTENT`; adb-kill and camera-occupation device checks pending.
+- [x] M3-T11 Tests - JVM unit tests (codec golden vectors + invalid corpus, state machine, queue, log ring) and emulator instrumented tests (`MainLayoutTest`, `ServiceTransportTest`) run in the `android` and `android-instrumented` CI jobs.
+- [x] M3-T12 Embedding - `crates/device/build.rs` embeds the release APK plus version name/code, SHA-256 and signer fingerprint when `WATCHDOG_APK` is set; `watchdog version` prints them and CI verifies the values against the built APK.
+- [x] M3-T13 Provisioning pipeline - idempotent, per-step pass/fail/skipped report with timing; install/update with signature-mismatch guidance, permission/appops grants, battery/standby setup, recorded screen settings, token launch and first-frame verification; per-device state powers `status`/`restore`/`logs`. Full no-touch run on real hardware pending **[DEVICE]**.
+- [x] M3-T14 Frame receiver + broadcast hub - sequence reordering with bounded hold, duplicate/stale drops, gap counting, bounded `tokio::broadcast` fan-out (slow subscribers lag without stalling the reader), PING/PONG clock-offset latency estimate and rolling FPS/bitrate/RTT stats; unit-tested.
+- [x] M3-T15 Minimal test page - `watchdog serve` opens the provisioned session, spawns the frame hub and serves `/` (MJPEG feed + live stats), `/stream.mjpg`, `/api/stats` and `/healthz` on the UI port with optional bearer-token auth. Real-phone USB/LAN visual check pending **[DEVICE]**.
+- [x] M3-T16 CLI - `watchdog device provision <serial>` (with `--apk`, `--no-verify`, `--no-screen`, timeouts, `--json`), `status [--json]`, `restore` and `logs [--follow]` implemented and documented in `docs/cli.md` and `docs/device-setup.md`.
+- [ ] M3-T17 Measurements **[DEVICE]** - method and recording template in `docs/verification/m3-measurements.md`; glass-to-glass latency, FPS, CPU and thermal numbers for a 30-minute run pending real hardware.
 
 ## M4. Controls and state (the feature-rich core)
 

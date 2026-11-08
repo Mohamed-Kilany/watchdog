@@ -1,0 +1,6 @@
+[*.{kt,kts}]
+max_line_length = 120
+indent_size = 4
+# Keep short function and class signatures on one line (ktlint_official forces 2+).
+ktlint_function_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = unset
+ktlint_class_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = unset

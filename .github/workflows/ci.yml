@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -132,9 +133,302 @@ jobs:
       - name: run no_system_adb tests
         run: cargo test --locked -p watchdog-adb no_system_adb
 
+  android:
+    name: android (assembleRelease)
+    runs-on: ubuntu-latest
+    env:
+      # Try these Maven Central mirrors before the origin; GitHub-hosted
+      # artifact redirects intermittently return 504s from the runners.
+      WATCHDOG_GRADLE_MIRRORS: "https://repo.huaweicloud.com/repository/maven/,https://maven.aliyun.com/repository/public/"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: install Android SDK platform and build tools
+        run: |
+          # The runner image provides the SDK but not necessarily sdkmanager on
+          # PATH, and setup-android@v3 fails trying to install the retired
+          # `tools` package. Locate the SDK manager explicitly instead.
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -maxdepth 3 -type f -name sdkmanager 2>/dev/null | head -n1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK/cmdline-tools" >&2
+            ls -la "$SDK" >&2 || true
+            exit 1
+          fi
+          echo "using $SDKMANAGER"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+      - name: install Gradle (retry-safe, mirrored)
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION=9.6.0
+          GRADLE_SHA256=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01
+          ZIP="$RUNNER_TEMP/gradle-bin.zip"
+          for URL in \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://repo.huaweicloud.com/gradle/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://mirrors.cloud.tencent.com/gradle/gradle-${GRADLE_VERSION}-bin.zip"; do
+            echo "downloading $URL"
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$ZIP" "$URL"; then
+              break
+            fi
+          done
+          echo "$GRADLE_SHA256  $ZIP" | sha256sum -c -
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/gradle-dist"
+          echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+      - name: derive app version from git tag
+        run: |
+          if TAG=$(git describe --tags --exact-match 2>/dev/null); then
+            VERSION="${TAG#v}"
+          else
+            VERSION="0.1.0-dev+$(git rev-parse --short HEAD)"
+          fi
+          echo "WATCHDOG_APP_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "app version: ${VERSION}"
+      - name: generate CI signing keystore
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/watchdog-ci.jks" \
+            -storepass watchdog-ci -keypass watchdog-ci -alias watchdog \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=watchdog CI,O=watchdog,C=US"
+          {
+            echo "WATCHDOG_KEYSTORE_FILE=$RUNNER_TEMP/watchdog-ci.jks"
+            echo "WATCHDOG_KEYSTORE_PASSWORD=watchdog-ci"
+            echo "WATCHDOG_KEY_ALIAS=watchdog"
+            echo "WATCHDOG_KEY_PASSWORD=watchdog-ci"
+          } >> "$GITHUB_ENV"
+      - name: ktlint
+        run: |
+          # Maven Central instead of GitHub releases: the release download host
+          # returned persistent 504s from CI. Pinned artifact + checksum.
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/ktlint.jar" \
+            https://repo1.maven.org/maven2/com/pinterest/ktlint/ktlint-cli/1.5.0/ktlint-cli-1.5.0-all.jar
+          echo "a27854622198800f50971a049dcdba38f2105d47e7e7258786c7d28045c5735d  $RUNNER_TEMP/ktlint.jar" | sha256sum -c -
+          java -jar "$RUNNER_TEMP/ktlint.jar" --relative "android/**/*.kt" "android/**/*.kts"
+      - name: detekt
+        run: |
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$RUNNER_TEMP/detekt.jar" \
+            https://repo1.maven.org/maven2/io/gitlab/arturbosch/detekt/detekt-cli/1.23.8/detekt-cli-1.23.8-all.jar
+          echo "3afe89a11120303c73c9bdda3d8fe558dd9070a6937d27819ddc04b275381245  $RUNNER_TEMP/detekt.jar" | sha256sum -c -
+          java -jar "$RUNNER_TEMP/detekt.jar" \
+            --input android/app/src/main/kotlin \
+            --config android/detekt.yml \
+            --build-upon-default-config \
+            --excludes "**/build/**"
+      - name: unit tests
+        working-directory: android
+        # AGP 9 only creates unit-test components for the tested build type
+        # (debug by default); the release variant is covered by assembleRelease.
+        run: gradle --no-daemon testDebugUnitTest
+      - name: assembleRelease
+        working-directory: android
+        run: gradle --no-daemon --stacktrace assembleRelease
+      - name: verify APK and record metadata
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          "$BT/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/apksigner.txt"
+          BADGING=$("$BT/aapt2" dump badging "$APK")
+          echo "$BADGING" | head -n 5
+          VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -n1)
+          if [ -z "$VERSION_CODE" ]; then
+            echo "could not parse versionCode from aapt2 badging output" >&2
+            exit 1
+          fi
+          SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
+          CERT=$(grep -i "SHA-256 digest" "$RUNNER_TEMP/apksigner.txt" | head -n1 | awk -F': ' '{print $2}')
+          {
+            echo "WATCHDOG_APK_VERSION_NAME=$WATCHDOG_APP_VERSION"
+            echo "WATCHDOG_APK_VERSION_CODE=$VERSION_CODE"
+            echo "WATCHDOG_APK_SHA256=$SHA256"
+            echo "WATCHDOG_APK_SIGNER_SHA256=$CERT"
+          } >> "$GITHUB_ENV"
+          VERSION_NAME="$WATCHDOG_APP_VERSION" VERSION_CODE="$VERSION_CODE" SHA256="$SHA256" CERT="$CERT" \
+          python3 - <<'EOF'
+          import json, os
+          os.makedirs("android/build", exist_ok=True)
+          info = {
+              "versionName": os.environ["VERSION_NAME"],
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "sha256": os.environ["SHA256"],
+              "signerSha256": os.environ["CERT"],
+              "commit": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+          }
+          with open("android/build/apk-info.json", "w", encoding="utf-8") as f:
+              json.dump(info, f, indent=2)
+              f.write("\n")
+          EOF
+          cat android/build/apk-info.json
+      - name: rustup (host build with embedded APK)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: build host with the embedded APK and verify `watchdog version`
+        env:
+          WATCHDOG_APK: ${{ github.workspace }}/android/app/build/outputs/apk/release/app-release.apk
+        run: |
+          set -euo pipefail
+          cargo build --locked -p watchdog
+          OUTPUT=$(./target/debug/watchdog version)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "embedded APK  $WATCHDOG_APK_VERSION_NAME"
+          echo "$OUTPUT" | grep -q "$WATCHDOG_APK_SHA256"
+          echo "$OUTPUT" | grep -q "$WATCHDOG_APK_SIGNER_SHA256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-android-apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/build/apk-info.json
+          if-no-files-found: error
+
+  # Physical-device verification is performed with the CI-built release host
+  # binary (see `host-windows`). Instrumented emulator tests are kept for
+  # manual runs only: they need KVM and a virtual-scene camera, and the real
+  # device is the source of truth for this milestone.
+  android-instrumented:
+    name: android (instrumented, emulator)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      WATCHDOG_GRADLE_MIRRORS: "https://repo.huaweicloud.com/repository/maven/,https://maven.aliyun.com/repository/public/"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: install Android SDK platform and build tools
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -maxdepth 3 -type f -name sdkmanager 2>/dev/null | head -n1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK/cmdline-tools" >&2
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+      - name: install Gradle (retry-safe, mirrored)
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION=9.6.0
+          GRADLE_SHA256=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01
+          ZIP="$RUNNER_TEMP/gradle-bin.zip"
+          for URL in \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://repo.huaweicloud.com/gradle/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://mirrors.cloud.tencent.com/gradle/gradle-${GRADLE_VERSION}-bin.zip"; do
+            echo "downloading $URL"
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$ZIP" "$URL"; then
+              break
+            fi
+          done
+          echo "$GRADLE_SHA256  $ZIP" | sha256sum -c -
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/gradle-dist"
+          echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+      - name: enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: instrumented tests (virtual scene camera)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: >-
+            -no-snapshot -no-window -no-audio -no-boot-anim
+            -gpu swiftshader_indirect -camera-back virtualscene -camera-front none
+          script: |
+            cd android
+            if ! gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+              adb logcat -d > "$RUNNER_TEMP/logcat.txt" || true
+              adb shell dumpsys activity processes > "$RUNNER_TEMP/processes.txt" || true
+              exit 1
+            fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-instrumented-logcat
+          path: |
+            ${{ runner.temp }}/logcat.txt
+            ${{ runner.temp }}/processes.txt
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-instrumented-results
+          path: android/app/build/reports/androidTests
+          if-no-files-found: ignore
+
+  host-windows:
+    name: host (windows release, embedded APK)
+    needs: android
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: watchdog-android-apk
+          # The artifact root is `android/`, so restore the same relative paths
+          # the android job used.
+          path: android
+      - name: rustup (pinned toolchain)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: read embedded APK metadata
+        shell: pwsh
+        run: |
+          $info = Get-Content android/build/apk-info.json | ConvertFrom-Json
+          $apk = (Resolve-Path android/app/build/outputs/apk/release/app-release.apk).Path
+          @(
+            "WATCHDOG_APK=$apk"
+            "WATCHDOG_APK_VERSION_NAME=$($info.versionName)"
+            "WATCHDOG_APK_VERSION_CODE=$($info.versionCode)"
+            "WATCHDOG_APK_SHA256=$($info.sha256)"
+            "WATCHDOG_APK_SIGNER_SHA256=$($info.signerSha256)"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: build release host with the embedded APK
+        run: cargo build --locked --release -p watchdog
+      - name: verify embedded APK metadata
+        shell: pwsh
+        run: |
+          $out = (& target/release/watchdog.exe version) -join "`n"
+          Write-Output $out
+          if (-not $out.Contains("embedded APK  $env:WATCHDOG_APK_VERSION_NAME")) {
+            throw "embedded APK version name mismatch"
+          }
+          if (-not $out.Contains($env:WATCHDOG_APK_SHA256)) {
+            throw "embedded APK sha256 mismatch"
+          }
+          if (-not $out.Contains($env:WATCHDOG_APK_SIGNER_SHA256)) {
+            throw "embedded APK signer mismatch"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-host-windows-x86_64
+          path: target/release/watchdog.exe
+          if-no-files-found: error
+
   gate:
     name: all checks
-    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation]
+    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android, host-windows]
     runs-on: ubuntu-latest
     steps:
       - run: echo "All required checks passed."

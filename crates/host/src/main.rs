@@ -84,7 +84,7 @@ impl Cli {
 /// Top-level subcommands. Every command has `--help`.
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Start the web UI, MCP and integration API servers.
+    /// Start the web UI (M3: minimal live test page; MCP/API land later).
     Serve(serve::ServeArgs),
     /// Device management (list, connect, pair, provision, shell, logs, …).
     #[command(subcommand)]
@@ -128,7 +128,21 @@ fn run(cli: Cli) -> watchdog_core::Result<()> {
         Command::Version => {
             println!("watchdog host {}", env!("CARGO_PKG_VERSION"));
             println!("protocol      {PROTOCOL_VERSION}");
-            println!("embedded APK  not embedded (release builds embed it; see docs/release.md)");
+            match watchdog_device::apk::embedded() {
+                Some(apk) => {
+                    println!(
+                        "embedded APK  {} (versionCode {})",
+                        apk.version_name, apk.version_code
+                    );
+                    println!("APK sha256    {}", apk.sha256);
+                    if !apk.signer_sha256.is_empty() {
+                        println!("APK signer    {}", apk.signer_sha256);
+                    }
+                }
+                None => println!(
+                    "embedded APK  not embedded (dev build; set WATCHDOG_APK when building or pass --apk to provisioning)"
+                ),
+            }
             Ok(())
         }
         Command::Config(cmd) => config::run(cmd, &cli.overrides()),
