@@ -462,7 +462,7 @@ fn cli_pair(target: &str, code: &str, cfg: &Config) -> watchdog_core::Result<()>
             })?;
         watchdog_adb::pair(stream, code, &keys, &userkey)
             .await
-            .map_err(Into::into)
+            .map_err(|e: watchdog_adb::AdbError| WatchdogError::from(e))
     })?;
     println!("Paired with device {}", outcome.device_guid);
     Ok(())
