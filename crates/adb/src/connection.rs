@@ -209,6 +209,10 @@ impl<T: Transport + 'static> Connection<T> {
     /// Negotiate CNXN and complete AUTH on a fresh transport.
     pub async fn connect(mut transport: T, banner: &str, keys: &AdbKeyPair) -> Result<Self> {
         let info = handshake(&mut transport, banner, keys).await?;
+        Ok(Self::start(transport, info))
+    }
+
+    fn start(transport: T, info: SessionInfo) -> Self {
         let transport = Arc::new(tokio::sync::Mutex::new(transport));
         let shared = Arc::new(std::sync::Mutex::new(Shared::new()));
         let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(64);
@@ -220,14 +224,14 @@ impl<T: Transport + 'static> Connection<T> {
         ));
         let reader = tokio::spawn(reader_task(Arc::clone(&transport), Arc::clone(&shared)));
 
-        Ok(Self {
+        Self {
             info,
             transport,
             outbound: outbound_tx,
             shared,
             reader: Some(reader),
             writer: Some(writer),
-        })
+        }
     }
 
     /// Open a stream to `service` (e.g. `shell:id`, `tcp:8080`, `localabstract:watchdog`).
@@ -284,79 +288,155 @@ pub async fn handshake<T: Transport + 'static>(
     keys: &AdbKeyPair,
 ) -> Result<SessionInfo> {
     send_cnxn(transport, banner).await?;
-
-    let mut signature_sent = false;
-    let mut public_key_sent = false;
     let deadline = tokio::time::Instant::now() + HANDSHAKE_TIMEOUT;
+    let mut state = HandshakeState::default();
 
     loop {
-        let remaining = deadline
-            .checked_duration_since(tokio::time::Instant::now())
-            .ok_or_else(|| AdbError::Timeout("handshake timed out waiting for CNXN".into()))?;
-        let packet = read_packet(transport, remaining).await?;
-        match packet.command {
-            Command::Cnxn => {
-                let version = packet.arg0;
-                if version < crate::packet::A_VERSION_MIN {
-                    return Err(AdbError::VersionMismatch(format!(
-                        "peer CNXN version {version:#x}"
-                    )));
-                }
-                let peer_banner = parse_banner(&packet.payload)?;
-                return Ok(SessionInfo {
-                    banner: peer_banner,
-                    maxdata: packet.arg1,
-                });
-            }
-            Command::Auth => match packet.arg0 {
-                x if x == AuthType::Token as u32 => {
-                    if packet.payload.len() != 20 {
-                        return Err(AdbError::Protocol(format!(
-                            "AUTH token must be 20 bytes, got {}",
-                            packet.payload.len()
-                        )));
-                    }
-                    if !signature_sent {
-                        let signature = keys.sign_token(&packet.payload)?;
-                        let reply = Packet::new(
-                            Command::Auth,
-                            AuthType::Signature as u32,
-                            0,
-                            Bytes::from(signature),
-                        );
-                        transport.write_all(&reply.encode()).await?;
-                        signature_sent = true;
-                    } else if !public_key_sent {
-                        let reply = Packet::new(
-                            Command::Auth,
-                            AuthType::RsaPublicKey as u32,
-                            0,
-                            Bytes::from(keys.public_key_payload()),
-                        );
-                        transport.write_all(&reply.encode()).await?;
-                        public_key_sent = true;
-                    } else {
-                        return Err(AdbError::Unauthorized);
-                    }
-                }
-                other => {
-                    return Err(AdbError::Protocol(format!(
-                        "unexpected AUTH arg0={other} during handshake"
-                    )));
-                }
-            },
-            Command::Stls => {
+        let packet = read_packet(transport, remaining(deadline)?).await?;
+        match process_handshake_packet(transport, packet, keys, &mut state).await? {
+            HandshakeStep::Continue => {}
+            HandshakeStep::Done(info) => return Ok(info),
+            HandshakeStep::Stls => {
                 return Err(AdbError::Protocol(
-                    "unexpected STLS (STLS must be negotiated before CNXN)".into(),
+                    "unexpected STLS (TLS upgrade requires a LAN transport)".into(),
                 ));
             }
-            other => {
-                return Err(AdbError::Protocol(format!(
-                    "unexpected {} during handshake",
-                    other.name()
+        }
+    }
+}
+
+/// Complete the CNXN handshake on a wireless-debugging connect port.
+///
+/// The client sends CNXN first; a TLS-only device answers `A_STLS`. We reply
+/// with our own `A_STLS`, complete the TLS 1.3 handshake (our ADB certificate
+/// is the client cert), and then keep reading: the device sends CNXN inside
+/// TLS. Plain-TCP devices (e.g. an emulator) work unchanged.
+pub async fn handshake_lan(
+    transport: &mut crate::stls::LanTransport,
+    banner: &str,
+    keys: &AdbKeyPair,
+    cert_der: &[u8],
+    key_der: &[u8],
+) -> Result<SessionInfo> {
+    send_cnxn(transport, banner).await?;
+    let deadline = tokio::time::Instant::now() + HANDSHAKE_TIMEOUT;
+    let mut state = HandshakeState::default();
+
+    loop {
+        let packet = read_packet(transport, remaining(deadline)?).await?;
+        if packet.command == Command::Stls {
+            let reply = Packet::new(Command::Stls, crate::packet::A_STLS_VERSION, 0, &[][..]);
+            transport.write_all(&reply.encode()).await?;
+            transport.upgrade(cert_der, key_der, "adb").await?;
+            continue;
+        }
+        match process_handshake_packet(transport, packet, keys, &mut state).await? {
+            HandshakeStep::Continue => {}
+            HandshakeStep::Done(info) => return Ok(info),
+            HandshakeStep::Stls => unreachable!("STLS handled above"),
+        }
+    }
+}
+
+impl Connection<crate::stls::LanTransport> {
+    /// Connect to a wireless-debugging connect port (STLS auto-upgrade).
+    pub async fn connect_lan(
+        transport: crate::tcp::TcpTransport,
+        banner: &str,
+        keys: &AdbKeyPair,
+    ) -> Result<Self> {
+        let cert_der = keys.certificate_der()?;
+        let key_der = keys.private_key_der()?;
+        let mut transport = crate::stls::LanTransport::plain(transport);
+        let info = handshake_lan(&mut transport, banner, keys, &cert_der, &key_der).await?;
+        Ok(Self::start(transport, info))
+    }
+}
+
+/// AUTH bookkeeping shared by the plain and LAN handshakes.
+#[derive(Default)]
+struct HandshakeState {
+    signature_sent: bool,
+    public_key_sent: bool,
+}
+
+/// Outcome of one handshake packet.
+enum HandshakeStep {
+    /// Keep reading.
+    Continue,
+    /// Peer offered STLS.
+    Stls,
+    /// CNXN received.
+    Done(SessionInfo),
+}
+
+fn remaining(deadline: tokio::time::Instant) -> Result<Duration> {
+    deadline
+        .checked_duration_since(tokio::time::Instant::now())
+        .ok_or_else(|| AdbError::Timeout("handshake timed out waiting for CNXN".into()))
+}
+
+async fn process_handshake_packet<T: Transport + 'static>(
+    transport: &mut T,
+    packet: Packet,
+    keys: &AdbKeyPair,
+    state: &mut HandshakeState,
+) -> Result<HandshakeStep> {
+    match packet.command {
+        Command::Cnxn => {
+            let version = packet.arg0;
+            if version < crate::packet::A_VERSION_MIN {
+                return Err(AdbError::VersionMismatch(format!(
+                    "peer CNXN version {version:#x}"
                 )));
             }
+            let peer_banner = parse_banner(&packet.payload)?;
+            Ok(HandshakeStep::Done(SessionInfo {
+                banner: peer_banner,
+                maxdata: packet.arg1,
+            }))
         }
+        Command::Auth => match packet.arg0 {
+            x if x == AuthType::Token as u32 => {
+                if packet.payload.len() != 20 {
+                    return Err(AdbError::Protocol(format!(
+                        "AUTH token must be 20 bytes, got {}",
+                        packet.payload.len()
+                    )));
+                }
+                if !state.signature_sent {
+                    let signature = keys.sign_token(&packet.payload)?;
+                    let reply = Packet::new(
+                        Command::Auth,
+                        AuthType::Signature as u32,
+                        0,
+                        Bytes::from(signature),
+                    );
+                    transport.write_all(&reply.encode()).await?;
+                    state.signature_sent = true;
+                } else if !state.public_key_sent {
+                    let reply = Packet::new(
+                        Command::Auth,
+                        AuthType::RsaPublicKey as u32,
+                        0,
+                        Bytes::from(keys.public_key_payload()),
+                    );
+                    transport.write_all(&reply.encode()).await?;
+                    state.public_key_sent = true;
+                } else {
+                    return Err(AdbError::Unauthorized);
+                }
+                Ok(HandshakeStep::Continue)
+            }
+            other => Err(AdbError::Protocol(format!(
+                "unexpected AUTH arg0={other} during handshake"
+            ))),
+        },
+        Command::Stls => Ok(HandshakeStep::Stls),
+        other => Err(AdbError::Protocol(format!(
+            "unexpected {} during handshake",
+            other.name()
+        ))),
     }
 }
 

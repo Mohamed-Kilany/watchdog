@@ -42,7 +42,7 @@ pub use manager::{DeviceManager, DeviceState, DeviceSummary, DeviceTable, GoneRe
 pub use packet::{AuthType, Command, IncrementalDecoder, Packet};
 pub use pairing::{derive_gcm_key, Spake2, SpakeRole};
 pub use pairing_flow::{pair, pair_with_password, PairingOutcome};
-pub use stls::{upgrade_stls, StlsTransport, STLS_VERSION};
+pub use stls::{upgrade_stls, LanTransport, StlsTransport, STLS_VERSION};
 pub use tcp::TcpTransport;
 pub use transport::Transport;
 pub use usb::{

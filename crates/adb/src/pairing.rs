@@ -2,7 +2,7 @@
 //!
 //! Wire format (AOSP `packages/modules/adb`, `pairing_connection.cpp`):
 //! - After TLS 1.3 handshake (mutual certificates), both sides send
-//!   `PairingPacket` frames: `u8 version(=1) | u8 type | u32 LE payload_len | payload`
+//!   `PairingPacket` frames: `u8 version(=1) | u8 type | u32 BE payload_len | payload`
 //!   - type 0 (`SPAKE2_MSG`): 32-byte Ed25519 blinded point
 //!   - type 1 (`PEER_INFO`): AES-128-GCM encrypted PeerInfo
 //! - The pairing code (6 digits) is the PAKE password; the TLS 1.3 exporter
@@ -68,8 +68,9 @@ pub struct Spake2 {
 }
 
 impl Spake2 {
-    /// Create a session. `my_name`/`their_name` are the role names
-    /// (`"adb pair client"` / `"adb pair server"`).
+    /// Create a session. `my_name`/`their_name` are the NUL-terminated role
+    /// names (`"adb pair client\0"` / `"adb pair server\0"`), matching AOSP's
+    /// `sizeof(kClientName)`.
     #[must_use]
     pub fn new(role: SpakeRole, my_name: &[u8], their_name: &[u8]) -> Self {
         Self {
@@ -254,7 +255,7 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
     outer.finalize().into()
 }
 
-/// Pairing packet: `u8 version | u8 type | u32 LE len | payload`.
+/// Pairing packet: `u8 version | u8 type | u32 BE len | payload`.
 pub mod packet {
     /// Packet type ids (AOSP `PairingPacket.Type`).
     pub const SPAKE2_MSG: u8 = 0;
@@ -269,7 +270,7 @@ pub mod packet {
         let mut out = Vec::with_capacity(HEADER_LEN + payload.len());
         out.push(1); // kCurrentKeyHeaderVersion
         out.push(ty);
-        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
         out.extend_from_slice(payload);
         out
     }
@@ -284,7 +285,7 @@ pub mod packet {
         }
         // version = buf[0]
         let ty = buf[1];
-        let len = u32::from_le_bytes(buf[2..6].try_into().ok()?) as usize;
+        let len = u32::from_be_bytes(buf[2..6].try_into().ok()?) as usize;
         if len > 8192 {
             return None;
         }
@@ -357,8 +358,16 @@ mod tests {
 
     #[test]
     fn derive_then_match() {
-        let mut client = Spake2::new(SpakeRole::Client, b"adb pair client", b"adb pair server");
-        let mut server = Spake2::new(SpakeRole::Server, b"adb pair server", b"adb pair client");
+        let mut client = Spake2::new(
+            SpakeRole::Client,
+            b"adb pair client\0",
+            b"adb pair server\0",
+        );
+        let mut server = Spake2::new(
+            SpakeRole::Server,
+            b"adb pair server\0",
+            b"adb pair client\0",
+        );
         let password = b"123456";
         let c_msg = client.generate_msg(password).unwrap();
         let s_msg = server.generate_msg(password).unwrap();
@@ -369,8 +378,16 @@ mod tests {
 
     #[test]
     fn wrong_password_diverges() {
-        let mut client = Spake2::new(SpakeRole::Client, b"adb pair client", b"adb pair server");
-        let mut server = Spake2::new(SpakeRole::Server, b"adb pair server", b"adb pair client");
+        let mut client = Spake2::new(
+            SpakeRole::Client,
+            b"adb pair client\0",
+            b"adb pair server\0",
+        );
+        let mut server = Spake2::new(
+            SpakeRole::Server,
+            b"adb pair server\0",
+            b"adb pair client\0",
+        );
         let c_msg = client.generate_msg(b"123456").unwrap();
         let s_msg = server.generate_msg(b"999999").unwrap();
         assert_ne!(
