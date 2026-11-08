@@ -274,7 +274,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: build host with the embedded APK and verify `watchdog version`
         env:
-          WATCHDOG_APK: android/app/build/outputs/apk/release/app-release.apk
+          WATCHDOG_APK: ${{ github.workspace }}/android/app/build/outputs/apk/release/app-release.apk
         run: |
           set -euo pipefail
           cargo build --locked -p watchdog
@@ -349,7 +349,21 @@ jobs:
           emulator-options: >-
             -no-snapshot -no-window -no-audio -no-boot-anim
             -gpu swiftshader_indirect -camera-back virtualscene -camera-front none
-          script: cd android && gradle --no-daemon --stacktrace connectedDebugAndroidTest
+          script: |
+            cd android
+            if ! gradle --no-daemon --stacktrace connectedDebugAndroidTest; then
+              adb logcat -d > "$RUNNER_TEMP/logcat.txt" || true
+              adb shell dumpsys activity processes > "$RUNNER_TEMP/processes.txt" || true
+              exit 1
+            fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-instrumented-logcat
+          path: |
+            ${{ runner.temp }}/logcat.txt
+            ${{ runner.temp }}/processes.txt
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:

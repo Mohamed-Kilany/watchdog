@@ -161,6 +161,13 @@ class ServiceTransportTest {
                         socket.inputStream.read(buffer)
                     } catch (e: SocketTimeoutException) {
                         continue
+                    } catch (e: IOException) {
+                        // Android's LocalSocket reports SO_TIMEOUT as EAGAIN
+                        // ("Try again") instead of SocketTimeoutException.
+                        if (e.message == "Try again") {
+                            continue
+                        }
+                        throw e
                     }
                 if (read < 0) {
                     throw AssertionError("socket closed while waiting for $type")
