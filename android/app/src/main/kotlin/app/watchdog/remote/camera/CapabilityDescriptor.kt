@@ -6,6 +6,7 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
 import android.os.Build
 import android.util.Range
 import android.util.Rational
@@ -13,6 +14,9 @@ import android.util.Size
 import app.watchdog.remote.log.DeviceLog
 import org.json.JSONArray
 import org.json.JSONObject
+import java.lang.reflect.Modifier
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
 
 /**
  * M4-T01 capability descriptor: one JSON object per camera id, built only from
@@ -32,6 +36,21 @@ object CapabilityDescriptor {
     private const val NO_REASON = "not reported by CameraCharacteristics"
     private const val NO_FLASH_REASON = "no flash unit"
     private const val NO_ZOOM_REASON = "no digital zoom"
+    private const val UNKNOWN_TYPE = "unknown"
+
+    private val KEY_CLASSES =
+        listOf(
+            CameraCharacteristics.Key::class.java,
+            CaptureRequest.Key::class.java,
+            CaptureResult.Key::class.java,
+        )
+    private val KEY_HOLDERS =
+        listOf(
+            CameraCharacteristics::class.java,
+            CaptureRequest::class.java,
+            CaptureResult::class.java,
+        )
+    private val KEY_TYPES: Map<String, String> by lazy { buildKeyTypes() }
 
     private val OUTPUT_FORMATS =
         intArrayOf(
@@ -112,15 +131,15 @@ object CapabilityDescriptor {
         out.put("streams", streams(chars))
         out.put(
             "available_request_keys",
-            keyArray(chars.availableCaptureRequestKeys.map { it.name to it.type }),
+            keyArray(chars.availableCaptureRequestKeys),
         )
         out.put(
             "available_result_keys",
-            keyArray(chars.availableCaptureResultKeys.map { it.name to it.type }),
+            keyArray(chars.availableCaptureResultKeys),
         )
         out.put(
             "available_characteristics_keys",
-            keyArray(chars.keys.map { it.name to it.type }),
+            keyArray(chars.keys),
         )
         out.put("unsupported", unsupported)
         return out
@@ -143,7 +162,7 @@ object CapabilityDescriptor {
             out,
             unsupported,
             "anti_banding",
-            chars.get(CameraCharacteristics.CONTROL_AVAILABLE_ANTIBANDING_MODES),
+            chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES),
         )
         modes(out, unsupported, "scene_mode", chars.get(CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES))
         modes(out, unsupported, "effect", chars.get(CameraCharacteristics.CONTROL_AVAILABLE_EFFECTS))
@@ -155,7 +174,7 @@ object CapabilityDescriptor {
         )
         modes(out, unsupported, "edge_enhancement", chars.get(CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES))
         modes(out, unsupported, "hot_pixel", chars.get(CameraCharacteristics.HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES))
-        modes(out, unsupported, "tonemap", chars.get(CameraCharacteristics.TONEMAP_AVAILABLE_TONEMAP_MODES))
+        modes(out, unsupported, "tonemap", chars.get(CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES))
         modes(
             out,
             unsupported,
@@ -413,13 +432,49 @@ object CapabilityDescriptor {
             else -> "FORMAT_$format"
         }
 
-    private fun keyArray(keys: List<Pair<String, Class<*>>>): JSONArray {
+    private fun keyArray(keys: Collection<*>): JSONArray {
         val out = JSONArray()
-        keys.forEach { (name, type) ->
-            out.put(JSONObject().put("name", name).put("type", type.name))
+        keys.sortedBy { keyName(it) }.forEach { key ->
+            val name = keyName(key)
+            out.put(JSONObject().put("name", name).put("type", KEY_TYPES[name] ?: UNKNOWN_TYPE))
         }
         return out
     }
+
+    /**
+     * Android's public `Key` API does not expose its generic type, so derive it
+     * from the public static key fields of the SDK holder classes. Vendor keys
+     * without a public declaration are reported as `unknown`.
+     */
+    private fun buildKeyTypes(): Map<String, String> {
+        val out = HashMap<String, String>()
+        for (holder in KEY_HOLDERS) {
+            for (field in holder.declaredFields) {
+                if (!Modifier.isPublic(field.modifiers) || !Modifier.isStatic(field.modifiers)) continue
+                if (KEY_CLASSES.none { it.isAssignableFrom(field.type) }) continue
+                val generic = field.genericType as? ParameterizedType ?: continue
+                val key = runCatching { field.get(null) }.getOrNull() ?: continue
+                val argument = generic.actualTypeArguments.firstOrNull() ?: continue
+                out.putIfAbsent(keyName(key), rawTypeName(argument))
+            }
+        }
+        return out
+    }
+
+    private fun keyName(key: Any?): String =
+        when (key) {
+            is CameraCharacteristics.Key<*> -> key.name
+            is CaptureRequest.Key<*> -> key.name
+            is CaptureResult.Key<*> -> key.name
+            else -> key?.toString() ?: UNKNOWN_TYPE
+        }
+
+    private fun rawTypeName(type: Type): String =
+        when (type) {
+            is Class<*> -> type.name
+            is ParameterizedType -> (type.rawType as Class<*>).name
+            else -> type.typeName
+        }
 
     private fun capabilityNames(values: IntArray?): JSONArray {
         val out = JSONArray()
