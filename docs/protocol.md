@@ -255,12 +255,51 @@ estimates clock offset from the round trip; it is an estimate, not sync.
 
 ### 5.13 Capability descriptor (embedded in HELLO_ACK / get_capabilities)
 
-Per camera id: `{ "hardware_level": "...", "capabilities": [...], "ae_mode": {"supported": true, "modes": [0,1,2]},
-"iso": {"supported": true, "min": 50, "max": 12800, "step": 1}, "exposure_time_ns": {...},
-"awb_mode": {...}, "zoom_ratio": {"supported": false, "reason": "requires API 30"},
-"available_request_keys": ["android.sensor.iso", ...], "available_result_keys": [...],
-"available_characteristics_keys": [...], "unsupported": [{"control": "zoom_ratio", "reason": "..."}] }`.
-Key names and types come from reflection over `CaptureRequest.Key`/`CaptureResult.Key`/`CameraCharacteristics.Key` — full dump, no silent drops. Unknown/absent entries mean "unsupported", never "ignored".
+`capabilities` maps camera id → descriptor. The app builds it from
+`CameraCharacteristics` without opening the camera, so it is the contract for
+every control the host may send. Example:
+
+```json
+{
+  "hardware_level": "LEVEL_3",
+  "lens_facing": "back",
+  "sensor_orientation": 90,
+  "capabilities": ["BACKWARD_COMPATIBLE", "MANUAL_SENSOR", "RAW"],
+  "physical_ids": [],
+  "lens": {"focal_lengths": [4.3], "apertures": [1.8],
+           "hyperfocal_distance": 2.3, "minimum_focus_distance": 0.1},
+  "control_mode": {"supported": true, "modes": [0, 1]},
+  "ae_mode": {"supported": true, "modes": [0, 1, 2]},
+  "iso": {"supported": true, "min": 50, "max": 12800, "step": 1},
+  "exposure_time_ns": {"supported": true, "min": 1000, "max": 1000000000, "step": 1},
+  "zoom_ratio": {"supported": true, "min": 1.0, "max": 8.0, "step": 0.0,
+                 "legacy_crop_region": false},
+  "streams": {
+    "available": true,
+    "formats": {"YUV_420_888": [{"width": 1920, "height": 1080}],
+                "JPEG": [{"width": 4032, "height": 3024}]},
+    "fps_ranges": [[15, 30], [30, 30]],
+    "high_speed_video": {"sizes": [], "fps_ranges": []}
+  },
+  "available_request_keys": [{"name": "android.sensor.iso", "type": "java.lang.Integer"}],
+  "available_result_keys": [{"name": "android.sensor.iso", "type": "java.lang.Integer"}],
+  "available_characteristics_keys": [
+    {"name": "android.sensor.info.sensitivityRange", "type": "android.util.Range"}
+  ],
+  "unsupported": [{"control": "torch", "reason": "no flash unit"}]
+}
+```
+
+- Control objects are either `{"supported": true, "modes": [...]}` or
+  `{"supported": true, "min": …, "max": …, "step": …}` (numbers; `step: 0`
+  means continuous). `supported: false` and every entry in `unsupported` mean
+  the host must not send that control.
+- Key inventories are the complete dump of the camera's available
+  `CaptureRequest` / `CaptureResult` / `CameraCharacteristics` keys:
+  `name` is the dotted Android key and `type` its Java class. Full dump, no
+  silent drops; unknown/absent entries mean "unsupported", never "ignored".
+- A camera that disappears between enumeration and introspection appears as
+  `{"error": "<message>"}` instead of a partial descriptor.
 
 ## 6. Checksum
 

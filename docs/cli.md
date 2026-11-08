@@ -67,7 +67,7 @@ and the integration API (:7702) land with M6/M9.
 | `provision [--serial] [--apk PATH] [--no-verify] [--no-screen] [--socket-timeout S] [--frame-timeout S] [--json]` | zero-touch provisioning | M3 |
 | `status [--serial] [--json]` | installed version, permissions, battery/screen state and session token age | M3 |
 | `restore [--serial]` | revert screen settings recorded by provisioning | M3 |
-| `capabilities [--serial] [--json]` | dump capability descriptor | M4 |
+| `capabilities [--serial] [--json]` | dump capability descriptor (handshake, no camera open) | M4 |
 | `udev-rules [--write]` | print/install Linux udev rules | **done (this release)** |
 | `usb-doctor` | diagnose USB permission problems | M2 |
 

@@ -20,6 +20,7 @@ import app.watchdog.remote.camera.CameraCatalog
 import app.watchdog.remote.camera.CameraController
 import app.watchdog.remote.camera.CameraSnapshot
 import app.watchdog.remote.camera.CameraStatus
+import app.watchdog.remote.camera.CapabilityDescriptor
 import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.pipeline.Frame
 import app.watchdog.remote.pipeline.FramePipeline
@@ -152,11 +153,15 @@ class CaptureService : Service() {
         if (transport != null) {
             return
         }
+        // Snapshot controls once per transport start: camera characteristics are
+        // stable for the session and re-enumerating them on every handshake
+        // would stall reconnects.
+        val capabilities = CapabilityDescriptor.all(this)
         val server =
             TransportServer(
                 sessionName = SOCKET_PREFIX + token,
                 sessionToken = token,
-                helloAck = { version -> HelloAckBuilder.build(this, version) },
+                helloAck = { version -> HelloAckBuilder.build(this, version, capabilities) },
                 listener = transportListener,
             )
         try {
