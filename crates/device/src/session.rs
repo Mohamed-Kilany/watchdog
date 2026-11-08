@@ -24,8 +24,9 @@ const READ_BUFFER: usize = 64 * 1024;
 
 /// Result of [`Session::poll`].
 pub enum Polled {
-    /// A typed message arrived.
-    Message(Message),
+    /// A typed message arrived (boxed: `Message` is much larger than the
+    /// other variants).
+    Message(Box<Message>),
     /// No message arrived before the timeout (the stream is still open).
     Timeout,
     /// The app closed the stream.
@@ -128,7 +129,7 @@ impl Session {
     /// Read the next typed message; `None` means the app closed the stream.
     pub async fn next(&mut self, timeout: Duration) -> Result<Option<Message>> {
         match self.poll(timeout).await? {
-            Polled::Message(message) => Ok(Some(message)),
+            Polled::Message(message) => Ok(Some(*message)),
             Polled::Closed => Ok(None),
             Polled::Timeout => Err(WatchdogError::new(
                 ErrorCode::ConnectionLost,
@@ -141,7 +142,7 @@ impl Session {
     /// session from a closed one (used by `watchdog device logs`).
     pub async fn poll(&mut self, timeout: Duration) -> Result<Polled> {
         if let Some(message) = self.pending.pop_front() {
-            return Ok(Polled::Message(message));
+            return Ok(Polled::Message(Box::new(message)));
         }
         let mut buffer = [0u8; READ_BUFFER];
         loop {
@@ -168,7 +169,7 @@ impl Session {
                 }
             }
             if let Some(message) = self.pending.pop_front() {
-                return Ok(Polled::Message(message));
+                return Ok(Polled::Message(Box::new(message)));
             }
         }
     }
@@ -239,7 +240,7 @@ impl LiveSession {
         let addr = forward.local_addr();
         let deadline = Instant::now() + timeout;
         let mut last: Option<WatchdogError> = None;
-        loop {
+        while Instant::now() < deadline {
             match Session::open(addr, token).await {
                 Ok(mut session) => match session.handshake(handshake_timeout).await {
                     Ok(ack) => {

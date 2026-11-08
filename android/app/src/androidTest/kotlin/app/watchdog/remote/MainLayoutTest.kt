@@ -38,8 +38,8 @@ class MainLayoutTest {
             val right = current.findViewById<View>(R.id.rightPanel)
 
             assertTrue("preview must be laid out", preview.width > 0 && preview.height > 0)
-            assertFalse("left panel overlaps preview", bounds(left).overlaps(bounds(preview)))
-            assertFalse("right panel overlaps preview", bounds(right).overlaps(bounds(preview)))
+            assertFalse("left panel overlaps preview", Rect.intersects(bounds(left), bounds(preview)))
+            assertFalse("right panel overlaps preview", Rect.intersects(bounds(right), bounds(preview)))
             assertTrue("left panel must be left of preview", left.right <= preview.left)
             assertTrue("right panel must be right of preview", preview.right <= right.left)
         }

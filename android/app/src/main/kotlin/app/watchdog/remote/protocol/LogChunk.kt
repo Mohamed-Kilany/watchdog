@@ -92,10 +92,10 @@ object LogChunkCodec {
         val buffer = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN)
         val timestampMs = buffer.long
         val level =
-            LogLevel.fromWire(payload[8].toInt() and BYTE_MASK)
+            LogLevel.fromWire(payload[LEVEL_OFFSET].toInt() and BYTE_MASK)
                 ?: throw ProtocolException(
                     ProtocolError.MessageDecode,
-                    "invalid LOG_CHUNK level ${payload[8]}",
+                    "invalid LOG_CHUNK level ${payload[LEVEL_OFFSET]}",
                 )
         val text = String(payload, HEADER_SIZE, payload.size - HEADER_SIZE, Charsets.UTF_8)
         return LogRecord(timestampMs, level, text)
@@ -110,4 +110,5 @@ object LogChunkCodec {
     }
 
     private const val BYTE_MASK = 0xFF
+    private const val LEVEL_OFFSET = 8
 }

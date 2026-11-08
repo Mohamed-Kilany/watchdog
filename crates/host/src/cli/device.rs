@@ -813,15 +813,17 @@ fn cli_logs(serial: Option<&str>, follow: bool, cfg: &Config) -> watchdog_core::
         let idle = Duration::from_millis(1000);
         loop {
             match live.session().poll(idle).await? {
-                Polled::Message(Message::LogChunk(chunk)) => print_log_chunk(&chunk),
-                Polled::Message(Message::Error(error)) => {
-                    eprintln!("app error: {} ({})", error.message, error.code);
-                }
-                Polled::Message(Message::Bye(bye)) => {
-                    println!("# app closed the session: {}", bye.reason);
-                    break;
-                }
-                Polled::Message(_) => {}
+                Polled::Message(message) => match *message {
+                    Message::LogChunk(chunk) => print_log_chunk(&chunk),
+                    Message::Error(error) => {
+                        eprintln!("app error: {} ({})", error.message, error.code);
+                    }
+                    Message::Bye(bye) => {
+                        println!("# app closed the session: {}", bye.reason);
+                        break;
+                    }
+                    _ => {}
+                },
                 Polled::Timeout => {
                     if !follow {
                         break;
