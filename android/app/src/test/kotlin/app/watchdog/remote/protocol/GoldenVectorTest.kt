@@ -148,7 +148,7 @@ class GoldenVectorTest {
     private fun manifest(): JSONObject = JSONObject(File(vectorsDir, "manifest.json").readText())
 
     private companion object {
-        const val RANDOM_SEED = 0x5EED
+        const val RANDOM_SEED = 0x5EEDL
         const val CHAOS_CASES = 2_000
         const val MAX_CHUNK = 64
         const val DISCONNECT_ONE_IN = 10
