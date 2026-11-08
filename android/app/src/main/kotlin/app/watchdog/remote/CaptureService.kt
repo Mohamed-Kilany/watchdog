@@ -112,9 +112,8 @@ class CaptureService : Service() {
     private fun acquireWakeLock() {
         if (wakeLock == null) {
             val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
-                setReferenceCounted(false)
-            }
+            wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+            wakeLock?.setReferenceCounted(false)
         }
         // Held only between START and STOP; released in stopCapture/onDestroy.
         wakeLock?.acquire()
@@ -130,33 +129,36 @@ class CaptureService : Service() {
 
     private fun createNotificationChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.notification_channel_capture),
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = getString(R.string.notification_channel_capture_description)
-            setShowBadge(false)
-        }
+        val channel =
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.notification_channel_capture),
+                NotificationManager.IMPORTANCE_LOW,
+            )
+        channel.description = getString(R.string.notification_channel_capture_description)
+        channel.setShowBadge(false)
         manager.createNotificationChannel(channel)
     }
 
     private fun buildNotification(token: String): Notification {
-        val open = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val stop = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, CaptureService::class.java)
-                .setAction(ACTION_STOP)
-                .putExtra(SessionToken.EXTRA, token),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val open =
+            PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        val stop =
+            PendingIntent.getService(
+                this,
+                1,
+                Intent(this, CaptureService::class.java)
+                    .setAction(ACTION_STOP)
+                    .putExtra(SessionToken.EXTRA, token),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        return NotificationCompat
+            .Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_camera)
             .setContentTitle(getString(R.string.notification_capture_title))
             .setContentText(getString(R.string.notification_capture_text))

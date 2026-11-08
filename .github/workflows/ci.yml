@@ -193,8 +193,12 @@ jobs:
             https://github.com/detekt/detekt/releases/download/v1.23.8/detekt-cli-1.23.8-all.jar
           java -jar "$RUNNER_TEMP/detekt.jar" \
             --input android/app/src/main/kotlin \
+            --config android/detekt.yml \
             --build-upon-default-config \
             --excludes "**/build/**"
+      - name: unit tests
+        working-directory: android
+        run: ./gradlew --no-daemon testReleaseUnitTest
       - name: assembleRelease
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace assembleRelease

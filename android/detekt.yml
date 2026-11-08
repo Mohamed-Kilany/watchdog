@@ -1,0 +1,13 @@
+# watchdog remote — detekt overrides.
+#
+# CI runs detekt with --build-upon-default-config, so only deviations from the
+# stock rule set are listed here. The camera controller is a deliberately
+# stateful coordinator: a higher function budget and guard-clause returns keep
+# the state machine readable without splitting it into artificial classes.
+
+complexity:
+  TooManyFunctions:
+    thresholdInClasses: 20
+  ReturnCount:
+    max: 6
+    excludeGuardClauses: true

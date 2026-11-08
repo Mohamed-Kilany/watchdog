@@ -32,9 +32,10 @@ class ProvisioningReceiver : BroadcastReceiver() {
     }
 
     private fun forward(context: Context, action: String?, token: String) {
-        val forward = Intent(context, CaptureService::class.java)
-            .setAction(action)
-            .putExtra(SessionToken.EXTRA, token)
+        val forward =
+            Intent(context, CaptureService::class.java)
+                .setAction(action)
+                .putExtra(SessionToken.EXTRA, token)
         if (action == CaptureService.ACTION_START) {
             ContextCompat.startForegroundService(context, forward)
         } else {
