@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "watchdog-adb"
 description = "Native Rust implementation of the ADB protocol (USB/TCP/TLS); no external adb."
 version.workspace = true
@@ -29,6 +29,8 @@ mdns-sd = "0.11"
 num-bigint = "0.4"
 rand = "0.8"
 nusb = { version = "0.2", features = ["tokio"] }
+rcgen = "0.14"
+time = { version = "0.3", features = ["std"] }
 
 [dev-dependencies]
 watchdog-adb-mock = { path = "../adb-mock", version = "0.1.0" }

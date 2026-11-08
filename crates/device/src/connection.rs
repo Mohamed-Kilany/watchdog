@@ -8,7 +8,7 @@ use watchdog_adb::install::{self, PackageInfo};
 use watchdog_adb::manager;
 use watchdog_adb::shell::{self, ShellOutput};
 use watchdog_adb::{
-    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, TcpTransport, Transport,
+    AdbKeyPair, Connection, ForwardHandle, InstallOptions, InstallOutcome, LanTransport, Transport,
     UsbTransport,
 };
 use watchdog_core::error::{ErrorCode, WatchdogError};
@@ -22,8 +22,8 @@ use watchdog_core::Result;
 pub enum DeviceConnection {
     /// USB transport.
     Usb(Arc<Connection<UsbTransport>>),
-    /// TCP transport (wireless debugging or an emulator).
-    Tcp(Arc<Connection<TcpTransport>>),
+    /// TCP transport (wireless debugging with STLS, or a plain-TCP emulator).
+    Tcp(Arc<Connection<LanTransport>>),
 }
 
 impl DeviceConnection {

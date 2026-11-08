@@ -17,9 +17,9 @@ adb.h, types.h, client/auth.cpp, sync service docs). Citations are inline.
 | `forward.rs` | In-process port forwarding (`adb forward` equivalent) |
 | `install.rs` | `cmd package install` (fallback `pm install`) over shell v2 stdin; `INSTALL_FAILED_*` hints |
 | `tcp.rs` | TCP transport (`adb tcpip`) |
-| `stls.rs` | STLS upgrade (TLS 1.3, verify-any) for wireless debugging; rustls via tokio-rustls |
+| `stls.rs` | STLS upgrade (TLS 1.3, verify-any) for wireless debugging; `LanTransport` auto-upgrades after `A_STLS` |
 | `pairing.rs` | BoringSSL-profile SPAKE2 over Ed25519 (M `5ada7e4b…`, N `10e3df0a…`), transcript, HKDF, AES-128-GCM PeerInfo (Android scheme) |
-| `pairing_flow.rs` | Orchestration (TLS → SPAKE2 → PeerInfo); X509 via `generate_x509_der` (lands with device proof) |
+| `pairing_flow.rs` | Orchestration (TLS exporter → SPAKE2 → PeerInfo); AOSP-profile X509 via `generate_x509_der` |
 | `usb.rs` | nusb bulk I/O, claim ADB interface (`ff/42/01`), enumerate, worker-thread multiplexing |
 | `discovery.rs` | mDNS browse of `_adb-tls-connect._tcp` and `_adb-tls-pairing._tcp` |
 | `manager.rs` | Device table, USB/TCP connect helpers, property refresh |

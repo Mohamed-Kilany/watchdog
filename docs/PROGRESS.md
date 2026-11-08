@@ -37,7 +37,7 @@ Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h,
 - [ ] M2-T04 USB transport **[DEVICE]** (nusb transport, `usb-doctor` and `udev-rules` implemented; per-OS device proof pending)
 - [x] M2-T05 TCP transport + LAN connect
 - [x] M2-T06 mDNS discovery
-- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (SPAKE2/GCM/STLS core implemented; X509 generation and TLS exporter wiring are stubs, device-verified end-to-end pending)
+- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (SPAKE2/GCM/STLS/X509/TLS-exporter implemented; on-device end-to-end proof pending)
 - [x] M2-T08 Stream multiplexer
 - [x] M2-T09 Shell v2
 - [ ] M2-T10 Sync protocol: **[DEVICE]** (implemented; device-tested 1 GB transfer pending)

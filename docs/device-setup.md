@@ -52,10 +52,10 @@ First-time watchdog authorization uses **its own** RSA key pair stored in
    debugging port, shown on the same screen).
 4. `watchdog device provision --serial <ip>:<connect_port>`
 
-> **Status (M2):** the pairing core (SPAKE2, GCM PeerInfo, STLS) is implemented, but
-> X509 certificate generation and the TLS exporter wiring are still stubs, so the CLI
-> reports "not implemented" until the on-device verification milestone completes
-> (M2-T07). USB and LAN-without-pairing flows are usable today.
+> **Status (M2):** pairing (SPAKE2 + AES-GCM PeerInfo), AOSP-profile X509
+> generation, TLS exporter binding, and STLS-on-connect are implemented. The
+> on-device end-to-end proof is tracked as M2-T07; record it under
+> `docs/verification/` once the phone confirms the key.
 
 ## 4. `adb tcpip`-style connect (USB → LAN)
 

@@ -438,11 +438,34 @@ fn split_host_port(target: &str) -> watchdog_core::Result<(String, u16)> {
 }
 
 fn cli_pair(target: &str, code: &str, cfg: &Config) -> watchdog_core::Result<()> {
-    let _ = (target, code, cfg);
-    Err(not_implemented(
-        "wireless-debugging pairing (TLS+SPAKE2) end-to-end (device-verified)",
-        "M2-T07 (device proof pending; see docs/PROGRESS.md)",
-    ))
+    if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(WatchdogError::new(
+            ErrorCode::InvalidRequest,
+            format!("invalid pairing code {code:?} (expected 6 digits)"),
+        ));
+    }
+    let (host, port) = split_host_port(target)?;
+    let keys = adbs_key(cfg)?;
+    let userkey = keys.public_key_userkey();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let outcome = rt.block_on(async {
+        let stream = tokio::net::TcpStream::connect((host.as_str(), port))
+            .await
+            .map_err(|e| {
+                WatchdogError::new(
+                    ErrorCode::PairingFailed,
+                    format!("pairing connect to {host}:{port} failed: {e}"),
+                )
+                .with_hint("open 'Pair device with pairing code' on the device and use its port")
+            })?;
+        watchdog_adb::pair(stream, code, &keys, &userkey)
+            .await
+            .map_err(|e: watchdog_adb::AdbError| WatchdogError::from(e))
+    })?;
+    println!("Paired with device {}", outcome.device_guid);
+    Ok(())
 }
 
 fn with_usb_connection<T, F, Fut>(

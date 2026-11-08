@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use crate::auth::AdbKeyPair;
 use crate::connection::Connection;
 use crate::error::{AdbError, Result};
+use crate::stls::LanTransport;
 use crate::tcp::TcpTransport;
 use crate::transport::Transport;
 use crate::usb::{self, UsbTransport};
@@ -138,13 +139,14 @@ pub async fn connect_usb(keys: &AdbKeyPair, banner: &str) -> Result<DeviceHandle
     })
 }
 
-/// Connect over plain TCP (`host[:port]`, e.g. `adb tcpip` devices).
+/// Connect over TCP (`host[:port]`, e.g. `adb tcpip` devices or the wireless
+/// debugging connect port). STLS is negotiated automatically when offered.
 pub async fn connect_tcp(
     keys: &AdbKeyPair,
     host: &str,
     port: u16,
     banner: &str,
-) -> Result<DeviceHandle<TcpTransport>> {
+) -> Result<DeviceHandle<LanTransport>> {
     let addr: std::net::SocketAddr = {
         let host = host.strip_prefix('[').unwrap_or(host);
         let host = host.strip_suffix(']').unwrap_or(host);
@@ -155,7 +157,7 @@ pub async fn connect_tcp(
     };
     let transport = TcpTransport::connect(addr).await?;
     let id = format!("{host}:{port}");
-    let connection = Connection::connect(transport, banner, keys).await?;
+    let connection = Connection::connect_lan(transport, banner, keys).await?;
     Ok(DeviceHandle {
         connection: Arc::new(connection),
         id,

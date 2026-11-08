@@ -137,6 +137,20 @@ impl AdbKeyPair {
             .map_err(|e| AdbError::Protocol(format!("token signing failed: {e}")))
     }
 
+    /// PKCS#8 DER of the private key (TLS client authentication).
+    pub fn private_key_der(&self) -> Result<Vec<u8>> {
+        self.private_key
+            .to_pkcs8_der()
+            .map(|der| der.as_bytes().to_vec())
+            .map_err(|e| AdbError::Protocol(format!("cannot encode private key: {e}")))
+    }
+
+    /// Self-signed X509 certificate DER for TLS client authentication
+    /// (AOSP `crypto/x509_generator.cpp` profile).
+    pub fn certificate_der(&self) -> Result<Vec<u8>> {
+        crate::pairing_flow::generate_x509_der(&self.private_key)
+    }
+
     fn write_public_key_file(&self, path: &PathBuf) -> Result<()> {
         let mut contents = self.public_key_userkey();
         contents.push('\n');
