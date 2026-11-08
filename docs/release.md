@@ -15,6 +15,27 @@ ffmpeg: per-OS/arch, LGPL build produced by the documented recipe (see
 Artifacts per release tag `vX.Y.Z`: 6 archives (binary + licenses + docs), APK,
 checksums (`SHA256SUMS`), SBOM (SPDX), attestation notes.
 
+## Embedded APK (M3-T12)
+
+The host build script (`crates/device/build.rs`) compiles the release APK into the
+binary when `WATCHDOG_APK` points to it, recording:
+
+| Variable | Meaning |
+|---|---|
+| `WATCHDOG_APK` | Path to the release APK (required to embed). |
+| `WATCHDOG_APK_VERSION_NAME` | `versionName` from `aapt2 dump badging`. |
+| `WATCHDOG_APK_VERSION_CODE` | `versionCode` (integer). |
+| `WATCHDOG_APK_SHA256` | Lowercase SHA-256 of the APK file. |
+| `WATCHDOG_APK_SIGNER_SHA256` | Signing certificate SHA-256 from `apksigner verify --print-certs`. |
+
+`watchdog version` prints the host version, protocol version and the embedded APK
+version/code/hash/signer. CI builds the host this way in the `android` job and fails
+if the printed values do not match the APK it just built.
+
+Development builds without `WATCHDOG_APK` have no embedded APK; provisioning accepts
+`--apk <path>` to install a local release/debug APK instead. Setting `WATCHDOG_APK`
+before `cargo build` is the supported way to test an embedded APK locally.
+
 ## Cutting a release
 
 1. Ensure `master` is green (all CI jobs, all platforms).

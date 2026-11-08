@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 watchdog-adb.workspace = true
 watchdog-core.workspace = true
+watchdog-device.workspace = true
 watchdog-protocol.workspace = true
 clap.workspace = true
 serde_json.workspace = true

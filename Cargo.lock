@@ -1787,6 +1787,7 @@ dependencies = [
  "tracing",
  "watchdog-adb",
  "watchdog-core",
+ "watchdog-device",
  "watchdog-protocol",
 ]
 

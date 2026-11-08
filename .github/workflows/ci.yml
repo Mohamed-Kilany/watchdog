@@ -217,6 +217,12 @@ jobs:
           fi
           SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
           CERT=$(grep -i "SHA-256 digest" "$RUNNER_TEMP/apksigner.txt" | head -n1 | awk -F': ' '{print $2}')
+          {
+            echo "WATCHDOG_APK_VERSION_NAME=$WATCHDOG_APP_VERSION"
+            echo "WATCHDOG_APK_VERSION_CODE=$VERSION_CODE"
+            echo "WATCHDOG_APK_SHA256=$SHA256"
+            echo "WATCHDOG_APK_SIGNER_SHA256=$CERT"
+          } >> "$GITHUB_ENV"
           VERSION_NAME="$WATCHDOG_APP_VERSION" VERSION_CODE="$VERSION_CODE" SHA256="$SHA256" CERT="$CERT" \
           python3 - <<'EOF'
           import json, os
@@ -234,6 +240,20 @@ jobs:
               f.write("\n")
           EOF
           cat android/build/apk-info.json
+      - name: rustup (host build with embedded APK)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: build host with the embedded APK and verify `watchdog version`
+        env:
+          WATCHDOG_APK: android/app/build/outputs/apk/release/app-release.apk
+        run: |
+          set -euo pipefail
+          cargo build --locked -p watchdog
+          OUTPUT=$(./target/debug/watchdog version)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "embedded APK  $WATCHDOG_APK_VERSION_NAME"
+          echo "$OUTPUT" | grep -q "$WATCHDOG_APK_SHA256"
+          echo "$OUTPUT" | grep -q "$WATCHDOG_APK_SIGNER_SHA256"
       - uses: actions/upload-artifact@v4
         with:
           name: watchdog-android-apk

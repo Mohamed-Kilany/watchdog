@@ -2,4 +2,5 @@
 
 #![warn(missing_docs)]
 
-// Implementation lands in the milestone that owns this crate (see docs/PROGRESS.md).
+/// Embedded release APK metadata and local-APK overrides (M3-T12).
+pub mod apk;
