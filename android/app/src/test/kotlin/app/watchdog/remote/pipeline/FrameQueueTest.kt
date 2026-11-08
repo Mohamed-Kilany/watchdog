@@ -26,8 +26,8 @@ class FrameQueueTest {
         assertEquals(1L, queue.stats().dropped)
         assertEquals(3L, queue.stats().offered)
 
-        assertEquals(1, queue.poll(0)?.sequence)
-        assertEquals(2, queue.poll(0)?.sequence)
+        assertEquals(1L, queue.poll(0)?.sequence)
+        assertEquals(2L, queue.poll(0)?.sequence)
         assertNull(queue.poll(0))
     }
 
