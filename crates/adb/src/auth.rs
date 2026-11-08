@@ -270,8 +270,9 @@ mod tests {
         // `to_bytes_le` drops high zero bytes: a value whose top byte is zero
         // must still occupy its full fixed-width field. A random 2048-bit key
         // hit this on macOS (regression from the session auth fallback test).
-        let modulus = num_bigint::BigUint::from(0x0102_0304_0506_0709_u64);
-        let public_key = RsaPublicKey::new(modulus.clone(), num_bigint::BigUint::from(65537u32))
+        // The rsa crate re-exports num-bigint-dig, not num-bigint.
+        let modulus = rsa::BigUint::from(0x0102_0304_0506_0709_u64);
+        let public_key = RsaPublicKey::new(modulus.clone(), rsa::BigUint::from(65537u32))
             .expect("small odd modulus");
         let encoded = encode_android_public_key(&public_key);
 
@@ -281,8 +282,7 @@ mod tests {
         assert_eq!(&encoded[8..264], &expected_modulus);
 
         let mut expected_rr = [0u8; 256];
-        let rr =
-            num_bigint::BigUint::from(2u8).modpow(&num_bigint::BigUint::from(4096u32), &modulus);
+        let rr = rsa::BigUint::from(2u8).modpow(&rsa::BigUint::from(4096u32), &modulus);
         let rr_le = rr.to_bytes_le();
         expected_rr[..rr_le.len()].copy_from_slice(&rr_le);
         assert_eq!(&encoded[264..520], &expected_rr);

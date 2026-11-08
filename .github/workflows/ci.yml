@@ -135,6 +135,10 @@ jobs:
   android:
     name: android (assembleRelease)
     runs-on: ubuntu-latest
+    env:
+      # Try these Maven Central mirrors before the origin; GitHub-hosted
+      # artifact redirects intermittently return 504s from the runners.
+      WATCHDOG_GRADLE_MIRRORS: "https://repo.huaweicloud.com/repository/maven/,https://maven.aliyun.com/repository/public/"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -290,6 +294,8 @@ jobs:
   android-instrumented:
     name: android (instrumented, emulator)
     runs-on: ubuntu-latest
+    env:
+      WATCHDOG_GRADLE_MIRRORS: "https://repo.huaweicloud.com/repository/maven/,https://maven.aliyun.com/repository/public/"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
