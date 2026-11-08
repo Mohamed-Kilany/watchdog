@@ -160,14 +160,23 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
-      - name: install Gradle (retry-safe)
+      - name: install Gradle (retry-safe, mirrored)
         run: |
           set -euo pipefail
           GRADLE_VERSION=9.6.0
-          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            -o "$RUNNER_TEMP/gradle-bin.zip" \
-            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          unzip -q "$RUNNER_TEMP/gradle-bin.zip" -d "$RUNNER_TEMP/gradle-dist"
+          GRADLE_SHA256=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01
+          ZIP="$RUNNER_TEMP/gradle-bin.zip"
+          for URL in \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://repo.huaweicloud.com/gradle/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://mirrors.cloud.tencent.com/gradle/gradle-${GRADLE_VERSION}-bin.zip"; do
+            echo "downloading $URL"
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$ZIP" "$URL"; then
+              break
+            fi
+          done
+          echo "$GRADLE_SHA256  $ZIP" | sha256sum -c -
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/gradle-dist"
           echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
       - name: derive app version from git tag
         run: |
@@ -294,14 +303,23 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
-      - name: install Gradle (retry-safe)
+      - name: install Gradle (retry-safe, mirrored)
         run: |
           set -euo pipefail
           GRADLE_VERSION=9.6.0
-          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            -o "$RUNNER_TEMP/gradle-bin.zip" \
-            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          unzip -q "$RUNNER_TEMP/gradle-bin.zip" -d "$RUNNER_TEMP/gradle-dist"
+          GRADLE_SHA256=bbaeb2fef8710818cf0e261201dab964c572f92b942812df0c3620d62a529a01
+          ZIP="$RUNNER_TEMP/gradle-bin.zip"
+          for URL in \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://repo.huaweicloud.com/gradle/gradle-${GRADLE_VERSION}-bin.zip" \
+            "https://mirrors.cloud.tencent.com/gradle/gradle-${GRADLE_VERSION}-bin.zip"; do
+            echo "downloading $URL"
+            if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$ZIP" "$URL"; then
+              break
+            fi
+          done
+          echo "$GRADLE_SHA256  $ZIP" | sha256sum -c -
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/gradle-dist"
           echo "$RUNNER_TEMP/gradle-dist/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
       - name: enable KVM for the emulator
         run: |

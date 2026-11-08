@@ -1789,6 +1789,7 @@ dependencies = [
  "watchdog-core",
  "watchdog-device",
  "watchdog-protocol",
+ "watchdog-ui-server",
 ]
 
 [[package]]
@@ -1943,6 +1944,7 @@ dependencies = [
  "tokio",
  "tracing",
  "watchdog-core",
+ "watchdog-device",
 ]
 
 [[package]]

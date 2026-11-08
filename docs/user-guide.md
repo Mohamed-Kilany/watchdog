@@ -42,6 +42,22 @@ rotated daily in `<data_dir>/logs/`.
 
 Full walkthrough with OEM quirks: [device-setup.md](device-setup.md).
 
+## 4. Live view (M3 test page)
+
+Provision first, then start the UI:
+
+```bash
+watchdog device provision --serial <serial>
+watchdog serve --serial <serial>
+# open http://127.0.0.1:7700/
+```
+
+The M3 page shows the phone camera as a live MJPEG feed with FPS, bitrate, latency,
+RTT and drop counters. It reuses the session token stored by provisioning and works
+over USB or wireless debugging (`--serial host:port`). When a bearer token is
+configured, append `?token=…` to the page URL. The full UI (controls, capture,
+library) replaces this page in M6.
+
 ## 9. Scheduler (summary)
 
 Jobs combine device + capture plan + analysis profile + cron (or preset like `every-30m`,

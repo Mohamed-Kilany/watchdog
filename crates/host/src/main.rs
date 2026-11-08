@@ -84,7 +84,7 @@ impl Cli {
 /// Top-level subcommands. Every command has `--help`.
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Start the web UI, MCP and integration API servers.
+    /// Start the web UI (M3: minimal live test page; MCP/API land later).
     Serve(serve::ServeArgs),
     /// Device management (list, connect, pair, provision, shell, logs, …).
     #[command(subcommand)]

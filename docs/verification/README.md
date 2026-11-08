@@ -19,3 +19,4 @@ Rules (from TASK.md §6/§7):
 | Date | Milestone | Artifact | Devices | Verdict |
 |---|---|---|---|---|
 | _pending_ | M1 (foundations) | n/a — CLI only | n/a | see PROGRESS.md |
+| _pending_ | M3 (Android MVP) | CI `android` job APK | real phone (USB + LAN) | method: [m3-measurements.md](m3-measurements.md) |
