@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="watchdog_background">#0E1216</color>
+    <color name="watchdog_panel">#1A2128</color>
+    <color name="watchdog_text_primary">#F2F5F7</color>
+    <color name="watchdog_text_secondary">#9AA7B4</color>
+    <color name="watchdog_accent">#4FC3F7</color>
+</resources>

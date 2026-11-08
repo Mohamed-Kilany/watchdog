@@ -38,6 +38,7 @@ data class FramePayload(
         const val FLAG_SNAPSHOT = 0x02
 
         private val VALID_ROTATIONS = setOf(0, 90, 180, 270)
+
         fun decode(payload: ByteArray): FramePayload {
             if (payload.size < HEADER_SIZE) {
                 throw ProtocolException(

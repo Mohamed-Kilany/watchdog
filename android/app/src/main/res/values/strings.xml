@@ -8,4 +8,31 @@
     <string name="notification_capture_title">watchdog remote is streaming</string>
     <string name="notification_capture_text">Camera session active — tap Stop to end it</string>
     <string name="notification_stop">Stop</string>
+
+    <string name="panel_connection">Connection</string>
+    <string name="panel_camera">Camera</string>
+    <string name="label_status">Status</string>
+    <string name="label_host">Host</string>
+    <string name="label_session">Session</string>
+    <string name="label_fps">FPS</string>
+    <string name="label_resolution">Resolution</string>
+    <string name="label_quality">JPEG quality</string>
+    <string name="label_dropped">Dropped frames</string>
+    <string name="label_latency">Latency</string>
+    <string name="label_camera">Camera ID / facing</string>
+    <string name="label_camera_state">Camera state</string>
+    <string name="label_recording">Recording</string>
+    <string name="label_storage">Storage free</string>
+    <string name="label_battery">Battery</string>
+    <string name="label_temperature">Temperature</string>
+    <string name="value_waiting">waiting for host</string>
+    <string name="value_none">none</string>
+    <string name="value_idle">idle</string>
+    <string name="value_placeholder">—</string>
+    <string name="value_zero">0</string>
+    <string name="value_closed">closed</string>
+    <string name="value_not_recording">not recording</string>
+    <string name="permission_title">Permissions needed</string>
+    <string name="permission_message">Provisioning did not grant: %1$s.\n\nGrant them in system settings, then return to this screen.</string>
+    <string name="permission_open_settings">Open app settings</string>
 </resources>
