@@ -216,6 +216,7 @@ jobs:
           VERSION_NAME="$WATCHDOG_APP_VERSION" VERSION_CODE="$VERSION_CODE" SHA256="$SHA256" CERT="$CERT" \
           python3 - <<'EOF'
           import json, os
+          os.makedirs("android/build", exist_ok=True)
           info = {
               "versionName": os.environ["VERSION_NAME"],
               "versionCode": int(os.environ["VERSION_CODE"]),
