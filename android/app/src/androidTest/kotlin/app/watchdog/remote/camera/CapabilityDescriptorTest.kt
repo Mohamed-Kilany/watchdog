@@ -1,13 +1,16 @@
 package app.watchdog.remote.camera
 
+import android.Manifest
 import android.content.Context
 import android.hardware.camera2.CameraManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.rule.GrantPermissionRule
 import app.watchdog.remote.transport.HelloAckBuilder
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,6 +21,9 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class CapabilityDescriptorTest {
+    @get:Rule
+    val permissions: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA)
+
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
