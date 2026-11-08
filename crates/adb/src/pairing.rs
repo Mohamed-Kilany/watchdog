@@ -265,7 +265,7 @@ pub mod packet {
     pub const HEADER_LEN: usize = 6;
     /// Maximum payload size (AOSP `kMaxPayloadSize = kMaxPeerInfoSize * 2`).
     /// Must exceed the 8208-byte encrypted PeerInfo (`SIZE` + GCM tag).
-    pub const MAX_PAYLOAD_LEN: usize = peer_info::SIZE * 2;
+    pub const MAX_PAYLOAD_LEN: usize = super::peer_info::SIZE * 2;
 
     /// Encode a pairing packet.
     #[must_use]
