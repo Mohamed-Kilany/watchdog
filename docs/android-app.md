@@ -140,7 +140,8 @@ host session.
 
 ## Tests (M3-T11)
 
-- **JVM unit tests** (`./gradlew testReleaseUnitTest`): wire codec against every
+- **JVM unit tests** (`./gradlew testDebugUnitTest`; AGP 9 only creates the tested
+  build type's component, release is covered by `assembleRelease`): wire codec against every
   golden vector and the invalid corpus, stream decoder byte-at-a-time chaos,
   handshake policy, bounded queue drop policy, camera state machine (including
   100 recovery cycles), frame queue policy, log ring/`LOG_CHUNK` and JSON codecs.
@@ -151,8 +152,9 @@ host session.
   - `ServiceTransportTest` — foreground service start with a token, `HOST_HELLO`
     → `HELLO_ACK`, a real JPEG `FRAME` from the virtual scene camera, rejection
     of a wrong token, and takeover (`session_replaced`) by a second session.
-- The emulator job is `android-instrumented` in `.github/workflows/ci.yml` and is
-  required by the `all checks` gate.
+- The emulator job is `android-instrumented` in `.github/workflows/ci.yml`; it runs only
+  on manual `workflow_dispatch` runs and is not part of the required `all checks` gate.
+  Real-device verification uses the CI-built release host and APK artifacts instead.
 
 ## Other hardening
 

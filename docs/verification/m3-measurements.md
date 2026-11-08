@@ -8,6 +8,8 @@ Do not invent numbers: leave the result tables as `pending` until the run is exe
 
 - CI run id / workflow: `pending`
 - Commit SHA: `pending`
+- CI artifacts: `watchdog-host-windows-x86_64` (release host with embedded APK) and
+  `watchdog-android-apk` from the same run
 - APK version / SHA-256 / signer (from `watchdog version`): `pending`
 - Host OS + CPU + RAM: `pending`
 - Phone model / OEM skin / Android SDK: `pending`

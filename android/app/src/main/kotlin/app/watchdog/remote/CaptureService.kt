@@ -17,10 +17,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.camera.Camera2Controller
 import app.watchdog.remote.camera.CameraCatalog
-import app.watchdog.remote.camera.CapabilityDescriptor
 import app.watchdog.remote.camera.CameraController
 import app.watchdog.remote.camera.CameraSnapshot
 import app.watchdog.remote.camera.CameraStatus
+import app.watchdog.remote.camera.CapabilityDescriptor
 import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.pipeline.Frame
 import app.watchdog.remote.pipeline.FramePipeline

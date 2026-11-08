@@ -10,7 +10,9 @@ at the bottom of the record — never hidden.
 
 Rules (from TASK.md §6/§7):
 
-- Verify with **CI release artifacts**, never local debug builds.
+- Verify with **CI release artifacts**, never local debug builds. The `android` workflow
+  uploads `watchdog-host-windows-x86_64` (release host with the embedded APK) and
+  `watchdog-android-apk` from the same run.
 - Machine must have **no adb, no ffmpeg, no Android SDK** installed (and, where runnable,
   a competing adb server on 5037 for the isolation test).
 - Checklist per milestone is in TASK.md; the template expands it.
@@ -19,5 +21,5 @@ Rules (from TASK.md §6/§7):
 | Date | Milestone | Artifact | Devices | Verdict |
 |---|---|---|---|---|
 | _pending_ | M1 (foundations) | n/a — CLI only | n/a | see PROGRESS.md |
-| _pending_ | M3 (Android MVP) | CI `android` job APK | real phone (USB + LAN) | method: [m3-measurements.md](m3-measurements.md) |
-| _pending_ | M4-T01 (capabilities) | CI `android` job APK | every available phone | method: [m4-capabilities.md](m4-capabilities.md) |
+| _pending_ | M3 (Android MVP) | CI host + APK artifacts | real phone (USB + LAN) | method: [m3-measurements.md](m3-measurements.md) |
+| _pending_ | M4-T01 (capabilities) | CI host + APK artifacts | every available phone | method: [m4-capabilities.md](m4-capabilities.md) |

@@ -5,7 +5,9 @@ Paste real command output into a dated record (`docs/verification/<YYYY-MM-DD>-m
 
 ## Prerequisites
 
-- CI artifact only: record the workflow run id, commit SHA and APK checksum.
+- CI artifacts only: download `watchdog-host-windows-x86_64` (release host with the
+  embedded APK) and `watchdog-android-apk` from the same workflow run. Record the run id,
+  commit SHA, `watchdog version` output and APK checksum.
 - Host machine with **no system adb, no ffmpeg, no Android SDK** installed.
 - Device provisioned by the same binary: `watchdog device provision --serial <serial>`.
   Capabilities reuse the session token recorded by provisioning.

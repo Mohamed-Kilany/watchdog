@@ -1,11 +1,11 @@
 package app.watchdog.remote.camera
 
 import android.content.Context
+import android.graphics.ImageFormat
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
-import android.graphics.ImageFormat
 import android.os.Build
 import android.util.Range
 import android.util.Rational
@@ -289,12 +289,7 @@ object CapabilityDescriptor {
         )
     }
 
-    private fun aeCompensation(
-        out: JSONObject,
-        unsupported: JSONArray,
-        range: Range<Int>?,
-        step: Rational?,
-    ) {
+    private fun aeCompensation(out: JSONObject, unsupported: JSONArray, range: Range<Int>?, step: Rational?) {
         if (range == null) {
             unsupported.put(unsupportedEntry("ae_compensation", NO_REASON))
             return
