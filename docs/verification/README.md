@@ -21,5 +21,6 @@ Rules (from TASK.md §6/§7):
 | Date | Milestone | Artifact | Devices | Verdict |
 |---|---|---|---|---|
 | _pending_ | M1 (foundations) | n/a — CLI only | n/a | see PROGRESS.md |
+| 2026-11-09 | M2 wireless ADB (pairing/TLS, install/update) | CI run 42576110391, commit `720e281` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m2-wireless.md) |
 | _pending_ | M3 (Android MVP) | CI host + APK artifacts | real phone (USB + LAN) | method: [m3-measurements.md](m3-measurements.md) |
-| _pending_ | M4-T01 (capabilities) | CI host + APK artifacts | every available phone | method: [m4-capabilities.md](m4-capabilities.md) |
+| 2026-11-09 | M4-T01 (capabilities) | CI run 42576110391, commit `720e281` | Samsung SM-A515F, Android 13 (4 cameras) | PASS — dumps in [2026-11-09-a51/](2026-11-09-a51/) |

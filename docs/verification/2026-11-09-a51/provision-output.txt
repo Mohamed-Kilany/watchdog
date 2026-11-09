@@ -1,0 +1,10 @@
+provisioning 192.168.93.76:36251
+  [PASS] device          273 ms  samsung SM-A515F (a51) — Android 13 (SDK 33), arm64-v8a
+  [PASS] app              99 ms  already installed 0.1.0-dev+720e281 (versionCode 1000)
+  [PASS] permissions     800 ms  granted CAMERA, RECORD_AUDIO, POST_NOTIFICATIONS; appops allow CAMERA, RECORD_AUDIO, WAKE_LOCK, START_FOREGROUND, RUN_ANY_IN_BACKGROUND, POST_NOTIFICATION
+  [PASS] battery         473 ms  Doze whitelist + active standby bucket (device reports 5); warnings: standby bucket is 5, expected 10 (active)
+  [PASS] screen          509 ms  stay_on_while_plugged_in 3 -> 7 (original recorded for restore); screen awake
+  [PASS] launch          733 ms  activity foregrounded; capture service started with a fresh session token
+  [PASS] verify         1313 ms  handshake ok (app 0.1.0-dev+720e281 versionCode 1000, protocol 1); first frame 1280x720 JPEG (81581 bytes)
+session token: 11785ba5769907be7a83e00e895daaf6
+provisioning complete
