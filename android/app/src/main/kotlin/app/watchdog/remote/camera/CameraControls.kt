@@ -5,7 +5,10 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
+import android.hardware.camera2.params.MeteringRectangle
 import android.os.Build
+import android.util.Range
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -18,6 +21,8 @@ import kotlin.math.roundToInt
  * by [ControlStateStore]; unknown ids are ignored here.
  */
 object CameraControls {
+    private const val DEFAULT_METERING_WEIGHT = 1000
+
     /** Apply one validated control to a request builder. */
     fun applyTo(builder: CaptureRequest.Builder, chars: CameraCharacteristics, id: String, value: Any) {
         when (id) {
@@ -25,6 +30,8 @@ object CameraControls {
             "torch" -> applyTorch(builder, bool(value))
             "ae_lock" -> builder.set(CaptureRequest.CONTROL_AE_LOCK, bool(value))
             "awb_lock" -> builder.set(CaptureRequest.CONTROL_AWB_LOCK, bool(value))
+            "ae_fps_range" -> applyFpsRange(builder, value)
+            "ae_regions" -> applyAeRegions(builder, chars, value)
             "iso" -> builder.set(CaptureRequest.SENSOR_SENSITIVITY, int(value))
             "exposure_time_ns" -> builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, long(value))
             "frame_duration_ns" -> builder.set(CaptureRequest.SENSOR_FRAME_DURATION, long(value))
@@ -80,6 +87,41 @@ object CameraControls {
                 CaptureRequest.FLASH_MODE_OFF
             }
         builder.set(CaptureRequest.FLASH_MODE, mode)
+    }
+
+    private fun applyFpsRange(builder: CaptureRequest.Builder, value: Any) {
+        val pair = value as? JSONArray ?: return
+        val min = pair.optInt(0, 0)
+        val max = pair.optInt(1, 0)
+        if (min > 0 && max >= min) {
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(min, max))
+        }
+    }
+
+    private fun applyAeRegions(builder: CaptureRequest.Builder, chars: CameraCharacteristics, value: Any) {
+        val regions = value as? JSONArray ?: return
+        val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
+        val rectangles = ArrayList<MeteringRectangle>(regions.length())
+        for (index in 0 until regions.length()) {
+            val region = regions.optJSONObject(index) ?: continue
+            val x = region.optDouble("x", 0.0)
+            val y = region.optDouble("y", 0.0)
+            val w = region.optDouble("w", 0.0)
+            val h = region.optDouble("h", 0.0)
+            if (w > 0.0 && h > 0.0) {
+                val left =
+                    (active.left + x * active.width()).roundToInt().coerceIn(active.left, active.right - 1)
+                val top =
+                    (active.top + y * active.height()).roundToInt().coerceIn(active.top, active.bottom - 1)
+                val width = (w * active.width()).roundToInt().coerceAtLeast(1).coerceAtMost(active.right - left)
+                val height = (h * active.height()).roundToInt().coerceAtLeast(1).coerceAtMost(active.bottom - top)
+                rectangles +=
+                    MeteringRectangle(left, top, width, height, region.optInt("weight", DEFAULT_METERING_WEIGHT))
+            }
+        }
+        if (rectangles.isNotEmpty()) {
+            builder.set(CaptureRequest.CONTROL_AE_REGIONS, rectangles.toTypedArray())
+        }
     }
 
     /**

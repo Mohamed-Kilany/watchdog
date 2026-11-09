@@ -467,18 +467,30 @@ class CaptureService : Service() {
             }
         val results = mutableListOf<JSONObject>()
         val toApply = LinkedHashMap<String, Any>()
-        val manualSensor = validateAssignments(store, assignments, results, toApply)
+        val triggers = LinkedHashMap<String, Any>()
+        val manualSensor = validateAssignments(store, assignments, results, toApply, triggers)
         if (manualSensor) {
             implyAeOff(store, toApply, results)
         }
-        val outcome = camera?.applyControls(toApply) ?: ApplyOutcome(false, error = "camera is not open")
+        val controller = camera
+        var outcome = controller?.applyControls(toApply) ?: ApplyOutcome(false, error = "camera is not open")
+        if (outcome.ok) {
+            for ((id, value) in triggers) {
+                val triggerOutcome = controller?.trigger(id, value)
+                if (triggerOutcome != null && !triggerOutcome.ok) {
+                    outcome = triggerOutcome
+                    break
+                }
+            }
+        }
         reply(command.id, results, if (outcome.ok) null else outcome.error)
         sendState(full = false)
     }
 
     /**
      * Validate one batch against the descriptor, recording per-control results
-     * in wire order and collecting the accepted values. Returns true when a
+     * in wire order and collecting the accepted values. Persistent controls go
+     * to [toApply]; one-shot triggers go to [triggers]. Returns true when a
      * manual sensor control was accepted.
      */
     private fun validateAssignments(
@@ -486,9 +498,14 @@ class CaptureService : Service() {
         assignments: List<ControlAssignment>,
         results: MutableList<JSONObject>,
         toApply: MutableMap<String, Any>,
+        triggers: MutableMap<String, Any>,
     ): Boolean {
         var manualSensor = false
         assignments.forEach { assignment ->
+            if (assignment.id in TRIGGERS) {
+                validateTrigger(store, assignment, results, triggers)
+                return@forEach
+            }
             val validation = store.setRequested(assignment.id, assignment.value, ControlSource.HOST)
             if (!validation.ok) {
                 results +=
@@ -507,6 +524,27 @@ class CaptureService : Service() {
             }
         }
         return manualSensor
+    }
+
+    private fun validateTrigger(
+        store: ControlStateStore,
+        assignment: ControlAssignment,
+        results: MutableList<JSONObject>,
+        triggers: MutableMap<String, Any>,
+    ) {
+        val validation = store.validateControl(assignment.id, assignment.value)
+        if (!validation.ok) {
+            results +=
+                JsonMessages.controlResult(
+                    assignment.id,
+                    false,
+                    errorCode = validation.errorCode,
+                    message = validation.message,
+                )
+        } else {
+            results += JsonMessages.controlResult(assignment.id, true, applied = validation.applied)
+            validation.applied?.let { triggers[assignment.id] = it }
+        }
     }
 
     /**
@@ -748,6 +786,7 @@ class CaptureService : Service() {
         private const val BATTERY_QUERY_INTERVAL_MS = 5_000L
         private const val STORAGE_QUERY_INTERVAL_MS = 5_000L
         private val MANUAL_SENSOR_CONTROLS = setOf("iso", "exposure_time_ns", "frame_duration_ns")
+        private val TRIGGERS = setOf("ae_precapture")
 
         const val ACTION_START = "app.watchdog.remote.action.START"
         const val ACTION_STOP = "app.watchdog.remote.action.STOP"

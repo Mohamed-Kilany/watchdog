@@ -14,6 +14,18 @@ import org.junit.Test
  * delta generation, reset semantics and deterministic last-writer-wins.
  */
 class ControlStateTest {
+    private fun fpsRanges(): JSONArray =
+        JSONArray()
+            .put(JSONArray().put(15).put(30))
+            .put(JSONArray().put(30).put(30))
+
+    private fun rect(x: Double, y: Double, w: Double, h: Double): JSONObject =
+        JSONObject()
+            .put("x", x)
+            .put("y", y)
+            .put("w", w)
+            .put("h", h)
+
     private fun descriptor(): JSONObject =
         JSONObject()
             .put(
@@ -42,6 +54,13 @@ class ControlStateTest {
                     .put("max", 8.0)
                     .put("step", 0),
             ).put("torch", JSONObject().put("supported", false))
+            .put(
+                "ae_fps_range",
+                JSONObject()
+                    .put("supported", true)
+                    .put("ranges", fpsRanges()),
+            ).put("ae_regions", JSONObject().put("supported", true).put("max_regions", 2))
+            .put("ae_precapture", JSONObject().put("supported", true))
             .put(
                 "awb_mode",
                 JSONObject().put("supported", true).put("modes", JSONArray().put(1).put(5)),
@@ -165,6 +184,65 @@ class ControlStateTest {
         assertEquals("device", fps.getString("source"))
         assertTrue(fps.getBoolean("supported"))
         assertFalse(fps.has("locked"))
+    }
+
+    @Test
+    fun validatesFpsRangeAgainstTheDescriptor() {
+        val store = ControlStateStore(descriptor())
+
+        val ok = store.setRequested("ae_fps_range", JSONArray().put(30).put(30), ControlSource.HOST)
+        assertTrue(ok.ok)
+        val applied = ok.applied as JSONArray
+        assertEquals(30, applied.getInt(0))
+        assertEquals(30, applied.getInt(1))
+
+        val unlisted =
+            store.setRequested("ae_fps_range", JSONArray().put(60).put(60), ControlSource.HOST)
+        assertEquals("OUT_OF_RANGE", unlisted.errorCode)
+        val malformed =
+            store.setRequested("ae_fps_range", JSONArray().put(30), ControlSource.HOST)
+        assertEquals("INVALID_VALUE", malformed.errorCode)
+    }
+
+    @Test
+    fun validatesAeRegionsAsNormalizedRectangles() {
+        val store = ControlStateStore(descriptor())
+        val region = rect(0.25, 0.25, 0.5, 0.5)
+
+        val ok = store.setRequested("ae_regions", JSONArray().put(region), ControlSource.HOST)
+        assertTrue(ok.ok)
+        val applied = ok.applied as JSONArray
+        assertEquals(1000, applied.getJSONObject(0).getInt("weight"))
+
+        val outside = rect(0.8, 0.0, 0.5, 0.5)
+        val overflow = store.setRequested("ae_regions", JSONArray().put(outside), ControlSource.HOST)
+        assertEquals("OUT_OF_RANGE", overflow.errorCode)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("ae_regions", JSONArray(), ControlSource.HOST).errorCode,
+        )
+        val tooMany = JSONArray().put(region).put(region).put(region)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("ae_regions", tooMany, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("ae_regions", JSONObject(), ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun triggersAreValidatedWithoutBecomingRequestedState() {
+        val store = ControlStateStore(descriptor())
+
+        val start = store.validateControl("ae_precapture", "start")
+        assertTrue(start.ok)
+        assertEquals("start", start.applied)
+        assertFalse(fullState(store).getJSONObject("ae_precapture").has("requested"))
+
+        assertEquals("INVALID_VALUE", store.validateControl("ae_precapture", "fire").errorCode)
+        assertEquals("INVALID_VALUE", store.validateControl("ae_precapture", 1).errorCode)
     }
 
     @Test

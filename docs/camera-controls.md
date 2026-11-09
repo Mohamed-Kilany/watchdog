@@ -1,6 +1,7 @@
 # Camera controls
 
-> Status: descriptor live (M4-T01); state sync and the command pipeline live (M4-T02/T03).
+> Status: descriptor live (M4-T01); state sync and the command pipeline live
+> (M4-T02/T03); exposure controls live (M4-T04).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
