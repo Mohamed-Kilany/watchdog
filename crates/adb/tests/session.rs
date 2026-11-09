@@ -190,3 +190,47 @@ async fn open_stream_denied() {
         .expect_err("device refused the stream");
     assert!(matches!(err, AdbError::StreamClosed), "got {err:?}");
 }
+
+#[tokio::test]
+async fn writes_progress_while_reader_is_blocked() {
+    let keys = test_keys();
+    let transport = MockTransport::new("test")
+        .script_packet(&device_cnxn_packet())
+        .script_packet(&Packet::new(Command::Okay, 0xdead_beef, 0x4000, &[][..]))
+        .block_after_script();
+    let tap = transport.tap();
+    let connection = Connection::connect(transport, HOST_BANNER, &keys)
+        .await
+        .expect("connect");
+    let stream = connection
+        .open_stream("shell:id")
+        .await
+        .expect("open stream");
+
+    // The reader task is blocked waiting for the next device packet. The
+    // writer must still flush our bytes: streaming installs produce no output
+    // until stdin ends, and a shared transport mutex deadlocked them.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        stream.write(Bytes::from_static(b"apk-bytes")),
+    )
+    .await
+    .expect("write must not wait for the reader")
+    .expect("write");
+
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if tap
+            .written()
+            .windows(b"apk-bytes".len())
+            .any(|window| window == b"apk-bytes")
+        {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "writer task never flushed the payload"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}

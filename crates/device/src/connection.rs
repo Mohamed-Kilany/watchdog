@@ -98,6 +98,34 @@ impl DeviceConnection {
         }
     }
 
+    /// Upload a file over the `sync:` service.
+    pub async fn push(&self, local: &Path, remote: &str, mode: u32, mtime: u32) -> Result<u64> {
+        match self {
+            Self::Usb(connection) => {
+                watchdog_adb::sync::push(connection, local, remote, mode, mtime, None)
+                    .await
+                    .map_err(Into::into)
+            }
+            Self::Tcp(connection) => {
+                watchdog_adb::sync::push(connection, local, remote, mode, mtime, None)
+                    .await
+                    .map_err(Into::into)
+            }
+        }
+    }
+
+    /// Download a file over the `sync:` service.
+    pub async fn pull(&self, remote: &str, local: &Path) -> Result<watchdog_adb::sync::PullResult> {
+        match self {
+            Self::Usb(connection) => watchdog_adb::sync::pull(connection, remote, local, None)
+                .await
+                .map_err(Into::into),
+            Self::Tcp(connection) => watchdog_adb::sync::pull(connection, remote, local, None)
+                .await
+                .map_err(Into::into),
+        }
+    }
+
     /// Forward a host TCP listener to a device service.
     pub async fn forward(&self, listen: SocketAddr, service: String) -> Result<ForwardHandle> {
         match self {

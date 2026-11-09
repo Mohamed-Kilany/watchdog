@@ -26,7 +26,7 @@ use crate::auth::AdbKeyPair;
 use crate::error::{AdbError, Result};
 use crate::pairing::gcm;
 use crate::pairing::{derive_gcm_key, packet, peer_info, Spake2, SpakeRole};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportReader, TransportWriter};
 
 /// Outcome of a successful pairing.
 #[derive(Debug, Clone)]
@@ -91,11 +91,7 @@ pub struct PairingTls {
 }
 
 #[async_trait]
-impl Transport for PairingTls {
-    fn name(&self) -> String {
-        "pairing-tls".to_string()
-    }
-
+impl TransportReader for PairingTls {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         use tokio::io::AsyncReadExt;
         self.tls
@@ -104,7 +100,10 @@ impl Transport for PairingTls {
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("pairing-tls read: {e}")))
     }
+}
 
+#[async_trait]
+impl TransportWriter for PairingTls {
     async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         use tokio::io::AsyncWriteExt;
         self.tls
@@ -112,6 +111,20 @@ impl Transport for PairingTls {
             .await
             .map(|_| ())
             .map_err(|e| AdbError::Transport(format!("pairing-tls write: {e}")))
+    }
+}
+
+#[async_trait]
+impl Transport for PairingTls {
+    fn name(&self) -> String {
+        "pairing-tls".to_string()
+    }
+
+    type Reader = tokio::io::ReadHalf<tokio_rustls::client::TlsStream<TcpStream>>;
+    type Writer = tokio::io::WriteHalf<tokio_rustls::client::TlsStream<TcpStream>>;
+
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        tokio::io::split(self.tls)
     }
 
     async fn close(&mut self) -> Result<()> {

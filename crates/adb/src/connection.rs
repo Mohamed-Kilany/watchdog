@@ -1,10 +1,19 @@
 //! Connection session: CNXN negotiation, AUTH handshake, and stream routing.
 //!
-//! After the sequential handshake, a reader task routes packets into per-stream
-//! channels and a writer task serializes all outbound packets. Each stream gets
-//! a 1-outstanding-WRTE flow-control window (refilled on OKAY), per the ADB spec.
+//! After the sequential handshake the transport is split into independent read
+//! and write halves: a reader task routes packets into per-stream channels and
+//! a writer task serializes all outbound packets. This matters for commands
+//! that consume stdin but produce no output (e.g. a streaming APK install) —
+//! with a shared transport mutex the reader would hold the lock while blocked
+//! and the writer could never send the input the device is waiting for.
+//!
+//! Each stream gets a 1-outstanding-WRTE flow-control window (refilled on
+//! OKAY), per the ADB spec. Closing a stream closes its semaphore so writers
+//! blocked on the window fail with [`AdbError::StreamClosed`] instead of
+//! hanging forever.
 
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -15,11 +24,11 @@ use tokio::task::JoinHandle;
 use crate::auth::AdbKeyPair;
 use crate::error::{AdbError, Result};
 use crate::packet::{AuthType, Command, Packet};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportReader, TransportWriter};
 
 /// Default timeout for the whole handshake.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
-/// Bounded buffer for inbound WRTE payloads per stream (byte count, not items).
+/// Bounded buffer for inbound WRTE payloads per stream (item count).
 pub const STREAM_BUFFER: usize = 256;
 /// Default timeout waiting for an OKAY after OPEN.
 pub const OPEN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -152,10 +161,16 @@ impl StreamWriter {
 /// Messages to the writer task.
 #[derive(Debug)]
 pub(crate) enum Outbound {
+    /// Open a stream to a service.
+    Open { local_id: u32, service: Bytes },
     /// Write payload bytes to an open stream.
     Write { local_id: u32, payload: Bytes },
     /// Close our side of a stream.
     Close { local_id: u32 },
+    /// Acknowledge an inbound WRTE.
+    Okay { local_id: u32, remote_id: u32 },
+    /// Close a stream without consulting the local map (device-initiated).
+    Clse { local_id: u32, remote_id: u32 },
 }
 
 /// Interior shared state (std mutex; never held across await).
@@ -190,11 +205,11 @@ impl Shared {
 pub struct Connection<T: Transport + 'static> {
     /// Negotiated session info.
     pub info: SessionInfo,
-    transport: Arc<tokio::sync::Mutex<T>>,
     outbound: mpsc::Sender<Outbound>,
     shared: Arc<std::sync::Mutex<Shared>>,
     reader: Option<JoinHandle<Result<()>>>,
     writer: Option<JoinHandle<Result<()>>>,
+    _transport: PhantomData<fn() -> T>,
 }
 
 impl<T: Transport + 'static> std::fmt::Debug for Connection<T> {
@@ -213,24 +228,29 @@ impl<T: Transport + 'static> Connection<T> {
     }
 
     fn start(transport: T, info: SessionInfo) -> Self {
-        let transport = Arc::new(tokio::sync::Mutex::new(transport));
+        let (reader_half, writer_half) = transport.split();
         let shared = Arc::new(std::sync::Mutex::new(Shared::new()));
         let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(64);
 
         let writer = tokio::spawn(writer_task(
-            Arc::clone(&transport),
+            writer_half,
             Arc::clone(&shared),
+            info.maxdata,
             outbound_rx,
         ));
-        let reader = tokio::spawn(reader_task(Arc::clone(&transport), Arc::clone(&shared)));
+        let reader = tokio::spawn(reader_task(
+            reader_half,
+            Arc::clone(&shared),
+            outbound_tx.clone(),
+        ));
 
         Self {
             info,
-            transport,
             outbound: outbound_tx,
             shared,
             reader: Some(reader),
             writer: Some(writer),
+            _transport: PhantomData,
         }
     }
 
@@ -250,16 +270,30 @@ impl<T: Transport + 'static> Connection<T> {
             id
         };
 
-        let packet = Packet::new(Command::Open, local_id, 0, service.as_bytes().to_vec());
+        if self
+            .outbound
+            .send(Outbound::Open {
+                local_id,
+                service: Bytes::copy_from_slice(service.as_bytes()),
+            })
+            .await
+            .is_err()
         {
-            let mut t = self.transport.lock().await;
-            t.write_all(&packet.encode()).await?;
+            unregister(&self.shared, local_id);
+            return Err(AdbError::StreamClosed);
         }
 
-        let remote_id = tokio::time::timeout(OPEN_TIMEOUT, reply_rx)
-            .await
-            .map_err(|_| AdbError::Timeout("OPEN timed out waiting for OKAY".into()))?
-            .map_err(|_| AdbError::StreamClosed)??;
+        let remote_id = match tokio::time::timeout(OPEN_TIMEOUT, reply_rx).await {
+            Err(_) => {
+                unregister(&self.shared, local_id);
+                return Err(AdbError::Timeout("OPEN timed out waiting for OKAY".into()));
+            }
+            Ok(Err(_)) => {
+                unregister(&self.shared, local_id);
+                return Err(AdbError::StreamClosed);
+            }
+            Ok(Ok(result)) => result?,
+        };
 
         Ok(Stream {
             local_id,
@@ -272,12 +306,47 @@ impl<T: Transport + 'static> Connection<T> {
 
     /// Abort both tasks (used on device disconnect).
     pub async fn close(mut self) {
+        self.shutdown();
+    }
+
+    fn shutdown(&mut self) {
         if let Some(task) = self.reader.take() {
             task.abort();
         }
         if let Some(task) = self.writer.take() {
             task.abort();
         }
+        close_all(&self.shared);
+    }
+}
+
+impl<T: Transport + 'static> Drop for Connection<T> {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+/// Remove a stream registration that never became usable.
+fn unregister(shared: &std::sync::Mutex<Shared>, local_id: u32) {
+    let mut guard = shared.lock().expect("shared state poisoned");
+    guard.pending_open.remove(&local_id);
+    guard.stream_tx.remove(&local_id);
+    guard.streams.remove(&local_id);
+    if let Some(permit) = guard.write_permits.remove(&local_id) {
+        permit.close();
+    }
+}
+
+/// Fail every waiter and wake blocked stream writes after the session ends.
+fn close_all(shared: &std::sync::Mutex<Shared>) {
+    let mut guard = shared.lock().expect("shared state poisoned");
+    for (_, permit) in guard.write_permits.drain() {
+        permit.close();
+    }
+    guard.stream_tx.clear();
+    guard.streams.clear();
+    for (_, pending) in guard.pending_open.drain() {
+        let _ = pending.send(Err(AdbError::StreamClosed));
     }
 }
 
@@ -452,14 +521,14 @@ async fn send_cnxn<T: Transport + 'static>(transport: &mut T, banner: &str) -> R
     transport.write_all(&packet.encode()).await
 }
 
-async fn read_packet<T: Transport + 'static>(
-    transport: &mut T,
+async fn read_packet<R: TransportReader + ?Sized>(
+    reader: &mut R,
     timeout: Duration,
 ) -> Result<Packet> {
     use crate::packet::HEADER_LEN;
 
     let mut header = [0u8; HEADER_LEN];
-    tokio::time::timeout(timeout, transport.read_exact(&mut header))
+    tokio::time::timeout(timeout, reader.read_exact(&mut header))
         .await
         .map_err(|_| AdbError::Timeout("timed out waiting for packet header".into()))??;
     let command_id = u32::from_le_bytes(header[0..4].try_into().expect("slice"));
@@ -480,7 +549,7 @@ async fn read_packet<T: Transport + 'static>(
     }
     let mut payload = vec![0u8; len];
     if len > 0 {
-        transport.read_exact(&mut payload).await?;
+        reader.read_exact(&mut payload).await?;
     }
     Ok(Packet::new(command, arg0, arg1, Bytes::from(payload)))
 }
@@ -496,47 +565,92 @@ fn parse_banner(payload: &[u8]) -> Result<String> {
 }
 
 /// Writer task: serialize all outbound packets.
-async fn writer_task<T: Transport + 'static>(
-    transport: Arc<tokio::sync::Mutex<T>>,
+async fn writer_task<W: TransportWriter + 'static>(
+    mut writer: W,
     shared: Arc<std::sync::Mutex<Shared>>,
+    maxdata: u32,
     mut outbound: mpsc::Receiver<Outbound>,
 ) -> Result<()> {
+    let result = write_loop(&mut writer, &shared, maxdata, &mut outbound).await;
+    close_all(&shared);
+    result
+}
+
+async fn write_loop<W: TransportWriter + ?Sized>(
+    writer: &mut W,
+    shared: &std::sync::Mutex<Shared>,
+    maxdata: u32,
+    outbound: &mut mpsc::Receiver<Outbound>,
+) -> Result<()> {
     while let Some(msg) = outbound.recv().await {
-        match msg {
+        let packet = match msg {
+            Outbound::Open { local_id, service } => {
+                tracing::debug!(local_id, service = %String::from_utf8_lossy(service.as_ref()), "ADB OPEN");
+                Packet::new(Command::Open, local_id, 0, service)
+            }
             Outbound::Write { local_id, payload } => {
                 let remote_id = {
                     let guard = shared.lock().expect("shared state poisoned");
                     guard.streams.get(&local_id).copied().unwrap_or(0)
                 };
                 if remote_id == 0 {
-                    continue; // stream not established (or closed); drop
+                    tracing::debug!(local_id, "dropping WRTE for closed stream");
+                    continue;
                 }
-                let packet = Packet::new(Command::Wrte, local_id, remote_id, payload);
-                transport.lock().await.write_all(&packet.encode()).await?;
+                if maxdata > 0 && payload.len() > maxdata as usize {
+                    tracing::warn!(
+                        local_id,
+                        len = payload.len(),
+                        maxdata,
+                        "WRTE exceeds the peer's advertised maxdata"
+                    );
+                }
+                tracing::trace!(local_id, remote_id, len = payload.len(), "ADB WRTE");
+                Packet::new(Command::Wrte, local_id, remote_id, payload)
             }
             Outbound::Close { local_id } => {
                 let remote_id = {
                     let guard = shared.lock().expect("shared state poisoned");
                     guard.streams.get(&local_id).copied().unwrap_or(0)
                 };
-                let packet = Packet::new(Command::Clse, local_id, remote_id, &[][..]);
-                transport.lock().await.write_all(&packet.encode()).await?;
+                if remote_id == 0 {
+                    continue;
+                }
+                tracing::debug!(local_id, remote_id, "ADB CLSE");
+                Packet::new(Command::Clse, local_id, remote_id, &[][..])
             }
-        }
+            Outbound::Okay {
+                local_id,
+                remote_id,
+            } => Packet::new(Command::Okay, local_id, remote_id, &[][..]),
+            Outbound::Clse {
+                local_id,
+                remote_id,
+            } => Packet::new(Command::Clse, local_id, remote_id, &[][..]),
+        };
+        writer.write_all(&packet.encode()).await?;
     }
     Ok(())
 }
 
 /// Reader task: route inbound packets to stream channels and OKAY/CLSE bookkeeping.
-async fn reader_task<T: Transport + 'static>(
-    transport: Arc<tokio::sync::Mutex<T>>,
+async fn reader_task<R: TransportReader + 'static>(
+    mut reader: R,
     shared: Arc<std::sync::Mutex<Shared>>,
+    outbound: mpsc::Sender<Outbound>,
+) -> Result<()> {
+    let result = read_loop(&mut reader, &shared, &outbound).await;
+    close_all(&shared);
+    result
+}
+
+async fn read_loop<R: TransportReader + ?Sized>(
+    reader: &mut R,
+    shared: &std::sync::Mutex<Shared>,
+    outbound: &mpsc::Sender<Outbound>,
 ) -> Result<()> {
     loop {
-        let packet = {
-            let mut t = transport.lock().await;
-            read_packet(&mut *t, Duration::from_secs(3600)).await?
-        };
+        let packet = read_packet(reader, Duration::from_secs(3600)).await?;
         match packet.command {
             Command::Okay => {
                 let local_id = packet.arg1;
@@ -558,9 +672,30 @@ async fn reader_task<T: Transport + 'static>(
                 };
                 if let Some(sender) = sender {
                     if sender.send(packet.payload).await.is_ok() {
-                        let ok = Packet::new(Command::Okay, local_id, remote_id, &[][..]);
-                        transport.lock().await.write_all(&ok.encode()).await?;
+                        outbound
+                            .send(Outbound::Okay {
+                                local_id,
+                                remote_id,
+                            })
+                            .await
+                            .map_err(|_| AdbError::StreamClosed)?;
+                    } else {
+                        unregister(shared, local_id);
+                        let _ = outbound
+                            .send(Outbound::Clse {
+                                local_id,
+                                remote_id,
+                            })
+                            .await;
                     }
+                } else {
+                    tracing::debug!(local_id, remote_id, "WRTE for unknown stream");
+                    let _ = outbound
+                        .send(Outbound::Clse {
+                            local_id: 0,
+                            remote_id,
+                        })
+                        .await;
                 }
             }
             Command::Clse => {
@@ -568,15 +703,21 @@ async fn reader_task<T: Transport + 'static>(
                 let mut guard = shared.lock().expect("shared state poisoned");
                 guard.stream_tx.remove(&local_id);
                 guard.streams.remove(&local_id);
-                guard.write_permits.remove(&local_id);
+                if let Some(permit) = guard.write_permits.remove(&local_id) {
+                    permit.close();
+                }
                 if let Some(pending) = guard.pending_open.remove(&local_id) {
                     let _ = pending.send(Err(AdbError::StreamClosed));
                 }
             }
             Command::Open => {
                 // Device-initiated services (reverse ports) are unsupported in v1.
-                let reply = Packet::new(Command::Clse, 0, packet.arg0, &[][..]);
-                transport.lock().await.write_all(&reply.encode()).await?;
+                let _ = outbound
+                    .send(Outbound::Clse {
+                        local_id: 0,
+                        remote_id: packet.arg0,
+                    })
+                    .await;
             }
             other => {
                 tracing::warn!(packet = %other.name(), "ignoring unexpected packet from device");

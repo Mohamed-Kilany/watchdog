@@ -3,7 +3,6 @@
 use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 
 use clap::{Args, Subcommand};
@@ -468,32 +467,6 @@ fn cli_pair(target: &str, code: &str, cfg: &Config) -> watchdog_core::Result<()>
     Ok(())
 }
 
-fn with_usb_connection<T, F, Fut>(
-    cfg: &Config,
-    serial: Option<&str>,
-    f: F,
-) -> watchdog_core::Result<T>
-where
-    F: FnOnce(Arc<watchdog_adb::Connection<watchdog_adb::UsbTransport>>) -> Fut,
-    Fut: std::future::Future<Output = Result<T, watchdog_adb::AdbError>>,
-{
-    let keys = adbs_key(cfg)?;
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    let out = rt.block_on(async {
-        let transport = if let Some(serial) = serial {
-            watchdog_adb::UsbTransport::open_by_serial(serial)?
-        } else {
-            watchdog_adb::UsbTransport::open()?
-        };
-        let connection =
-            Arc::new(watchdog_adb::Connection::connect(transport, "host::watchdog", &keys).await?);
-        f(Arc::clone(&connection)).await
-    });
-    out.map_err(Into::into)
-}
-
 fn cli_shell(serial: Option<&str>, command: &[String], cfg: &Config) -> watchdog_core::Result<()> {
     if command.is_empty() {
         return Err(watchdog_core::WatchdogError::new(
@@ -502,9 +475,11 @@ fn cli_shell(serial: Option<&str>, command: &[String], cfg: &Config) -> watchdog
         ));
     }
     let cmd = command.join(" ");
-    let output = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::shell::run_shell(&conn, &cmd, None).await
-    })?;
+    let output = with_device(
+        cfg,
+        serial,
+        |conn, _id| async move { conn.shell(&cmd).await },
+    )?;
     print!("{}", output.stdout_string());
     let stderr = output.stderr_string();
     if !stderr.is_empty() {
@@ -519,8 +494,8 @@ fn cli_push(
     remote: &str,
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
-    let written = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::sync::push(&conn, local, remote, 0o100644, current_mtime(), None).await
+    let written = with_device(cfg, serial, |conn, _id| async move {
+        conn.push(local, remote, 0o100644, current_mtime()).await
     })?;
     println!("pushed {written} bytes to {remote}");
     Ok(())
@@ -539,8 +514,8 @@ fn cli_pull(
     local: &Path,
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
-    let result = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::sync::pull(&conn, remote, local, None).await
+    let result = with_device(cfg, serial, |conn, _id| async move {
+        conn.pull(remote, local).await
     })?;
     println!(
         "pulled {} bytes from {remote} (sha256 {})",
@@ -573,8 +548,8 @@ fn cli_install(
     };
     let options = watchdog_adb::InstallOptions::default();
     let display_path = apk_path.clone();
-    let outcome = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::install_apk(&conn, &apk_path, &options, None).await
+    let outcome = with_device(cfg, serial, |conn, _id| async move {
+        conn.install(&apk_path, &options).await
     })?;
     println!("{}", outcome.output);
     if !outcome.success {
@@ -600,8 +575,8 @@ fn cli_uninstall(
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
     let package = package.unwrap_or("app.watchdog.remote");
-    let output = with_usb_connection(cfg, serial, |conn| async move {
-        watchdog_adb::install::uninstall_package(&conn, package).await
+    let output = with_device(cfg, serial, |conn, _id| async move {
+        conn.uninstall(package).await
     })?;
     println!("{output}");
     Ok(())
@@ -613,9 +588,9 @@ fn cli_forward(
     remote: &str,
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
-    with_usb_connection(cfg, serial, |conn| async move {
+    with_device(cfg, serial, |conn, _id| async move {
         let addr: std::net::SocketAddr = format!("127.0.0.1:{local_port}").parse().unwrap();
-        let handle = watchdog_adb::start_forward(conn, addr, remote.to_string()).await?;
+        let handle = conn.forward(addr, remote.to_string()).await?;
         println!(
             "forwarding 127.0.0.1:{} -> {}",
             handle.local_addr().port(),
