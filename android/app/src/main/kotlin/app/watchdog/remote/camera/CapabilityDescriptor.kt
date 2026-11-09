@@ -319,7 +319,10 @@ object CapabilityDescriptor {
                 .put("supported", true)
                 .put("min", range.lower)
                 .put("max", range.upper)
-                .put("step", step?.toDouble() ?: CONTINUOUS_STEP),
+                // The wire value is a step count, so the increment is always 1;
+                // `ev_step` reports the exposure change each step represents.
+                .put("step", 1)
+                .put("ev_step", step?.toDouble() ?: CONTINUOUS_STEP),
         )
     }
 

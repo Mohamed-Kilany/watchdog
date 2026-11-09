@@ -68,6 +68,9 @@ and the integration API (:7702) land with M6/M9.
 | `status [--serial] [--json]` | installed version, permissions, battery/screen state and session token age | M3 |
 | `restore [--serial]` | revert screen settings recorded by provisioning | M3 |
 | `capabilities [--serial] [--json]` | dump capability descriptor (handshake, no camera open) | M4 |
+| `controls [--serial] [--json]` | print the live control state (`get_state` round trip) | M4 |
+| `set-control <id=value>… [--serial] [--json]` | apply a control batch atomically; prints per-control results, actual values and round-trip ms | M4 |
+| `watch-state [--serial] [--count N] [--json]` | stream STATE full/delta messages (one JSON object per line with `--json`) | M4 |
 | `udev-rules [--write]` | print/install Linux udev rules | **done (this release)** |
 | `usb-doctor` | diagnose USB permission problems | M2 |
 
@@ -97,6 +100,9 @@ watchdog device provision --serial 1a2b3c4d
 watchdog serve --serial 1a2b3c4d          # live test page at http://127.0.0.1:7700/
 watchdog device status --serial 1a2b3c4d
 watchdog device restore --serial 1a2b3c4d
+watchdog device controls --serial 1a2b3c4d
+watchdog device set-control iso=400 exposure_time_ns=33333333 --serial 1a2b3c4d
+watchdog device watch-state --count 20 --json --serial 1a2b3c4d
 watchdog capture still --serial 1a2b3c4d --output frame.jpg
 watchdog schedule add --name "every 30 min" --preset every-30m --device 1a2b3c4d --record-secs 10
 ```
