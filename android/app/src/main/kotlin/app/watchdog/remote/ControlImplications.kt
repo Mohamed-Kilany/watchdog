@@ -52,6 +52,9 @@ class ControlImplications {
         if ("af_lock" in toApply) {
             implyAfLock(store, toApply, results, triggers)
         }
+        if ("awb_gains" in toApply || "color_transform" in toApply) {
+            implyAwbOff(store, toApply, results)
+        }
     }
 
     /**
@@ -124,6 +127,31 @@ class ControlImplications {
             setAfMode(store, toApply, results, restore)
         }
         triggers["af_trigger"] = "cancel"
+    }
+
+    /**
+     * Manual gains or a colour matrix only take effect with AWB off; the
+     * native lock is cleared so it cannot fight the manual white point.
+     */
+    private fun implyAwbOff(
+        store: ControlStateStore,
+        toApply: MutableMap<String, Any>,
+        results: MutableList<JSONObject>,
+    ) {
+        if ("awb_mode" !in toApply && store.isSupported("awb_mode")) {
+            val validation = store.setRequested("awb_mode", CaptureRequest.CONTROL_AWB_MODE_OFF, ControlSource.HOST)
+            if (validation.ok) {
+                validation.applied?.let { toApply["awb_mode"] = it }
+                results += JsonMessages.controlResult("awb_mode", true, applied = validation.applied)
+            }
+        }
+        if (store.requestedValues()["awb_lock"] == true) {
+            val unlock = store.setRequested("awb_lock", false, ControlSource.HOST)
+            if (unlock.ok) {
+                unlock.applied?.let { toApply["awb_lock"] = it }
+                results += JsonMessages.controlResult("awb_lock", true, applied = unlock.applied)
+            }
+        }
     }
 
     private fun setAfMode(

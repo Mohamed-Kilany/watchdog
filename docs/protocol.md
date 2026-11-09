@@ -203,6 +203,9 @@ modes and ranges; unsupported ids are never applied):
 | `af_regions` | array of `{x,y,w,h,weight}` | `CONTROL_AF_REGIONS`; same normalization as `ae_regions`, 1..`max_regions` |
 | `af_trigger` | `"start"` / `"cancel"` | one-shot `CONTROL_AF_TRIGGER`; never stored as requested state |
 | `focus_distance` | double (dioptres) | `LENS_FOCUS_DISTANCE` with `CONTROL_AF_MODE = OFF`; 0 = infinity, `max` = closest focus |
+| `awb_regions` | array of `{x,y,w,h,weight}` | `CONTROL_AWB_REGIONS`; same normalization as `ae_regions` |
+| `awb_gains` | `{r,g_even,g_odd,b}` | `COLOR_CORRECTION_GAINS` with `COLOR_CORRECTION_MODE = TRANSFORM_MATRIX`; components use the descriptor's `min`..`max` |
+| `color_transform` | array of 9 numbers | `COLOR_CORRECTION_TRANSFORM` (row-major 3×3, sent as rationals); same implications as `awb_gains` |
 | `flash_mode` | int | `FLASH_MODE` |
 | `torch` | bool | `FLASH_MODE` (`TORCH` / `OFF`) |
 | `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` (API 30+) or `SCALER_CROP_REGION` fallback |
@@ -211,7 +214,8 @@ Read-only entries in `STATE` (never accepted in `set_controls`):
 `fps_actual` (double), `recording` (bool), `battery_percent` (int),
 `ae_state` / `af_state` / `awb_state` (strings), `focus_distance_diopters`
 (double; also reported as the `focus_distance` actual), `awb_gains`
-(`{r,g_even,g_odd,b}`) and `zoom_actual` (double).
+(`{r,g_even,g_odd,b}`), `color_transform` (row-major 3×3 matrix) and
+`zoom_actual` (double).
 
 ### 5.5 COMMAND — host → app
 
@@ -232,7 +236,10 @@ state. Setting `focus_distance` implies `af_mode = OFF` and clears `af_lock`;
 `af_lock = true` switches `af_mode` to `AUTO`, starts a one-shot AF scan and
 remembers the previous mode, while `af_lock = false` restores it and sends
 `af_trigger = cancel`. `af_regions` only positions the AF metering window; pair
-it with `af_trigger = start` for tap-to-focus.
+it with `af_trigger = start` for tap-to-focus. Setting `awb_gains` or
+`color_transform` implies `awb_mode = OFF`, clears `awb_lock` when set and
+switches `COLOR_CORRECTION_MODE` to `TRANSFORM_MATRIX` in the same batch; the
+implicit changes are reported as additional results.
 
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),

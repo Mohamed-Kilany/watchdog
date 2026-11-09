@@ -9,7 +9,6 @@ import android.hardware.camera2.params.MeteringRectangle
 import android.os.Build
 import android.util.Range
 import org.json.JSONArray
-import org.json.JSONObject
 import kotlin.math.roundToInt
 
 /**
@@ -30,6 +29,9 @@ object CameraControls {
             "ae_fps_range" -> applyFpsRange(builder, value)
             "ae_regions" -> applyRegions(builder, chars, value, CaptureRequest.CONTROL_AE_REGIONS)
             "af_regions" -> applyRegions(builder, chars, value, CaptureRequest.CONTROL_AF_REGIONS)
+            "awb_regions" -> applyRegions(builder, chars, value, CaptureRequest.CONTROL_AWB_REGIONS)
+            "awb_gains" -> ColorControls.applyGains(builder, value)
+            "color_transform" -> ColorControls.applyTransform(builder, value)
             "focus_distance" -> applyFocusDistance(builder, number(value))
             else -> applyValue(builder, id, value)
         }
@@ -160,6 +162,7 @@ object CameraControls {
         extractCorrection(result, out)
         extractLocks(result, out)
         extractReadouts(result, out)
+        ColorControls.extract(result, out)
         zoomRatio(result, chars)?.let { out["zoom_actual"] = it }
         return out
     }
@@ -213,14 +216,6 @@ object CameraControls {
         result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let {
             out["focus_distance"] = it.toDouble()
             out["focus_distance_diopters"] = it.toDouble()
-        }
-        result.get(CaptureResult.COLOR_CORRECTION_GAINS)?.let { gains ->
-            out["awb_gains"] =
-                JSONObject()
-                    .put("r", gains.red.toDouble())
-                    .put("g_even", gains.greenEven.toDouble())
-                    .put("g_odd", gains.greenOdd.toDouble())
-                    .put("b", gains.blue.toDouble())
         }
     }
 

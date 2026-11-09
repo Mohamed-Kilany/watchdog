@@ -63,8 +63,22 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 entries[id] = Entry(supported = spec.optBoolean("supported"))
             }
         }
+        // Unsupported controls are listed separately; remembering them as
+        // unsupported keeps requests rejected while readouts (e.g. awb_gains)
+        // can still report actual values.
+        val unsupported = descriptor.optJSONArray("unsupported")
+        if (unsupported != null) {
+            for (index in 0 until unsupported.length()) {
+                val id = unsupported.optJSONObject(index)?.optString("control") ?: continue
+                if (id.isNotEmpty() && id !in entries) {
+                    entries[id] = Entry(supported = false)
+                }
+            }
+        }
         READOUTS.forEach { id ->
-            entries[id] = Entry(supported = true, source = ControlSource.DEVICE)
+            if (id !in entries) {
+                entries[id] = Entry(supported = true, source = ControlSource.DEVICE)
+            }
         }
     }
 
@@ -237,6 +251,12 @@ class ControlStateStore(private val descriptor: JSONObject) {
         }
         if (spec.has("max_regions")) {
             return validateRegions(id, spec.optInt("max_regions"), value)
+        }
+        if (spec.has("components")) {
+            return ColorControls.validateGains(spec, value)
+        }
+        if (spec.has("matrix_size")) {
+            return ColorControls.validateTransform(spec, value)
         }
         if (id in TRIGGERS) {
             return validateTrigger(id, value)
