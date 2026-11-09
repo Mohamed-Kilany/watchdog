@@ -1,0 +1,184 @@
+package app.watchdog.remote.camera
+
+import android.graphics.Rect
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
+import android.os.Build
+import org.json.JSONObject
+import kotlin.math.roundToInt
+
+/**
+ * Mapping between the control ids published by [CapabilityDescriptor] and the
+ * Camera2 request/result keys (M4-T02/T03, extended by M4-T04…M4-T09).
+ *
+ * Applying a batch builds one request, so the whole batch takes effect in the
+ * next repeating request. Values are already validated against the descriptor
+ * by [ControlStateStore]; unknown ids are ignored here.
+ */
+object CameraControls {
+    /** Apply one validated control to a request builder. */
+    fun applyTo(builder: CaptureRequest.Builder, chars: CameraCharacteristics, id: String, value: Any) {
+        when (id) {
+            "control_mode" -> builder.set(CaptureRequest.CONTROL_MODE, int(value))
+            "ae_mode" -> builder.set(CaptureRequest.CONTROL_AE_MODE, int(value))
+            "af_mode" -> builder.set(CaptureRequest.CONTROL_AF_MODE, int(value))
+            "awb_mode" -> builder.set(CaptureRequest.CONTROL_AWB_MODE, int(value))
+            "anti_banding" -> builder.set(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, int(value))
+            "scene_mode" -> builder.set(CaptureRequest.CONTROL_SCENE_MODE, int(value))
+            "effect" -> builder.set(CaptureRequest.CONTROL_EFFECT_MODE, int(value))
+            "noise_reduction" -> builder.set(CaptureRequest.NOISE_REDUCTION_MODE, int(value))
+            "edge_enhancement" -> builder.set(CaptureRequest.EDGE_MODE, int(value))
+            "hot_pixel" -> builder.set(CaptureRequest.HOT_PIXEL_MODE, int(value))
+            "tonemap" -> builder.set(CaptureRequest.TONEMAP_MODE, int(value))
+            "aberration_correction" -> builder.set(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, int(value))
+            "video_stabilization" -> builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, int(value))
+            "optical_stabilization" -> builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, int(value))
+            "lens_shading" -> builder.set(CaptureRequest.SHADING_MODE, int(value))
+            "face_detect" -> builder.set(CaptureRequest.STATISTICS_FACE_DETECT_MODE, int(value))
+            "ae_lock" -> builder.set(CaptureRequest.CONTROL_AE_LOCK, bool(value))
+            "awb_lock" -> builder.set(CaptureRequest.CONTROL_AWB_LOCK, bool(value))
+            "iso" -> builder.set(CaptureRequest.SENSOR_SENSITIVITY, int(value))
+            "exposure_time_ns" -> builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, long(value))
+            "frame_duration_ns" -> builder.set(CaptureRequest.SENSOR_FRAME_DURATION, long(value))
+            "ae_compensation" -> builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, int(value))
+            "flash_mode" -> builder.set(CaptureRequest.FLASH_MODE, int(value))
+            "torch" -> {
+                val mode =
+                    if (bool(value)) {
+                        CaptureRequest.FLASH_MODE_TORCH
+                    } else {
+                        CaptureRequest.FLASH_MODE_OFF
+                    }
+                builder.set(CaptureRequest.FLASH_MODE, mode)
+            }
+            "zoom_ratio" -> applyZoom(builder, chars, number(value))
+        }
+    }
+
+    /**
+     * Values read back from `TotalCaptureResult` (the truth shown in STATE).
+     * Keys the device does not report are simply absent.
+     */
+    fun extract(result: TotalCaptureResult, chars: CameraCharacteristics): Map<String, Any> {
+        val out = LinkedHashMap<String, Any>()
+        result.get(CaptureResult.SENSOR_SENSITIVITY)?.let { out["iso"] = it }
+        result.get(CaptureResult.SENSOR_EXPOSURE_TIME)?.let { out["exposure_time_ns"] = it }
+        result.get(CaptureResult.SENSOR_FRAME_DURATION)?.let { out["frame_duration_ns"] = it }
+        result.get(CaptureResult.CONTROL_AE_MODE)?.let { out["ae_mode"] = it }
+        result.get(CaptureResult.CONTROL_AF_MODE)?.let { out["af_mode"] = it }
+        result.get(CaptureResult.CONTROL_AWB_MODE)?.let { out["awb_mode"] = it }
+        result.get(CaptureResult.CONTROL_MODE)?.let { out["control_mode"] = it }
+        result.get(CaptureResult.CONTROL_AE_ANTIBANDING_MODE)?.let { out["anti_banding"] = it }
+        result.get(CaptureResult.CONTROL_SCENE_MODE)?.let { out["scene_mode"] = it }
+        result.get(CaptureResult.CONTROL_EFFECT_MODE)?.let { out["effect"] = it }
+        result.get(CaptureResult.NOISE_REDUCTION_MODE)?.let { out["noise_reduction"] = it }
+        result.get(CaptureResult.EDGE_MODE)?.let { out["edge_enhancement"] = it }
+        result.get(CaptureResult.HOT_PIXEL_MODE)?.let { out["hot_pixel"] = it }
+        result.get(CaptureResult.TONEMAP_MODE)?.let { out["tonemap"] = it }
+        result.get(CaptureResult.COLOR_CORRECTION_ABERRATION_MODE)?.let { out["aberration_correction"] = it }
+        result.get(CaptureResult.CONTROL_VIDEO_STABILIZATION_MODE)?.let { out["video_stabilization"] = it }
+        result.get(CaptureResult.LENS_OPTICAL_STABILIZATION_MODE)?.let { out["optical_stabilization"] = it }
+        result.get(CaptureResult.SHADING_MODE)?.let { out["lens_shading"] = it }
+        result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)?.let { out["face_detect"] = it }
+        result.get(CaptureResult.CONTROL_AE_LOCK)?.let { out["ae_lock"] = it }
+        result.get(CaptureResult.CONTROL_AWB_LOCK)?.let { out["awb_lock"] = it }
+        result.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION)?.let { out["ae_compensation"] = it }
+        result.get(CaptureResult.CONTROL_AE_STATE)?.let { out["ae_state"] = aeState(it) }
+        result.get(CaptureResult.CONTROL_AF_STATE)?.let { out["af_state"] = afState(it) }
+        result.get(CaptureResult.CONTROL_AWB_STATE)?.let { out["awb_state"] = awbState(it) }
+        result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let { out["focus_distance_diopters"] = it.toDouble() }
+        result.get(CaptureResult.COLOR_CORRECTION_GAINS)?.let { gains ->
+            out["awb_gains"] =
+                JSONObject()
+                    .put("r", gains.red.toDouble())
+                    .put("g_even", gains.greenEven.toDouble())
+                    .put("g_odd", gains.greenOdd.toDouble())
+                    .put("b", gains.blue.toDouble())
+        }
+        zoomRatio(result, chars)?.let { out["zoom_actual"] = it }
+        return out
+    }
+
+    private fun applyZoom(builder: CaptureRequest.Builder, chars: CameraCharacteristics, ratio: Double) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, ratio.toFloat())
+            return
+        }
+        val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
+        val width = (active.width() / ratio).roundToInt().coerceIn(1, active.width())
+        val height = (active.height() / ratio).roundToInt().coerceIn(1, active.height())
+        val left = active.left + (active.width() - width) / 2
+        val top = active.top + (active.height() - height) / 2
+        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(left, top, left + width, top + height))
+    }
+
+    private fun zoomRatio(result: TotalCaptureResult, chars: CameraCharacteristics): Double? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            result.get(CaptureResult.CONTROL_ZOOM_RATIO)?.let { return it.toDouble() }
+        }
+        val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return null
+        val crop = result.get(CaptureResult.SCALER_CROP_REGION) ?: return null
+        if (crop.width() <= 0) {
+            return null
+        }
+        return active.width().toDouble() / crop.width()
+    }
+
+    private fun aeState(value: Int): String =
+        when (value) {
+            CaptureResult.CONTROL_AE_STATE_INACTIVE -> "inactive"
+            CaptureResult.CONTROL_AE_STATE_SEARCHING -> "searching"
+            CaptureResult.CONTROL_AE_STATE_CONVERGED -> "converged"
+            CaptureResult.CONTROL_AE_STATE_LOCKED -> "locked"
+            CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED -> "flash_required"
+            CaptureResult.CONTROL_AE_STATE_PRECAPTURE -> "precapture"
+            else -> "unknown"
+        }
+
+    private fun afState(value: Int): String =
+        when (value) {
+            CaptureResult.CONTROL_AF_STATE_INACTIVE -> "inactive"
+            CaptureResult.CONTROL_AF_STATE_PASSIVE_SCAN -> "passive_scan"
+            CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED -> "passive_focused"
+            CaptureResult.CONTROL_AF_STATE_ACTIVE_SCAN -> "active_scan"
+            CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED -> "focused_locked"
+            CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED -> "not_focused_locked"
+            CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED -> "passive_unfocused"
+            else -> "unknown"
+        }
+
+    private fun awbState(value: Int): String =
+        when (value) {
+            CaptureResult.CONTROL_AWB_STATE_INACTIVE -> "inactive"
+            CaptureResult.CONTROL_AWB_STATE_SEARCHING -> "searching"
+            CaptureResult.CONTROL_AWB_STATE_CONVERGED -> "converged"
+            CaptureResult.CONTROL_AWB_STATE_LOCKED -> "locked"
+            else -> "unknown"
+        }
+
+    private fun int(value: Any): Int =
+        when (value) {
+            is Number -> value.toInt()
+            else -> value.toString().toInt()
+        }
+
+    private fun long(value: Any): Long =
+        when (value) {
+            is Number -> value.toLong()
+            else -> value.toString().toLong()
+        }
+
+    private fun number(value: Any): Double =
+        when (value) {
+            is Number -> value.toDouble()
+            else -> value.toString().toDouble()
+        }
+
+    private fun bool(value: Any): Boolean =
+        when (value) {
+            is Boolean -> value
+            else -> value.toString().toBooleanStrict()
+        }
+}

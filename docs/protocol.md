@@ -163,11 +163,62 @@ is always sent on connect, on reconnect and on request
 (`COMMAND{get_state}`). "Last writer wins": any writer may change any
 control; `actual` always reflects the camera's `TotalCaptureResult`.
 
+`seq` increases monotonically; `camera_id`, `dropped_frames` and
+`storage_free_mb` are repeated in every frame (delta or full) so a host can
+render without waiting for the next full snapshot. The app sends a full frame
+when a session opens, when the camera reaches `STREAMING`, and on
+`get_state`; otherwise a 10 Hz timer emits a delta only when at least one
+entry changed (`set_state_rate` accepts 1–30 Hz).
+
+Control ids in v1 (the capability descriptor is authoritative for support,
+modes and ranges; unsupported ids are never applied):
+
+| id | Type | Camera2 mapping |
+|---|---|---|
+| `control_mode` | int | `CONTROL_MODE` |
+| `ae_mode` | int | `CONTROL_AE_MODE` |
+| `af_mode` | int | `CONTROL_AF_MODE` |
+| `awb_mode` | int | `CONTROL_AWB_MODE` |
+| `anti_banding` | int | `CONTROL_AE_ANTIBANDING_MODE` |
+| `scene_mode` | int | `CONTROL_SCENE_MODE` |
+| `effect` | int | `CONTROL_EFFECT_MODE` |
+| `noise_reduction` | int | `NOISE_REDUCTION_MODE` |
+| `edge_enhancement` | int | `EDGE_MODE` |
+| `hot_pixel` | int | `HOT_PIXEL_MODE` |
+| `tonemap` | int | `TONEMAP_MODE` |
+| `aberration_correction` | int | `COLOR_CORRECTION_ABERRATION_MODE` |
+| `video_stabilization` | int | `CONTROL_VIDEO_STABILIZATION_MODE` |
+| `optical_stabilization` | int | `LENS_OPTICAL_STABILIZATION_MODE` |
+| `lens_shading` | int | `SHADING_MODE` |
+| `face_detect` | int | `STATISTICS_FACE_DETECT_MODE` |
+| `ae_lock` / `awb_lock` | bool | `CONTROL_AE_LOCK` / `CONTROL_AWB_LOCK` |
+| `iso` | int | `SENSOR_SENSITIVITY` |
+| `exposure_time_ns` | long | `SENSOR_EXPOSURE_TIME` |
+| `frame_duration_ns` | long | `SENSOR_FRAME_DURATION` |
+| `ae_compensation` | int (steps) | `CONTROL_AE_EXPOSURE_COMPENSATION`; the descriptor's `ev_step` is the EV per step |
+| `flash_mode` | int | `FLASH_MODE` |
+| `torch` | bool | `FLASH_MODE` (`TORCH` / `OFF`) |
+| `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` (API 30+) or `SCALER_CROP_REGION` fallback |
+
+Read-only entries in `STATE` (never accepted in `set_controls`):
+`fps_actual` (double), `recording` (bool), `battery_percent` (int),
+`ae_state` / `af_state` / `awb_state` (strings), `focus_distance_diopters`
+(double), `awb_gains` (`{r,g_even,g_odd,b}`) and `zoom_actual` (double).
+
 ### 5.5 COMMAND — host → app
 
 ```json
 { "id": "c-000123", "command": "set_controls", "params": { "controls": [ { "id": "iso", "value": 400 } ] } }
 ```
+
+`set_controls` validates every assignment against the capability descriptor and
+applies the accepted subset atomically in the next repeating request. The
+`COMMAND_RESULT` carries one entry per assignment (`applied` or `error_code` +
+`message`); rejected controls do not block accepted siblings. Assignments are
+processed in wire order, so duplicate ids resolve last-writer-wins. Setting
+`iso`, `exposure_time_ns` or `frame_duration_ns` implies `ae_mode = OFF` in the
+same batch when AE is supported, and the implicit change is reported as an
+additional result.
 
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),

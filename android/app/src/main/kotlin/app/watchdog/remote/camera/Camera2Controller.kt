@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
@@ -13,16 +14,35 @@ import android.os.HandlerThread
 import android.view.Surface
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.log.DeviceLog
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+/** Result of applying a control batch to the active repeating request. */
+data class ApplyOutcome(
+    val ok: Boolean,
+    val applied: Map<String, Any> = emptyMap(),
+    val error: String? = null,
+)
 
 /** Camera lifecycle API used by the service and the frame pipeline. */
 interface CameraController {
     val snapshot: CameraSnapshot
+
+    /** Characteristics of the open camera (null before `open`). */
+    val cameraCharacteristics: CameraCharacteristics?
 
     fun open(cameraId: String, surfaces: List<Surface>)
 
     fun startStreaming()
 
     fun stopStreaming()
+
+    /**
+     * Apply a validated control batch atomically in the next repeating request.
+     * Returns the effective requested values or an error; actual values arrive
+     * later through `TotalCaptureResult`.
+     */
+    fun applyControls(controls: Map<String, Any>): ApplyOutcome
 
     fun close()
 
@@ -56,6 +76,9 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private var session: CameraCaptureSession? = null
     private var surfaces: List<Surface> = emptyList()
     private var requestedCameraId: String? = null
+    @Volatile
+    private var characteristics: CameraCharacteristics? = null
+    private val requested = LinkedHashMap<String, Any>()
     private var desiredStreaming = false
     private var closedByUser = true
     private var recoveryScheduled = false
@@ -63,10 +86,24 @@ class Camera2Controller(context: Context, private val listener: CameraController
     override val snapshot: CameraSnapshot
         get() = machine.snapshot
 
+    override val cameraCharacteristics: CameraCharacteristics?
+        get() = characteristics
+
     override fun open(cameraId: String, surfaces: List<Surface>) {
+        val chars =
+            try {
+                manager.getCameraCharacteristics(cameraId)
+            } catch (e: CameraAccessException) {
+                DeviceLog.w(TAG, "characteristics unavailable for $cameraId: ${e.message}")
+                null
+            }
         handler.post {
             closedByUser = false
+            if (requestedCameraId != cameraId) {
+                requested.clear()
+            }
             requestedCameraId = cameraId
+            characteristics = chars
             this.surfaces = surfaces.toList()
             machine.onEvent(CameraEvent.Open(cameraId))
             publish()
@@ -103,6 +140,65 @@ class Camera2Controller(context: Context, private val listener: CameraController
         }
     }
 
+    override fun applyControls(controls: Map<String, Any>): ApplyOutcome {
+        if (controls.isEmpty()) {
+            return ApplyOutcome(true)
+        }
+        val latch = CountDownLatch(1)
+        var outcome = ApplyOutcome(false, error = "camera thread unavailable")
+        val posted =
+            handler.post {
+                outcome =
+                    try {
+                        applyOnHandler(controls)
+                    } catch (e: CameraAccessException) {
+                        ApplyOutcome(false, error = "apply failed: ${e.message}")
+                    } catch (e: IllegalStateException) {
+                        ApplyOutcome(false, error = "apply invalid state: ${e.message}")
+                    } catch (e: IllegalArgumentException) {
+                        // A value the HAL rejects must not kill the camera thread.
+                        ApplyOutcome(false, error = "invalid control: ${e.message}")
+                    } finally {
+                        latch.countDown()
+                    }
+            }
+        if (!posted) {
+            return ApplyOutcome(false, error = "camera thread unavailable")
+        }
+        return if (latch.await(APPLY_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            outcome
+        } else {
+            ApplyOutcome(false, error = "camera did not acknowledge the control batch")
+        }
+    }
+
+    private fun applyOnHandler(controls: Map<String, Any>): ApplyOutcome {
+        val previous = HashMap(requested)
+        requested.putAll(controls)
+        val camera = device
+        val active = session
+        val chars = characteristics
+        // Before the session exists the batch is remembered and becomes part of
+        // the first repeating request; there is nothing to apply yet.
+        if (camera == null || active == null || chars == null) {
+            return ApplyOutcome(true, applied = controls)
+        }
+        // Only replace the repeating request while streaming; a change made
+        // between configure and start is picked up by `startRepeating`.
+        if (machine.snapshot.status == CameraStatus.STREAMING) {
+            try {
+                active.setRepeatingRequest(buildRequest(camera, chars), captureCallback, handler)
+            } catch (e: IllegalArgumentException) {
+                // Never keep a value the HAL rejected: the next request would
+                // fail again and the batch would silently poison the session.
+                requested.clear()
+                requested.putAll(previous)
+                return ApplyOutcome(false, error = "invalid control: ${e.message}")
+            }
+        }
+        return ApplyOutcome(true, applied = controls)
+    }
+
     override fun close() {
         handler.post {
             closedByUser = true
@@ -113,6 +209,8 @@ class Camera2Controller(context: Context, private val listener: CameraController
             session = null
             device?.close()
             device = null
+            requested.clear()
+            characteristics = null
             machine.onEvent(CameraEvent.Close)
             publish()
         }
@@ -157,28 +255,34 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun startRepeating(session: CameraCaptureSession) {
         val camera = device
-        if (camera == null || surfaces.isEmpty()) {
+        val chars = characteristics
+        if (camera == null || chars == null || surfaces.isEmpty()) {
             fail("cannot start streaming: camera or surfaces unavailable")
             return
         }
         try {
-            session.setRepeatingRequest(previewRequest(camera), captureCallback, handler)
+            session.setRepeatingRequest(buildRequest(camera, chars), captureCallback, handler)
             machine.onEvent(CameraEvent.StreamStarted)
             publish()
         } catch (e: CameraAccessException) {
             fail("setRepeatingRequest failed: ${e.message}")
         } catch (e: IllegalStateException) {
             fail("setRepeatingRequest invalid state: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            // Never let one rejected value kill the camera thread; drop the
+            // remembered batch so the next recovery can stream again.
+            requested.clear()
+            fail("setRepeatingRequest rejected controls: ${e.message}")
         }
     }
 
-    private fun previewRequest(camera: CameraDevice): CaptureRequest =
-        camera
-            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-            .apply {
-                surfaces.forEach { addTarget(it) }
-                set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-            }.build()
+    private fun buildRequest(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest {
+        val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+        surfaces.forEach { builder.addTarget(it) }
+        builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
+        return builder.build()
+    }
 
     private fun scheduleRecovery(reason: String, baseDelayMs: Long = BASE_RECOVERY_DELAY_MS) {
         if (closedByUser || recoveryScheduled) {
@@ -296,5 +400,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
         private const val BASE_RECOVERY_DELAY_MS = 1_000L
         private const val CAMERA_IN_USE_DELAY_MS = 3_000L
         private const val MAX_RECOVERY_DELAY_MS = 10_000L
+        private const val APPLY_TIMEOUT_MS = 2_000L
     }
 }

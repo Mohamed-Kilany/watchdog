@@ -1,11 +1,15 @@
 //! `watchdog device` — device management (native ADB, no system adb).
 
+use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+use std::time::Instant;
 
 use clap::{Args, Subcommand};
+use serde_json::{json, Value};
 
 use watchdog_core::config::Config;
 use watchdog_core::error::{ErrorCode, WatchdogError};
@@ -16,7 +20,10 @@ use watchdog_device::provision::{
     self, ProvisionOptions, ProvisionReport, RestoreRecord, StatusReport, StepStatus,
 };
 use watchdog_device::session::{LiveSession, Polled};
-use watchdog_protocol::{HelloAck, LogChunk, LogLevel, Message};
+use watchdog_protocol::{
+    ByeMessage, CommandMessage, CommandResultMessage, ControlEntry, ControlSource, ErrorMessage,
+    HelloAck, LogChunk, LogLevel, Message, StateMessage,
+};
 
 use super::not_implemented;
 
@@ -171,6 +178,39 @@ pub enum DeviceCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Print the live control state reported by the app.
+    Controls {
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Emit raw JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Change one or more camera controls (`id=value`, repeatable).
+    SetControl {
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Assignments such as `iso=400`, `ae_lock=true`, `zoom_ratio=2.5`.
+        #[arg(value_name = "ID=VALUE", required = true)]
+        assignments: Vec<String>,
+        /// Emit raw JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Stream STATE messages (full snapshot + deltas) from the app.
+    WatchState {
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Number of STATE messages to print before exiting.
+        #[arg(long, default_value_t = 10)]
+        count: u32,
+        /// Emit one raw JSON object per line.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Arguments for `device list`.
@@ -308,6 +348,17 @@ pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
         DeviceCommand::Capabilities { serial, json } => {
             cli_capabilities(serial.as_deref(), *json, cfg)
         }
+        DeviceCommand::Controls { serial, json } => cli_controls(serial.as_deref(), *json, cfg),
+        DeviceCommand::SetControl {
+            serial,
+            assignments,
+            json,
+        } => cli_set_control(serial.as_deref(), assignments, *json, cfg),
+        DeviceCommand::WatchState {
+            serial,
+            count,
+            json,
+        } => cli_watch_state(serial.as_deref(), *count, *json, cfg),
         other => Err(match other {
             DeviceCommand::Disconnect { .. } | DeviceCommand::Info { .. } => not_implemented(
                 "device session management in this CLI process",
@@ -868,6 +919,501 @@ fn session_token(paths: &DataPaths, id: &str, command: &str) -> watchdog_core::R
         })
 }
 
+/// Timeout for one control command round trip.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long to wait for the STATE delta carrying actual values after a change.
+const SETTLE_TIMEOUT: Duration = Duration::from_millis(750);
+/// Idle timeout between STATE messages while watching.
+const STATE_TIMEOUT: Duration = Duration::from_secs(5);
+
+fn cli_controls(serial: Option<&str>, json: bool, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "controls")?;
+        let (mut live, _ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        let state = request_state(&mut live, COMMAND_TIMEOUT).await?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&state_value(&state)?)?);
+        } else {
+            print!("{}", render_state(&id, &state));
+        }
+        Ok(())
+    })
+}
+
+fn cli_set_control(
+    serial: Option<&str>,
+    assignments: &[String],
+    json: bool,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let parsed = assignments
+        .iter()
+        .map(|raw| parse_assignment(raw))
+        .collect::<watchdog_core::Result<Vec<_>>>()?;
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "set-control")?;
+        let (mut live, _ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        let command_id = next_command_id("set");
+        let controls = parsed
+            .iter()
+            .map(|(control, value)| json!({ "id": control, "value": value }))
+            .collect::<Vec<_>>();
+        let started = Instant::now();
+        live.session()
+            .send(&Message::Command(CommandMessage {
+                id: command_id.clone(),
+                command: "set_controls".to_string(),
+                params: json!({ "controls": controls }),
+            }))
+            .await?;
+        let result = await_command_result(&mut live, &command_id, COMMAND_TIMEOUT).await?;
+        let elapsed = started.elapsed();
+        let ids = parsed
+            .iter()
+            .map(|(control, _)| control.clone())
+            .collect::<Vec<_>>();
+        let actuals = collect_actuals(&mut live, &ids, SETTLE_TIMEOUT).await;
+        if json {
+            let value = json!({
+                "round_trip_ms": u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
+                "results": &result.results,
+                "error": &result.error,
+                "actual": actuals,
+            });
+            println!("{}", serde_json::to_string_pretty(&value)?);
+        } else {
+            print!("{}", render_set_result(&id, elapsed, &result, &actuals));
+        }
+        let failures = result.results.iter().filter(|item| !item.ok).count()
+            + if result.error.is_some() { 1 } else { 0 };
+        if failures > 0 {
+            return Err(WatchdogError::new(
+                ErrorCode::InvalidRequest,
+                format!("{failures} control assignment(s) were rejected"),
+            ));
+        }
+        Ok(())
+    })
+}
+
+fn cli_watch_state(
+    serial: Option<&str>,
+    count: u32,
+    json: bool,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let count = count.max(1);
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "watch-state")?;
+        let (mut live, ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        // Ask for a full snapshot immediately; the app also sends one on connect.
+        live.session()
+            .send(&Message::Command(CommandMessage {
+                id: next_command_id("watch"),
+                command: "get_state".to_string(),
+                params: json!({}),
+            }))
+            .await?;
+        if !json {
+            println!(
+                "# connected to {id} (app {}), waiting for {count} STATE message(s)",
+                ack.app.version_name
+            );
+        }
+        let mut seen = 0u32;
+        while seen < count {
+            match live.session().poll(STATE_TIMEOUT).await? {
+                Polled::Message(message) => match *message {
+                    Message::State(state) => {
+                        seen += 1;
+                        print_state(&id, &state, json)?;
+                    }
+                    Message::Error(error) => return Err(app_session_error(&error)),
+                    Message::Bye(bye) => {
+                        if !json {
+                            println!("# app closed the session: {}", bye.reason);
+                        }
+                        break;
+                    }
+                    _ => {}
+                },
+                Polled::Timeout => return Err(state_timeout()),
+                Polled::Closed => {
+                    if !json {
+                        println!("# app closed the connection");
+                    }
+                    break;
+                }
+            }
+        }
+        Ok(())
+    })
+}
+
+async fn request_state(
+    live: &mut LiveSession,
+    timeout: Duration,
+) -> watchdog_core::Result<StateMessage> {
+    live.session()
+        .send(&Message::Command(CommandMessage {
+            id: next_command_id("state"),
+            command: "get_state".to_string(),
+            params: json!({}),
+        }))
+        .await?;
+    await_full_state(live, timeout).await
+}
+
+/// Wait for a full STATE snapshot, folding any deltas that arrive first.
+async fn await_full_state(
+    live: &mut LiveSession,
+    timeout: Duration,
+) -> watchdog_core::Result<StateMessage> {
+    let deadline = Instant::now() + timeout;
+    let mut merged = empty_state();
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(state_timeout());
+        }
+        match live.session().poll(remaining).await? {
+            Polled::Message(message) => match *message {
+                Message::State(state) => {
+                    if !state.delta {
+                        return Ok(state);
+                    }
+                    merge_state(&mut merged, &state);
+                }
+                Message::Error(error) => return Err(app_session_error(&error)),
+                Message::Bye(bye) => return Err(bye_error(&bye)),
+                _ => {}
+            },
+            Polled::Timeout => {}
+            Polled::Closed => {
+                return Err(WatchdogError::new(
+                    ErrorCode::StreamClosed,
+                    "app closed the session while waiting for STATE",
+                ))
+            }
+        }
+    }
+}
+
+async fn await_command_result(
+    live: &mut LiveSession,
+    command_id: &str,
+    timeout: Duration,
+) -> watchdog_core::Result<CommandResultMessage> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(WatchdogError::new(
+                ErrorCode::ConnectionLost,
+                format!("timed out waiting for COMMAND_RESULT {command_id}"),
+            )
+            .with_hint("check that the app is still streaming and the camera is open"));
+        }
+        match live.session().poll(remaining).await? {
+            Polled::Message(message) => match *message {
+                Message::CommandResult(result) if result.id == command_id => return Ok(result),
+                Message::Error(error) => return Err(app_session_error(&error)),
+                Message::Bye(bye) => return Err(bye_error(&bye)),
+                _ => {}
+            },
+            Polled::Timeout => {}
+            Polled::Closed => {
+                return Err(WatchdogError::new(
+                    ErrorCode::StreamClosed,
+                    "app closed the session before acknowledging the command",
+                ))
+            }
+        }
+    }
+}
+
+/// Best-effort read of the actual values that follow a control change.
+async fn collect_actuals(
+    live: &mut LiveSession,
+    ids: &[String],
+    timeout: Duration,
+) -> BTreeMap<String, Value> {
+    let deadline = Instant::now() + timeout;
+    let mut out = BTreeMap::new();
+    while !ids.iter().all(|id| out.contains_key(id)) {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match live.session().poll(remaining).await {
+            Ok(Polled::Message(message)) => {
+                if let Message::State(state) = *message {
+                    for (id, entry) in state.state {
+                        if ids.contains(&id) {
+                            if let Some(actual) = entry.actual {
+                                out.insert(id, actual);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Polled::Timeout | Polled::Closed) | Err(_) => break,
+        }
+    }
+    out
+}
+
+fn merge_state(base: &mut StateMessage, delta: &StateMessage) {
+    base.seq = delta.seq;
+    base.timestamp_ms = delta.timestamp_ms;
+    base.camera_id.clone_from(&delta.camera_id);
+    base.dropped_frames = delta.dropped_frames;
+    base.storage_free_mb = delta.storage_free_mb;
+    for (id, entry) in &delta.state {
+        base.state.insert(id.clone(), entry.clone());
+    }
+}
+
+fn empty_state() -> StateMessage {
+    StateMessage {
+        seq: 0,
+        timestamp_ms: 0,
+        camera_id: String::new(),
+        state: BTreeMap::new(),
+        dropped_frames: 0,
+        storage_free_mb: None,
+        delta: false,
+    }
+}
+
+fn state_timeout() -> WatchdogError {
+    WatchdogError::new(ErrorCode::ConnectionLost, "timed out waiting for STATE").with_hint(
+        "update the app to a build with M4 state sync and re-run `watchdog device provision`",
+    )
+}
+
+fn app_session_error(error: &ErrorMessage) -> WatchdogError {
+    WatchdogError::new(
+        ErrorCode::ProtocolError,
+        format!("app error: {} ({})", error.message, error.code),
+    )
+}
+
+fn bye_error(bye: &ByeMessage) -> WatchdogError {
+    WatchdogError::new(
+        ErrorCode::StreamClosed,
+        format!("app closed the session: {}", bye.reason),
+    )
+}
+
+/// Parse one `id=value` CLI assignment into a JSON value.
+fn parse_assignment(raw: &str) -> watchdog_core::Result<(String, Value)> {
+    let Some((id, value)) = raw.split_once('=') else {
+        return Err(WatchdogError::new(
+            ErrorCode::InvalidRequest,
+            format!("'{raw}' is not an id=value assignment"),
+        )
+        .with_hint("examples: iso=400, ae_lock=true, zoom_ratio=2.5, awb_mode=1"));
+    };
+    let id = id.trim();
+    if id.is_empty() {
+        return Err(WatchdogError::new(
+            ErrorCode::InvalidRequest,
+            format!("'{raw}' has an empty control id"),
+        ));
+    }
+    Ok((id.to_string(), parse_control_value(value.trim())))
+}
+
+fn parse_control_value(value: &str) -> Value {
+    if value.eq_ignore_ascii_case("true") {
+        return Value::Bool(true);
+    }
+    if value.eq_ignore_ascii_case("false") {
+        return Value::Bool(false);
+    }
+    if value.eq_ignore_ascii_case("null") {
+        return Value::Null;
+    }
+    if let Ok(integer) = value.parse::<i64>() {
+        return Value::from(integer);
+    }
+    if let Ok(float) = value.parse::<f64>() {
+        return Value::from(float);
+    }
+    let unquoted = value
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|inner| inner.strip_suffix('\''))
+        });
+    Value::String(unquoted.unwrap_or(value).to_string())
+}
+
+fn next_command_id(prefix: &str) -> String {
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_millis());
+    let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("{prefix}-{millis}-{sequence}")
+}
+
+fn state_value(state: &StateMessage) -> watchdog_core::Result<Value> {
+    let mut value = serde_json::to_value(state)?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert("delta".to_string(), Value::Bool(state.delta));
+    }
+    Ok(value)
+}
+
+fn print_state(serial: &str, state: &StateMessage, json: bool) -> watchdog_core::Result<()> {
+    if json {
+        println!("{}", serde_json::to_string(&state_value(state)?)?);
+    } else {
+        print!("{}", render_state(serial, state));
+    }
+    Ok(())
+}
+
+/// Human-readable control state. Pure so it can be unit-tested.
+fn render_state(serial: &str, state: &StateMessage) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "serial:   {serial}");
+    let camera = if state.camera_id.is_empty() {
+        "-"
+    } else {
+        &state.camera_id
+    };
+    let _ = writeln!(out, "camera:   {camera}");
+    let _ = writeln!(
+        out,
+        "seq:      {} ({})",
+        state.seq,
+        if state.delta { "delta" } else { "full" }
+    );
+    let _ = writeln!(out, "dropped:  {} frame(s)", state.dropped_frames);
+    if let Some(free) = state.storage_free_mb {
+        let _ = writeln!(out, "storage:  {free} MiB free");
+    }
+    let _ = writeln!(out, "controls: {}", state.state.len());
+    for (id, entry) in &state.state {
+        let _ = writeln!(out, "  {}", render_control_entry(id, entry));
+    }
+    out
+}
+
+fn render_control_entry(id: &str, entry: &ControlEntry) -> String {
+    let mut line = format!("{id:<24} ");
+    if let Some(requested) = &entry.requested {
+        line.push_str(&format!("requested={} ", compact(requested)));
+    }
+    if let Some(actual) = &entry.actual {
+        line.push_str(&format!("actual={} ", compact(actual)));
+    }
+    if let Some(locked) = entry.locked {
+        line.push_str(&format!("locked={locked} "));
+    }
+    line.push_str(&format!(
+        "supported={} source={}",
+        entry.supported,
+        source_name(entry.source)
+    ));
+    line
+}
+
+fn render_set_result(
+    serial: &str,
+    elapsed: Duration,
+    result: &CommandResultMessage,
+    actuals: &BTreeMap<String, Value>,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "serial:     {serial}");
+    let _ = writeln!(
+        out,
+        "round-trip: {} ms (request -> COMMAND_RESULT)",
+        elapsed.as_millis()
+    );
+    if let Some(error) = &result.error {
+        let _ = writeln!(out, "error:      {error}");
+    }
+    for item in &result.results {
+        let control = item.control.as_deref().unwrap_or("(command)");
+        if item.ok {
+            let applied = item
+                .applied
+                .as_ref()
+                .map_or_else(|| "-".to_string(), compact);
+            let actual = item
+                .control
+                .as_ref()
+                .and_then(|id| actuals.get(id))
+                .map_or_else(|| "-".to_string(), compact);
+            let _ = writeln!(
+                out,
+                "  {control:<20} ok   applied={applied} actual={actual}"
+            );
+        } else {
+            let _ = writeln!(
+                out,
+                "  {control:<20} FAIL {} {}",
+                item.error_code.as_deref().unwrap_or("ERROR"),
+                item.message.as_deref().unwrap_or("")
+            );
+        }
+    }
+    out
+}
+
+fn compact(value: &Value) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "?".to_string())
+}
+
+fn source_name(source: ControlSource) -> &'static str {
+    match source {
+        ControlSource::Host => "host",
+        ControlSource::Device => "device",
+        ControlSource::Auto => "auto",
+    }
+}
+
 /// Human-readable capability summary. Kept pure so it can be unit-tested
 /// without a device.
 fn render_capabilities(serial: &str, ack: &HelloAck) -> String {
@@ -1133,5 +1679,128 @@ mod tests {
         assert!(text.contains("camera 1:\n  error: camera disconnected"));
         assert!(text.contains("camera 2:"));
         assert!(text.contains("streams: unavailable"));
+    }
+
+    fn entry(
+        requested: Option<Value>,
+        actual: Option<Value>,
+        locked: Option<bool>,
+        supported: bool,
+        source: ControlSource,
+    ) -> ControlEntry {
+        ControlEntry {
+            requested,
+            actual,
+            locked,
+            supported,
+            source,
+        }
+    }
+
+    #[test]
+    fn parses_control_assignments_as_json_values() {
+        assert_eq!(
+            parse_assignment("iso=400").unwrap(),
+            ("iso".to_string(), json!(400))
+        );
+        assert_eq!(parse_assignment("ae_lock=TRUE").unwrap().1, json!(true));
+        assert_eq!(parse_assignment("zoom_ratio=2.5").unwrap().1, json!(2.5));
+        assert_eq!(parse_assignment("awb_mode=1").unwrap().1, json!(1));
+        assert_eq!(parse_assignment("label=\"auto\"").unwrap().1, json!("auto"));
+        assert_eq!(parse_assignment("label='auto'").unwrap().1, json!("auto"));
+        assert_eq!(parse_assignment("iso=null").unwrap().1, Value::Null);
+        assert!(parse_assignment("iso").is_err());
+        assert!(parse_assignment("=1").is_err());
+    }
+
+    #[test]
+    fn renders_full_state_with_requested_actual_and_source() {
+        let mut state = empty_state();
+        state.seq = 7;
+        state.camera_id = "0".to_string();
+        state.dropped_frames = 2;
+        state.storage_free_mb = Some(1234);
+        state.state.insert(
+            "iso".to_string(),
+            entry(
+                Some(json!(400)),
+                Some(json!(398)),
+                None,
+                true,
+                ControlSource::Host,
+            ),
+        );
+        state.state.insert(
+            "torch".to_string(),
+            entry(
+                None,
+                Some(json!(false)),
+                Some(false),
+                false,
+                ControlSource::Device,
+            ),
+        );
+
+        let text = render_state("serial", &state);
+        assert!(text.contains("serial:   serial"));
+        assert!(text.contains("camera:   0"));
+        assert!(text.contains("seq:      7 (full)"));
+        assert!(text.contains("dropped:  2 frame(s)"));
+        assert!(text.contains("storage:  1234 MiB free"));
+        assert!(text.contains("requested=400 actual=398 supported=true source=host"));
+        assert!(text.contains("actual=false locked=false supported=false source=device"));
+    }
+
+    #[test]
+    fn renders_set_results_with_actuals_and_failures() {
+        let result = CommandResultMessage {
+            id: "set-1".to_string(),
+            timestamp_ms: 5,
+            results: vec![
+                watchdog_protocol::ControlResult {
+                    control: Some("iso".to_string()),
+                    ok: true,
+                    applied: Some(json!(400)),
+                    error_code: None,
+                    message: None,
+                },
+                watchdog_protocol::ControlResult {
+                    control: Some("awb_mode".to_string()),
+                    ok: false,
+                    applied: None,
+                    error_code: Some("OUT_OF_RANGE".to_string()),
+                    message: Some("mode 9 is not available".to_string()),
+                },
+            ],
+            error: None,
+        };
+        let mut actuals = BTreeMap::new();
+        actuals.insert("iso".to_string(), json!(398));
+
+        let text = render_set_result("serial", Duration::from_millis(12), &result, &actuals);
+        assert!(text.contains("round-trip: 12 ms"));
+        assert!(text.contains("applied=400 actual=398"));
+        assert!(text.contains("FAIL OUT_OF_RANGE mode 9 is not available"));
+    }
+
+    #[test]
+    fn state_json_marks_deltas() {
+        let mut state = empty_state();
+        state.delta = true;
+        state.state.insert(
+            "iso".to_string(),
+            entry(
+                Some(json!(400)),
+                Some(json!(398)),
+                None,
+                true,
+                ControlSource::Host,
+            ),
+        );
+
+        let value = state_value(&state).unwrap();
+        assert_eq!(value["delta"], json!(true));
+        assert_eq!(value["state"]["iso"]["actual"], json!(398));
+        assert_eq!(value["state"]["iso"]["source"], json!("host"));
     }
 }
