@@ -114,7 +114,21 @@ pub async fn install_apk<T: Transport + 'static>(
 
     // Prefer `cmd package install`; fall back to `pm install` if cmd is missing.
     let use_cmd = has_cmd_package(connection).await;
-    install_with(connection, apk, flags.trim(), size, use_cmd, &mut progress).await
+    let command = build_install_command(use_cmd, &flags, size);
+    install_with(connection, apk, &command, size, &mut progress).await
+}
+
+/// Build the device command that streams an APK of `size` bytes on stdin.
+///
+/// `flags` starts with a leading space (e.g. `" -r"`) so the subcommand and
+/// its flags stay separated: `cmd package install -r -S <size>`.
+fn build_install_command(use_cmd: bool, flags: &str, size: u64) -> String {
+    let tool = if use_cmd {
+        "cmd package install"
+    } else {
+        "pm install"
+    };
+    format!("{tool}{flags} -S {size}")
 }
 
 /// Detect whether `cmd package` exists on the device (probed once per install).
@@ -133,16 +147,10 @@ async fn has_cmd_package<T: Transport + 'static>(connection: &Connection<T>) -> 
 async fn install_with<T: Transport + 'static>(
     connection: &Connection<T>,
     apk: &Path,
-    flags: &str,
+    command: &str,
     size: u64,
-    use_cmd: bool,
     progress: &mut Option<&mut dyn FnMut(u64, u64)>,
 ) -> Result<InstallOutcome> {
-    let command = if use_cmd {
-        format!("cmd package install{flags} -S {size}")
-    } else {
-        format!("pm install{flags} -S {size}")
-    };
     // Keep every shell frame (5-byte header + payload) within the peer's
     // advertised maxdata.
     let chunk = shell::shell_chunk(connection.info.maxdata).min(CHUNK);
@@ -312,4 +320,27 @@ pub async fn query_package<T: Transport + 'static>(
         version_code,
         signature_sha256,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_install_command;
+
+    #[test]
+    fn install_command_separates_subcommand_from_flags() {
+        // Regression: trimming the flags produced `cmd package install-r`,
+        // which the device rejects with an immediate stream close.
+        assert_eq!(
+            build_install_command(true, " -r", 1234),
+            "cmd package install -r -S 1234"
+        );
+        assert_eq!(
+            build_install_command(true, "", 1234),
+            "cmd package install -S 1234"
+        );
+        assert_eq!(
+            build_install_command(false, " -r -d -g", 7),
+            "pm install -r -d -g -S 7"
+        );
+    }
 }
