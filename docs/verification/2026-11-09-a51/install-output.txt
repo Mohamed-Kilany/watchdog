@@ -1,0 +1,3 @@
+Success
+
+installed C:\Users\user\AppData\Local\watchdog\tmp\watchdog-0.1.0-dev+720e281.apk

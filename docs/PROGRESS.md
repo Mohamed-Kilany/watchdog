@@ -37,12 +37,12 @@ Native ADB implemented against AOSP `packages/modules/adb` (protocol.txt, adb.h,
 - [ ] M2-T04 USB transport **[DEVICE]** (nusb transport, `usb-doctor` and `udev-rules` implemented; per-OS device proof pending)
 - [x] M2-T05 TCP transport + LAN connect
 - [x] M2-T06 mDNS discovery
-- [ ] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** (SPAKE2/GCM/STLS/X509/TLS-exporter implemented; on-device end-to-end proof pending)
+- [x] M2-T07 Wireless-debugging pairing + TLS **[DEVICE]** — SPAKE2/GCM/STLS/X509/TLS-exporter implemented; pairing-code flow, stored-key reconnect and TLS 1.3 traffic verified on a Samsung SM-A515F (Android 13) — see `docs/verification/2026-11-09-m2-wireless.md`.
 - [x] M2-T08 Stream multiplexer
 - [x] M2-T09 Shell v2
 - [ ] M2-T10 Sync protocol: **[DEVICE]** (implemented; device-tested 1 GB transfer pending)
 - [x] M2-T11 Port forwarding in-process:
-- [ ] M2-T12 Package management: **[DEVICE]** (implemented; device-verified install/update/downgrade pending)
+- [x] M2-T12 Package management: **[DEVICE]** (streaming install + `-r` update verified on-device over TLS; downgrade not exercised — see `docs/verification/2026-11-09-m2-wireless.md`)
 - [x] M2-T13 Device manager:
 - [x] M2-T14 Fake device
 - [x] M2-T15 CLI:
@@ -65,7 +65,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [x] M3-T10 Resilience **[DEVICE]** - camera auto-reopen with bounded backoff, `camera_disconnected`/`camera_reopened`/`error` events and `START_REDELIVER_INTENT`; adb-kill and camera-occupation device checks pending.
 - [x] M3-T11 Tests - JVM unit tests (codec golden vectors + invalid corpus, state machine, queue, log ring) and emulator instrumented tests (`MainLayoutTest`, `ServiceTransportTest`) run in the `android` and `android-instrumented` CI jobs.
 - [x] M3-T12 Embedding - `crates/device/build.rs` embeds the release APK plus version name/code, SHA-256 and signer fingerprint when `WATCHDOG_APK` is set; `watchdog version` prints them and CI verifies the values against the built APK.
-- [x] M3-T13 Provisioning pipeline - idempotent, per-step pass/fail/skipped report with timing; install/update with signature-mismatch guidance, permission/appops grants, battery/standby setup, recorded screen settings, token launch and first-frame verification; per-device state powers `status`/`restore`/`logs`. Full no-touch run on real hardware pending **[DEVICE]**.
+- [x] M3-T13 Provisioning pipeline - idempotent, per-step pass/fail/skipped report with timing; install/update with signature-mismatch guidance, permission/appops grants, battery/standby setup, recorded screen settings, token launch and first-frame verification; per-device state powers `status`/`restore`/`logs`. No-touch run verified on a Samsung SM-A515F (Android 13): all 7 steps PASS, handshake + 1280x720 first frame — see `docs/verification/2026-11-09-m2-wireless.md`.
 - [x] M3-T14 Frame receiver + broadcast hub - sequence reordering with bounded hold, duplicate/stale drops, gap counting, bounded `tokio::broadcast` fan-out (slow subscribers lag without stalling the reader), PING/PONG clock-offset latency estimate and rolling FPS/bitrate/RTT stats; unit-tested.
 - [x] M3-T15 Minimal test page - `watchdog serve` opens the provisioned session, spawns the frame hub and serves `/` (MJPEG feed + live stats), `/stream.mjpg`, `/api/stats` and `/healthz` on the UI port with optional bearer-token auth. Real-phone USB/LAN visual check pending **[DEVICE]**.
 - [x] M3-T16 CLI - `watchdog device provision <serial>` (with `--apk`, `--no-verify`, `--no-screen`, timeouts, `--json`), `status [--json]`, `restore` and `logs [--follow]` implemented and documented in `docs/cli.md` and `docs/device-setup.md`.
@@ -73,7 +73,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 
 ## M4. Controls and state (the feature-rich core)
 
-- [x] M4-T01 Capability descriptor — app builds one descriptor per camera from `CameraCharacteristics` without opening it (hardware level, capabilities, lens, controls with modes or min/max/step, streams/FPS/high-speed, full `{name,type}` key inventories, `unsupported` reasons) and embeds the map in `HELLO_ACK`; `watchdog device capabilities [--serial] [--json]` prints it via the provisioned session. Instrumented schema test and host summary unit tests. Per-device JSON dumps pending **[DEVICE]** (method: `docs/verification/m4-capabilities.md`).
+- [x] M4-T01 Capability descriptor — app builds one descriptor per camera from `CameraCharacteristics` without opening it (hardware level, capabilities, lens, controls with modes or min/max/step, streams/FPS/high-speed, full `{name,type}` key inventories, `unsupported` reasons) and embeds the map in `HELLO_ACK`; `watchdog device capabilities [--serial] [--json]` prints it via the provisioned session. Instrumented schema test and host summary unit tests. Per-device JSON dumps captured for all 4 cameras of the SM-A515F in `docs/verification/2026-11-09-a51/`.
 - [ ] M4-T02 State model and sync
 - [ ] M4-T03 Command pipeline
 - [ ] M4-T04 Exposure
