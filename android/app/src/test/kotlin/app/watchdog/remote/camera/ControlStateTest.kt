@@ -18,7 +18,11 @@ class ControlStateTest {
         JSONObject()
             .put(
                 "iso",
-                JSONObject().put("supported", true).put("min", 20).put("max", 4000).put("step", 1),
+                JSONObject()
+                    .put("supported", true)
+                    .put("min", 20)
+                    .put("max", 4000)
+                    .put("step", 1),
             ).put(
                 "exposure_time_ns",
                 JSONObject()
@@ -32,12 +36,22 @@ class ControlStateTest {
             ).put("ae_lock", JSONObject().put("supported", true))
             .put(
                 "zoom_ratio",
-                JSONObject().put("supported", true).put("min", 1.0).put("max", 8.0).put("step", 0),
+                JSONObject()
+                    .put("supported", true)
+                    .put("min", 1.0)
+                    .put("max", 8.0)
+                    .put("step", 0),
             ).put("torch", JSONObject().put("supported", false))
             .put(
                 "awb_mode",
                 JSONObject().put("supported", true).put("modes", JSONArray().put(1).put(5)),
             )
+
+    private fun fullState(store: ControlStateStore, seq: Long = 1): JSONObject =
+        store.fullState(seq, seq, "0", droppedFrames = 0, storageFreeMb = null).getJSONObject("state")
+
+    private fun deltaState(store: ControlStateStore, seq: Long): JSONObject? =
+        store.deltaState(seq, seq, "0", droppedFrames = 0, storageFreeMb = null)?.getJSONObject("state")
 
     @Test
     fun rejectsUnknownAndUnsupportedControls() {
@@ -76,8 +90,7 @@ class ControlStateTest {
         assertEquals(2.5, store.setRequested("zoom_ratio", 2.5, ControlSource.HOST).applied as Double, 0.0)
         assertTrue(store.setRequested("ae_lock", true, ControlSource.HOST).ok)
 
-        val state = store.fullState(1, 1_000, "0", droppedFrames = 0, storageFreeMb = null)
-        val controls = state.getJSONObject("state")
+        val controls = fullState(store)
         assertEquals(400L, controls.getJSONObject("iso").getLong("requested"))
         assertEquals("host", controls.getJSONObject("iso").getString("source"))
         assertTrue(controls.getJSONObject("ae_lock").getBoolean("locked"))
@@ -100,14 +113,14 @@ class ControlStateTest {
     fun deltaCarriesOnlyChangedEntries() {
         val store = ControlStateStore(descriptor())
         store.setActual("iso", 100)
-        store.fullState(1, 1, "0", droppedFrames = 0, storageFreeMb = null)
+        fullState(store)
 
-        assertNull(store.deltaState(2, 2, "0", droppedFrames = 0, storageFreeMb = null))
+        assertNull(deltaState(store, 2))
 
         store.setActual("iso", 200)
-        val delta = store.deltaState(3, 3, "0", droppedFrames = 0, storageFreeMb = null)
+        val delta = deltaState(store, 3)
         assertNotNull(delta)
-        val state = delta!!.getJSONObject("state")
+        val state = delta!!
         assertEquals(1, state.length())
         assertEquals(200L, state.getJSONObject("iso").getLong("actual"))
         assertFalse(state.has("ae_mode"))
@@ -116,13 +129,11 @@ class ControlStateTest {
     @Test
     fun resetBaselineMakesTheNextDeltaAFullSnapshot() {
         val store = ControlStateStore(descriptor())
-        store.fullState(1, 1, "0", droppedFrames = 0, storageFreeMb = null)
-        assertNull(store.deltaState(2, 2, "0", droppedFrames = 0, storageFreeMb = null))
+        fullState(store)
+        assertNull(deltaState(store, 2))
 
         store.resetBaseline()
-        val state =
-            store.deltaState(3, 3, "0", droppedFrames = 0, storageFreeMb = null)!!
-                .getJSONObject("state")
+        val state = deltaState(store, 3)!!
         assertTrue(state.has("iso"))
         assertTrue(state.has("battery_percent"))
     }
@@ -133,19 +144,13 @@ class ControlStateTest {
 
         store.setRequested("iso", 100, ControlSource.HOST)
         store.setRequested("iso", 200, ControlSource.DEVICE)
-        var iso =
-            store.fullState(1, 1, "0", droppedFrames = 0, storageFreeMb = null)
-                .getJSONObject("state")
-                .getJSONObject("iso")
+        var iso = fullState(store).getJSONObject("iso")
         assertEquals(200L, iso.getLong("requested"))
         assertEquals("device", iso.getString("source"))
 
         store.setRequested("iso", 300, ControlSource.DEVICE)
         store.setRequested("iso", 400, ControlSource.HOST)
-        iso =
-            store.fullState(2, 2, "0", droppedFrames = 0, storageFreeMb = null)
-                .getJSONObject("state")
-                .getJSONObject("iso")
+        iso = fullState(store, 2).getJSONObject("iso")
         assertEquals(400L, iso.getLong("requested"))
         assertEquals("host", iso.getString("source"))
     }
@@ -155,10 +160,7 @@ class ControlStateTest {
         val store = ControlStateStore(descriptor())
         store.setReadout("fps_actual", 29.97)
 
-        val fps =
-            store.fullState(1, 1, "0", droppedFrames = 0, storageFreeMb = null)
-                .getJSONObject("state")
-                .getJSONObject("fps_actual")
+        val fps = fullState(store).getJSONObject("fps_actual")
         assertEquals(29.97, fps.getDouble("actual"), 0.001)
         assertEquals("device", fps.getString("source"))
         assertTrue(fps.getBoolean("supported"))
@@ -169,17 +171,11 @@ class ControlStateTest {
     fun lockFlagFollowsTheRequestedBoolean() {
         val store = ControlStateStore(descriptor())
         store.setRequested("ae_lock", true, ControlSource.HOST)
-        var lock =
-            store.fullState(1, 1, "0", droppedFrames = 0, storageFreeMb = null)
-                .getJSONObject("state")
-                .getJSONObject("ae_lock")
+        var lock = fullState(store).getJSONObject("ae_lock")
         assertTrue(lock.getBoolean("locked"))
 
         store.setRequested("ae_lock", false, ControlSource.HOST)
-        lock =
-            store.fullState(2, 2, "0", droppedFrames = 0, storageFreeMb = null)
-                .getJSONObject("state")
-                .getJSONObject("ae_lock")
+        lock = fullState(store, 2).getJSONObject("ae_lock")
         assertFalse(lock.getBoolean("locked"))
     }
 }

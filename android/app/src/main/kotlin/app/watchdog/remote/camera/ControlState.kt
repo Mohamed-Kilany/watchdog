@@ -226,12 +226,13 @@ class ControlStateStore(private val descriptor: JSONObject) {
             return validateRange(id, spec, value)
         }
         if (id in BOOLEANS) {
-            val bool = asBoolean(value)
-                ?: return ControlValidation(
-                    false,
-                    errorCode = "INVALID_VALUE",
-                    message = "control '$id' expects a boolean",
-                )
+            val bool =
+                asBoolean(value)
+                    ?: return ControlValidation(
+                        false,
+                        errorCode = "INVALID_VALUE",
+                        message = "control '$id' expects a boolean",
+                    )
             return ControlValidation(true, applied = bool)
         }
         return ControlValidation(true, applied = normalize(value))

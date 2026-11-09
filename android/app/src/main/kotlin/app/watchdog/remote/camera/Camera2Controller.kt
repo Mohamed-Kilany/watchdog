@@ -18,11 +18,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** Result of applying a control batch to the active repeating request. */
-data class ApplyOutcome(
-    val ok: Boolean,
-    val applied: Map<String, Any> = emptyMap(),
-    val error: String? = null,
-)
+data class ApplyOutcome(val ok: Boolean, val applied: Map<String, Any> = emptyMap(), val error: String? = null)
 
 /** Camera lifecycle API used by the service and the frame pipeline. */
 interface CameraController {
@@ -76,6 +72,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private var session: CameraCaptureSession? = null
     private var surfaces: List<Surface> = emptyList()
     private var requestedCameraId: String? = null
+
     @Volatile
     private var characteristics: CameraCharacteristics? = null
     private val requested = LinkedHashMap<String, Any>()

@@ -18,10 +18,8 @@ class CommandMessagesTest {
 
         assertEquals("c-1", command.id)
         assertEquals("set_controls", command.command)
-        assertEquals(
-            400,
-            command.params.getJSONArray("controls").getJSONObject(0).getInt("value"),
-        )
+        val control = command.params.getJSONArray("controls").getJSONObject(0)
+        assertEquals(400, control.getInt("value"))
     }
 
     @Test

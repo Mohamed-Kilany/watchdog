@@ -24,8 +24,8 @@ import androidx.core.content.ContextCompat
 import app.watchdog.remote.camera.ApplyOutcome
 import app.watchdog.remote.camera.Camera2Controller
 import app.watchdog.remote.camera.CameraCatalog
-import app.watchdog.remote.camera.CameraControls
 import app.watchdog.remote.camera.CameraController
+import app.watchdog.remote.camera.CameraControls
 import app.watchdog.remote.camera.CameraSnapshot
 import app.watchdog.remote.camera.CameraStatus
 import app.watchdog.remote.camera.CapabilityDescriptor
@@ -58,10 +58,11 @@ import kotlin.math.round
  *
  * Exported entry points are token protected: the host passes the same
  * [SessionToken] it later presents in `HOST_HELLO`. See `docs/android-app.md`.
+ *
+ * This service is the single coordinator for the camera lifecycle, transport,
+ * control state and the command pipeline; splitting it would hide the strict
+ * ordering between those pieces.
  */
-// This service is the single coordinator for the camera lifecycle, transport,
-// control state and the command pipeline; splitting it would hide the strict
-// ordering between those pieces.
 @Suppress("TooManyFunctions")
 class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
@@ -578,8 +579,7 @@ class CaptureService : Service() {
         stateHandler.removeCallbacks(stateRunnable)
     }
 
-    private fun stateIntervalMs(): Long =
-        (MILLIS_PER_SECOND / stateRateHz).toLong().coerceAtLeast(1L)
+    private fun stateIntervalMs(): Long = (MILLIS_PER_SECOND / stateRateHz).toLong().coerceAtLeast(1L)
 
     private val stateRunnable =
         object : Runnable {
