@@ -23,6 +23,17 @@ pub trait TransportReader: Send {
 pub trait TransportWriter: Send {
     /// Write all bytes.
     async fn write_all(&mut self, buf: &[u8]) -> Result<()>;
+
+    /// Flush transport-level buffering to the peer.
+    ///
+    /// TLS streams behave like `BufWriter`: [`Self::write_all`] may return with
+    /// ciphertext still buffered. ADB flow control waits for an OKAY before the
+    /// next WRTE, so that ciphertext must be flushed first or the device never
+    /// sees the packet and never acknowledges it. Plain transports may keep the
+    /// default no-op implementation.
+    async fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Byte-stream transport for an ADB session (USB, TCP/TLS, or mock).
@@ -69,6 +80,12 @@ where
         tokio::io::AsyncWriteExt::write_all(self, buf)
             .await
             .map_err(|e| crate::error::AdbError::Transport(format!("write: {e}")))
+    }
+
+    async fn flush(&mut self) -> Result<()> {
+        tokio::io::AsyncWriteExt::flush(self)
+            .await
+            .map_err(|e| crate::error::AdbError::Transport(format!("flush: {e}")))
     }
 }
 
