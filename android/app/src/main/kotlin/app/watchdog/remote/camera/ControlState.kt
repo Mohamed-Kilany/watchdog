@@ -450,8 +450,8 @@ class ControlStateStore(private val descriptor: JSONObject) {
         const val TRIGGER_START = "start"
         const val TRIGGER_CANCEL = "cancel"
         val LOCKS = setOf("ae_lock", "awb_lock")
-        val BOOLEANS = setOf("ae_lock", "awb_lock", "torch")
-        val TRIGGERS = setOf("ae_precapture")
+        val BOOLEANS = setOf("ae_lock", "awb_lock", "af_lock", "torch")
+        val TRIGGERS = setOf("ae_precapture", "af_trigger")
         val READOUTS =
             setOf(
                 "fps_actual",

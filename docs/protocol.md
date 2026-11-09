@@ -199,6 +199,10 @@ modes and ranges; unsupported ids are never applied):
 | `ae_fps_range` | `[min,max]` int pair | `CONTROL_AE_TARGET_FPS_RANGE`; must be one of the descriptor's `ranges` |
 | `ae_regions` | array of `{x,y,w,h,weight}` | `CONTROL_AE_REGIONS`; normalized to the active array, 1..`max_regions`, weight −1000..1000 (default 1000) |
 | `ae_precapture` | `"start"` / `"cancel"` | one-shot `CONTROL_AE_PRECAPTURE_TRIGGER`; never stored as requested state |
+| `af_lock` | bool | one-shot AF via `CONTROL_AF_TRIGGER`; `af_state` and `actual` report the result |
+| `af_regions` | array of `{x,y,w,h,weight}` | `CONTROL_AF_REGIONS`; same normalization as `ae_regions`, 1..`max_regions` |
+| `af_trigger` | `"start"` / `"cancel"` | one-shot `CONTROL_AF_TRIGGER`; never stored as requested state |
+| `focus_distance` | double (dioptres) | `LENS_FOCUS_DISTANCE` with `CONTROL_AF_MODE = OFF`; 0 = infinity, `max` = closest focus |
 | `flash_mode` | int | `FLASH_MODE` |
 | `torch` | bool | `FLASH_MODE` (`TORCH` / `OFF`) |
 | `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` (API 30+) or `SCALER_CROP_REGION` fallback |
@@ -206,7 +210,8 @@ modes and ranges; unsupported ids are never applied):
 Read-only entries in `STATE` (never accepted in `set_controls`):
 `fps_actual` (double), `recording` (bool), `battery_percent` (int),
 `ae_state` / `af_state` / `awb_state` (strings), `focus_distance_diopters`
-(double), `awb_gains` (`{r,g_even,g_odd,b}`) and `zoom_actual` (double).
+(double; also reported as the `focus_distance` actual), `awb_gains`
+(`{r,g_even,g_odd,b}`) and `zoom_actual` (double).
 
 ### 5.5 COMMAND — host → app
 
@@ -223,7 +228,11 @@ processed in wire order, so duplicate ids resolve last-writer-wins. Setting
 same batch when AE is supported, and the implicit change is reported as an
 additional result. `ae_precapture` is a one-shot trigger: it is applied as a
 single capture on top of the repeating request and is not retained as requested
-state.
+state. Setting `focus_distance` implies `af_mode = OFF` and clears `af_lock`;
+`af_lock = true` switches `af_mode` to `AUTO`, starts a one-shot AF scan and
+remembers the previous mode, while `af_lock = false` restores it and sends
+`af_trigger = cancel`. `af_regions` only positions the AF metering window; pair
+it with `af_trigger = start` for tap-to-focus.
 
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),
@@ -331,6 +340,11 @@ every control the host may send. Example:
   "ae_fps_range": {"supported": true, "ranges": [[15, 30], [30, 30]]},
   "ae_regions": {"supported": true, "max_regions": 5},
   "ae_precapture": {"supported": true},
+  "af_mode": {"supported": true, "modes": [0, 1, 3, 4]},
+  "af_lock": {"supported": true},
+  "af_regions": {"supported": true, "max_regions": 1},
+  "af_trigger": {"supported": true},
+  "focus_distance": {"supported": true, "min": 0.0, "max": 10.0, "step": 0.0},
   "zoom_ratio": {"supported": true, "min": 1.0, "max": 8.0, "step": 0.0,
                  "legacy_crop_region": false},
   "streams": {
@@ -355,7 +369,9 @@ every control the host may send. Example:
   the host must not send that control.
 - `ae_fps_range` carries `ranges`, the allowed `[min,max]` FPS pairs;
   `ae_regions` carries `max_regions` (1..N normalized rectangles);
-  `ae_precapture` is a one-shot trigger.
+  `ae_precapture` is a one-shot trigger. `af_regions` carries `max_regions`
+  too; `af_trigger` and `af_lock` are one-shot/boolean controls; `focus_distance`
+  is a continuous range in dioptres (0 = infinity).
 - Key inventories are the complete dump of the camera's available
   `CaptureRequest` / `CaptureResult` / `CameraCharacteristics` keys:
   `name` is the dotted Android key and `type` its Java class. Full dump, no

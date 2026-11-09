@@ -1,7 +1,7 @@
 # Camera controls
 
 > Status: descriptor live (M4-T01); state sync and the command pipeline live
-> (M4-T02/T03); exposure controls live (M4-T04).
+> (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
@@ -52,10 +52,20 @@ descriptor reports as supported; anything else is an error, never a silent no-op
 
 ## Focus
 
-AF modes (off/auto/macro/continuous-video/continuous-picture/EDOF), manual focus distance
-(diopters; hyperfocal info from `LENS_INFO_HYPERFOCAL_DISTANCE`), AF lock (trigger + hold),
-AF regions, tap-to-focus (normalized, rotation-aware), AF state badge
-(inactive/scanning/focused/not-focused).
+| Control | Notes |
+|---|---|
+| AF mode | `CONTROL_AF_MODE`: off/auto/macro/continuous-video/continuous-picture/EDOF, only the modes in the descriptor |
+| Focus distance | `LENS_FOCUS_DISTANCE` in dioptres (0 = infinity); implies `af_mode = OFF`; range is `0..LENS_INFO_MINIMUM_FOCUS_DISTANCE` |
+| AF lock | `af_lock = true` switches to one-shot AF, triggers a scan and remembers the previous mode; unlocking restores it. Live state comes from `af_state` (`focused_locked` / `not_focused_locked`) |
+| AF regions | `CONTROL_AF_REGIONS`, normalized `{x,y,w,h,weight}` like AE regions, 1..`max_regions` |
+| AF trigger | one-shot `start` / `cancel`; pair with `af_regions` for tap-to-focus |
+| AF state | `af_state` readout: inactive / passive_scan / passive_focused / active_scan / focused_locked / not_focused_locked / passive_unfocused |
+
+Tap-to-focus from the host: send `af_regions=[{x,y,w,h}]` plus
+`af_trigger=start`; watch `af_state` transition `active_scan → focused_locked`
+(or `not_focused_locked` when the scene has too little contrast). Fixed manual
+focus (`focus_distance`) is the recommended setting for filming screens; avoid
+continuous AF hunting.
 
 ## White balance
 

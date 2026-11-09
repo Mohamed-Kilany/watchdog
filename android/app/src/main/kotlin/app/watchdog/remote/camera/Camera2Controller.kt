@@ -219,19 +219,27 @@ class Camera2Controller(context: Context, private val listener: CameraController
         if (machine.snapshot.status != CameraStatus.STREAMING) {
             return ApplyOutcome(false, error = "camera is not streaming")
         }
-        val trigger =
+        val (key, trigger) =
             when (id) {
                 "ae_precapture" ->
-                    if (value.toString() == "start") {
-                        CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START
-                    } else {
-                        CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
-                    }
+                    CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER to
+                        if (value.toString() == "start") {
+                            CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START
+                        } else {
+                            CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
+                        }
+                "af_trigger" ->
+                    CaptureRequest.CONTROL_AF_TRIGGER to
+                        if (value.toString() == "start") {
+                            CaptureRequest.CONTROL_AF_TRIGGER_START
+                        } else {
+                            CaptureRequest.CONTROL_AF_TRIGGER_CANCEL
+                        }
                 else -> return ApplyOutcome(false, error = "unknown trigger '$id'")
             }
         val request =
             requestBuilder(camera, chars)
-                .apply { set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, trigger) }
+                .apply { set(key, trigger) }
                 .build()
         active.capture(request, captureCallback, handler)
         return ApplyOutcome(true, applied = mapOf(id to value))

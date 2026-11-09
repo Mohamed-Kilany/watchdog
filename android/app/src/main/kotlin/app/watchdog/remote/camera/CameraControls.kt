@@ -27,11 +27,21 @@ object CameraControls {
     fun applyTo(builder: CaptureRequest.Builder, chars: CameraCharacteristics, id: String, value: Any) {
         when (id) {
             "zoom_ratio" -> applyZoom(builder, chars, number(value))
+            "ae_fps_range" -> applyFpsRange(builder, value)
+            "ae_regions" -> applyRegions(builder, chars, value, CaptureRequest.CONTROL_AE_REGIONS)
+            "af_regions" -> applyRegions(builder, chars, value, CaptureRequest.CONTROL_AF_REGIONS)
+            "focus_distance" -> applyFocusDistance(builder, number(value))
+            else -> applyValue(builder, id, value)
+        }
+    }
+
+    /** Direct request values and modes that need no characteristics context. */
+    private fun applyValue(builder: CaptureRequest.Builder, id: String, value: Any) {
+        when (id) {
             "torch" -> applyTorch(builder, bool(value))
             "ae_lock" -> builder.set(CaptureRequest.CONTROL_AE_LOCK, bool(value))
             "awb_lock" -> builder.set(CaptureRequest.CONTROL_AWB_LOCK, bool(value))
-            "ae_fps_range" -> applyFpsRange(builder, value)
-            "ae_regions" -> applyAeRegions(builder, chars, value)
+            "af_lock" -> Unit
             "iso" -> builder.set(CaptureRequest.SENSOR_SENSITIVITY, int(value))
             "exposure_time_ns" -> builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, long(value))
             "frame_duration_ns" -> builder.set(CaptureRequest.SENSOR_FRAME_DURATION, long(value))
@@ -98,7 +108,12 @@ object CameraControls {
         }
     }
 
-    private fun applyAeRegions(builder: CaptureRequest.Builder, chars: CameraCharacteristics, value: Any) {
+    private fun applyRegions(
+        builder: CaptureRequest.Builder,
+        chars: CameraCharacteristics,
+        value: Any,
+        key: CaptureRequest.Key<Array<MeteringRectangle>>,
+    ) {
         val regions = value as? JSONArray ?: return
         val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
         val rectangles = ArrayList<MeteringRectangle>(regions.length())
@@ -120,8 +135,17 @@ object CameraControls {
             }
         }
         if (rectangles.isNotEmpty()) {
-            builder.set(CaptureRequest.CONTROL_AE_REGIONS, rectangles.toTypedArray())
+            builder.set(key, rectangles.toTypedArray())
         }
+    }
+
+    /**
+     * Manual focus distance in dioptres (0 = infinity). The service implies
+     * `af_mode = OFF` in the same batch; setting the mode here as well would
+     * make a later explicit AF mode impossible while the distance is requested.
+     */
+    private fun applyFocusDistance(builder: CaptureRequest.Builder, dioptres: Double) {
+        builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, dioptres.toFloat())
     }
 
     /**
@@ -174,6 +198,11 @@ object CameraControls {
     private fun extractLocks(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_LOCK)?.let { out["ae_lock"] = it }
         result.get(CaptureResult.CONTROL_AWB_LOCK)?.let { out["awb_lock"] = it }
+        result.get(CaptureResult.CONTROL_AF_STATE)?.let { state ->
+            out["af_lock"] =
+                state == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
+                state == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED
+        }
         result.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION)?.let { out["ae_compensation"] = it }
     }
 
@@ -181,7 +210,10 @@ object CameraControls {
         result.get(CaptureResult.CONTROL_AE_STATE)?.let { out["ae_state"] = aeState(it) }
         result.get(CaptureResult.CONTROL_AF_STATE)?.let { out["af_state"] = afState(it) }
         result.get(CaptureResult.CONTROL_AWB_STATE)?.let { out["awb_state"] = awbState(it) }
-        result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let { out["focus_distance_diopters"] = it.toDouble() }
+        result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let {
+            out["focus_distance"] = it.toDouble()
+            out["focus_distance_diopters"] = it.toDouble()
+        }
         result.get(CaptureResult.COLOR_CORRECTION_GAINS)?.let { gains ->
             out["awb_gains"] =
                 JSONObject()
