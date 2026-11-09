@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.view.Surface
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.camera.ApplyOutcome
@@ -97,6 +98,14 @@ class CaptureService : Service() {
     @Volatile
     private var activeToken: String? = null
 
+    /** Last authenticated host name, kept across short CLI sessions. */
+    @Volatile
+    private var lastHostName: String? = null
+
+    /** `elapsedRealtime` when the last session closed; 0 while one is open. */
+    @Volatile
+    private var lastSessionClosedAtMs = 0L
+
     @Volatile
     private var running = false
 
@@ -126,9 +135,18 @@ class CaptureService : Service() {
     /** Values for the on-device status panels (`docs/android-app.md`). */
     fun uiStatus(): UiStatus {
         val snapshot = camera?.snapshot
+        val sessionOpen = transport?.hasSession == true
+        // Short-lived CLI commands open and close a session per invocation.
+        // Keep reporting the host as connected briefly so the panel does not
+        // flicker between "connected" and "waiting for host" during a burst.
+        val recentlyConnected =
+            !sessionOpen &&
+                lastSessionClosedAtMs != 0L &&
+                SystemClock.elapsedRealtime() - lastSessionClosedAtMs < HOST_STATUS_GRACE_MS
+        val hostConnected = sessionOpen || recentlyConnected
         return UiStatus(
-            hostConnected = transport?.hasSession == true,
-            hostName = transport?.hostName,
+            hostConnected = hostConnected,
+            hostName = if (hostConnected) transport?.hostName ?: lastHostName else null,
             cameraId = snapshot?.cameraId,
             cameraStatus = snapshot?.status ?: CameraStatus.CLOSED,
             fps = fpsEstimate.takeIf { it > ZERO_FPS },
@@ -258,12 +276,15 @@ class CaptureService : Service() {
         stopStateTimer()
         transport?.stop()
         transport = null
+        lastSessionClosedAtMs = 0L
     }
 
     private val transportListener =
         object : TransportServer.Listener {
             override fun onSessionOpen(hostName: String?) {
                 DeviceLog.i(TAG, "host session open: ${hostName ?: "unknown"}")
+                hostName?.let { lastHostName = it }
+                lastSessionClosedAtMs = 0L
                 transport?.let(logStreamer::attach)
                 // Full resync on every (re)connect: the host may have missed
                 // any number of deltas while disconnected.
@@ -279,6 +300,7 @@ class CaptureService : Service() {
                 // after the replacement is already open. Keep streaming state
                 // while any authenticated host remains.
                 if (transport?.hasSession != true) {
+                    lastSessionClosedAtMs = SystemClock.elapsedRealtime()
                     logStreamer.detach()
                     stopStateTimer()
                 }
@@ -724,6 +746,7 @@ class CaptureService : Service() {
         private const val ZERO_FPS = 0.0
         private const val MILLIS_PER_SECOND = 1000.0
         private const val NANOS_PER_SECOND = 1_000_000_000.0
+        private const val HOST_STATUS_GRACE_MS = 5_000L
         private val MANUAL_SENSOR_CONTROLS = setOf("iso", "exposure_time_ns", "frame_duration_ns")
         private val TRIGGERS = setOf("ae_precapture", "af_trigger")
 
