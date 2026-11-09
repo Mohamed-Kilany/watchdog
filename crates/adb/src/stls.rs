@@ -59,8 +59,14 @@ impl TransportWriter for StlsTransport {
         self.tls
             .write_all(buf)
             .await
-            .map(|_| ())
-            .map_err(|e| AdbError::Transport(format!("stls write: {e}")))
+            .map_err(|e| AdbError::Transport(format!("stls write: {e}")))?;
+        // tokio-rustls buffers ciphertext like a BufWriter; without an
+        // explicit flush the last record can stay in userspace until the next
+        // write, which never comes while ADB waits for the packet's OKAY.
+        self.tls
+            .flush()
+            .await
+            .map_err(|e| AdbError::Transport(format!("stls flush: {e}")))
     }
 }
 
@@ -196,6 +202,13 @@ impl TransportWriter for LanWriter {
         match self {
             Self::Plain(writer) => TransportWriter::write_all(writer, buf).await,
             Self::Tls(writer) => TransportWriter::write_all(writer, buf).await,
+        }
+    }
+
+    async fn flush(&mut self) -> Result<()> {
+        match self {
+            Self::Plain(writer) => TransportWriter::flush(writer).await,
+            Self::Tls(writer) => TransportWriter::flush(writer).await,
         }
     }
 }

@@ -629,6 +629,9 @@ async fn write_loop<W: TransportWriter + ?Sized>(
             } => Packet::new(Command::Clse, local_id, remote_id, &[][..]),
         };
         writer.write_all(&packet.encode()).await?;
+        // TLS writers buffer ciphertext; ADB flow control blocks until the
+        // device acknowledges this packet, so it must be on the wire first.
+        writer.flush().await?;
     }
     Ok(())
 }
@@ -723,5 +726,73 @@ async fn read_loop<R: TransportReader + ?Sized>(
                 tracing::warn!(packet = %other.name(), "ignoring unexpected packet from device");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[derive(Default)]
+    struct FlushTrackingWriter {
+        bytes: Vec<u8>,
+        flushes: Arc<AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl TransportWriter for FlushTrackingWriter {
+        async fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+            self.bytes.extend_from_slice(buf);
+            Ok(())
+        }
+
+        async fn flush(&mut self) -> Result<()> {
+            self.flushes.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    /// Regression: `write_all` on a TLS writer may leave ciphertext buffered.
+    /// The ADB writer waits for the device's OKAY before the next packet, so
+    /// every packet must be flushed before that wait (wireless installs used to
+    /// stall after the first large WRTE).
+    #[tokio::test]
+    async fn write_loop_flushes_every_packet() {
+        let shared = std::sync::Mutex::new(Shared::new());
+        shared
+            .lock()
+            .expect("shared state poisoned")
+            .streams
+            .insert(0x4000, 0x42);
+
+        let (tx, mut rx) = mpsc::channel(8);
+        tx.send(Outbound::Write {
+            local_id: 0x4000,
+            payload: Bytes::from_static(b"apk"),
+        })
+        .await
+        .expect("queue WRTE");
+        tx.send(Outbound::Close { local_id: 0x4000 })
+            .await
+            .expect("queue CLSE");
+        drop(tx);
+
+        let flushes = Arc::new(AtomicUsize::new(0));
+        let mut writer = FlushTrackingWriter {
+            bytes: Vec::new(),
+            flushes: Arc::clone(&flushes),
+        };
+        write_loop(
+            &mut writer,
+            &shared,
+            crate::packet::DEFAULT_MAXDATA,
+            &mut rx,
+        )
+        .await
+        .expect("write loop");
+
+        assert_eq!(flushes.load(Ordering::SeqCst), 2);
+        assert_eq!(writer.bytes.len(), 2 * crate::packet::HEADER_LEN + 3);
     }
 }
