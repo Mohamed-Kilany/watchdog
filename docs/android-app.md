@@ -76,6 +76,21 @@ validates the token-bearing start intent, closes the old host connection and res
 only the transport — the camera and pipeline stay open, so there is no capture gap
 beyond the session takeover.
 
+## On-device UI (M3-T08)
+
+`MainActivity` shows a live `SurfaceView` preview in the centre with connection and
+camera panels on both sides. The activity binds to the running `CaptureService`
+through a local binder (never exposed to the host) and attaches the preview
+surface to the same Camera2 session that produces the host JPEG frames, so the
+phone shows the capture the host receives. The preview is detached before the
+window is torn down; the service rebuilds the session with the analysis surface
+only and keeps streaming with the screen off.
+
+Panels refresh at 2 Hz from `CaptureService.uiStatus()`: connection/host name,
+session state, FPS, resolution, JPEG quality, dropped frames, camera id and
+state, storage free and battery. Latency and temperature remain placeholders
+until the host-side measurement (M3-T14) and thermal readouts (M4-T10) land.
+
 ## Transport server (M3-T06)
 
 While capture is active the service listens on the abstract local socket

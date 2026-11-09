@@ -48,6 +48,10 @@ class TransportServer(
     val hasSession: Boolean
         get() = synchronized(lock) { sessions.any { it.authenticated } }
 
+    /** Host name of the active authenticated session, for the on-device UI. */
+    val hostName: String?
+        get() = synchronized(lock) { sessions.firstOrNull { it.authenticated }?.hostName }
+
     fun start() {
         if (!running.compareAndSet(false, true)) {
             return
@@ -146,7 +150,8 @@ class TransportServer(
             private set
 
         @Volatile
-        private var hostName: String? = null
+        var hostName: String? = null
+            private set
 
         val isClosed: Boolean
             get() = closed.get()

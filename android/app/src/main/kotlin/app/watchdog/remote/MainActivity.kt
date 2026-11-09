@@ -1,12 +1,20 @@
 package app.watchdog.remote
 
 import android.Manifest
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
+import android.view.Surface
+import android.view.SurfaceHolder
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -15,13 +23,58 @@ import androidx.core.view.WindowInsetsCompat
 import app.watchdog.remote.databinding.ActivityMainBinding
 
 /**
- * On-device status UI (M3-T08): live preview in the centre, connection panel
- * on the left, camera/device panel on the right. When provisioning left a
+ * On-device status UI (M3-T08): a live [SurfaceView] preview in the centre and
+ * connection/camera panels on the sides. The preview is attached to the
+ * running [CaptureService] through its local binder, so the exact capture
+ * session the host streams from is also shown on the phone. Panels refresh
+ * twice per second from [CaptureService.uiStatus]. When provisioning left a
  * runtime permission ungranted, the panels are replaced by a manual grant
  * screen; the normal layout is never shown half-provisioned.
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private var service: CaptureService? = null
+    private var bound = false
+    private var previewSurface: Surface? = null
+    private val statusHandler = Handler(Looper.getMainLooper())
+
+    private val statusTick =
+        object : Runnable {
+            override fun run() {
+                refreshStatus()
+                statusHandler.postDelayed(this, STATUS_INTERVAL_MS)
+            }
+        }
+
+    private val serviceConnection =
+        object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                service = (binder as? CaptureService.LocalBinder)?.service()
+                previewSurface?.let { service?.setPreviewSurface(it) }
+                refreshStatus()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                service = null
+                refreshStatus()
+            }
+        }
+
+    private val surfaceCallback =
+        object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                holder.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
+                previewSurface = holder.surface
+                service?.setPreviewSurface(holder.surface)
+            }
+
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                previewSurface = null
+                service?.setPreviewSurface(null)
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,12 +82,78 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         binding.version.text = getString(R.string.version_format, BuildConfig.VERSION_NAME)
         binding.permissionSettings.setOnClickListener { openAppSettings() }
+        binding.preview.holder.addCallback(surfaceCallback)
         applyInsets()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        bound =
+            bindService(
+                Intent(this, CaptureService::class.java),
+                serviceConnection,
+                Context.BIND_AUTO_CREATE,
+            )
+        statusHandler.post(statusTick)
+    }
+
+    override fun onStop() {
+        statusHandler.removeCallbacks(statusTick)
+        // Detach before the window (and its Surface) is torn down so the
+        // service keeps streaming from the analysis surface alone.
+        service?.setPreviewSurface(null)
+        if (bound) {
+            unbindService(serviceConnection)
+            bound = false
+        }
+        service = null
+        super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
         refreshPermissionState()
+        refreshStatus()
+    }
+
+    private fun refreshStatus() {
+        val status = service?.uiStatus() ?: UiStatus()
+        val placeholder = getString(R.string.value_placeholder)
+        binding.connectionStatus.text =
+            getString(if (status.hostConnected) R.string.value_connected else R.string.value_waiting)
+        binding.hostName.text = status.hostName ?: getString(R.string.value_none)
+        binding.sessionState.text =
+            getString(if (status.hostConnected) R.string.value_active else R.string.value_idle)
+        binding.fps.text =
+            status.fps?.let { getString(R.string.value_fps_format, it) }
+                ?: placeholder
+        binding.resolution.text =
+            if (status.width > 0 && status.height > 0) {
+                getString(R.string.value_resolution_format, status.width, status.height)
+            } else {
+                placeholder
+            }
+        binding.jpegQuality.text =
+            if (status.jpegQuality > 0) {
+                getString(R.string.value_quality_format, status.jpegQuality)
+            } else {
+                placeholder
+            }
+        binding.droppedFrames.text = status.droppedFrames.toString()
+        binding.cameraId.text = status.cameraId ?: placeholder
+        binding.cameraState.text = status.cameraStatus.name.lowercase()
+        binding.storage.text =
+            if (status.storageFreeMb > 0) {
+                getString(R.string.value_storage_format, status.storageFreeMb)
+            } else {
+                placeholder
+            }
+        binding.battery.text =
+            if (status.batteryPercent > 0) {
+                getString(R.string.value_battery_format, status.batteryPercent)
+            } else {
+                placeholder
+            }
     }
 
     private fun applyInsets() {
@@ -80,5 +199,11 @@ class MainActivity : AppCompatActivity() {
                 Uri.fromParts("package", packageName, null),
             )
         startActivity(intent)
+    }
+
+    private companion object {
+        const val STATUS_INTERVAL_MS = 500L
+        const val PREVIEW_WIDTH = 1280
+        const val PREVIEW_HEIGHT = 720
     }
 }

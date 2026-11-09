@@ -29,6 +29,14 @@ interface CameraController {
 
     fun open(cameraId: String, surfaces: List<Surface>)
 
+    /**
+     * Attach or detach the on-device preview target. The camera session is
+     * rebuilt with the same controls and the repeating request resumes, so the
+     * host stream only pauses for the reconfiguration. A destroyed surface
+     * must be detached before it becomes invalid.
+     */
+    fun setPreviewSurface(surface: Surface?)
+
     fun startStreaming()
 
     fun stopStreaming()
@@ -77,6 +85,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private var device: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var surfaces: List<Surface> = emptyList()
+    private var previewSurface: Surface? = null
     private var requestedCameraId: String? = null
 
     @Volatile
@@ -111,6 +120,27 @@ class Camera2Controller(context: Context, private val listener: CameraController
             machine.onEvent(CameraEvent.Open(cameraId))
             publish()
             openDevice(cameraId)
+        }
+    }
+
+    override fun setPreviewSurface(surface: Surface?) {
+        handler.post {
+            val next = surface?.takeIf { it.isValid }
+            if (previewSurface === next) {
+                return@post
+            }
+            previewSurface = next
+            val camera = device
+            val active = session
+            if (camera != null && active != null) {
+                DeviceLog.i(
+                    TAG,
+                    "preview surface ${if (next == null) "detached" else "attached"}; reconfiguring capture session",
+                )
+                session = null
+                active.close()
+                createSession(camera)
+            }
         }
     }
 
@@ -287,7 +317,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
     }
 
     private fun createSession(camera: CameraDevice) {
-        val targets = surfaces
+        val targets = targets()
         if (targets.isEmpty()) {
             machine.onEvent(CameraEvent.Configured)
             publish()
@@ -302,10 +332,16 @@ class Camera2Controller(context: Context, private val listener: CameraController
         }
     }
 
+    /** Analysis surfaces plus the optional on-device preview surface. */
+    private fun targets(): List<Surface> {
+        val preview = previewSurface
+        return if (preview != null && preview.isValid) surfaces + preview else surfaces
+    }
+
     private fun startRepeating(session: CameraCaptureSession) {
         val camera = device
         val chars = characteristics
-        if (camera == null || chars == null || surfaces.isEmpty()) {
+        if (camera == null || chars == null || targets().isEmpty()) {
             fail("cannot start streaming: camera or surfaces unavailable")
             return
         }
@@ -327,7 +363,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun requestBuilder(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest.Builder {
         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        surfaces.forEach { builder.addTarget(it) }
+        targets().forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
         return builder
@@ -386,9 +422,12 @@ class Camera2Controller(context: Context, private val listener: CameraController
                         CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "camera service error"
                         else -> "camera error $error"
                     }
-                machine.onEvent(CameraEvent.Failed(reason, isCameraInUse(error)))
+                val inUse =
+                    error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE ||
+                        error == CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE
+                machine.onEvent(CameraEvent.Failed(reason, inUse))
                 publish()
-                val delay = if (isCameraInUse(error)) CAMERA_IN_USE_DELAY_MS else BASE_RECOVERY_DELAY_MS
+                val delay = if (inUse) CAMERA_IN_USE_DELAY_MS else BASE_RECOVERY_DELAY_MS
                 scheduleRecovery("error $error", delay)
             }
 
@@ -438,10 +477,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private fun publish() {
         listener.onStateChanged(machine.snapshot)
     }
-
-    private fun isCameraInUse(error: Int): Boolean =
-        error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE ||
-            error == CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE
 
     companion object {
         private const val TAG = "WatchdogCamera2"
