@@ -185,19 +185,25 @@ class Camera2Controller(context: Context, private val listener: CameraController
         var outcome = ApplyOutcome(false, error = "camera thread unavailable")
         val posted =
             handler.post {
-                outcome =
-                    try {
-                        action()
-                    } catch (e: CameraAccessException) {
-                        ApplyOutcome(false, error = "$label failed: ${e.message}")
-                    } catch (e: IllegalStateException) {
-                        ApplyOutcome(false, error = "$label invalid state: ${e.message}")
-                    } catch (e: IllegalArgumentException) {
-                        // A value the HAL rejects must not kill the camera thread.
-                        ApplyOutcome(false, error = "invalid $label: ${e.message}")
-                    } finally {
-                        latch.countDown()
-                    }
+                // Assign before counting down. Kotlin runs a `finally` attached
+                // to an assignment before storing the result, so counting down
+                // from it lets the waiting thread read the initial value even
+                // when the action succeeded.
+                try {
+                    outcome =
+                        try {
+                            action()
+                        } catch (e: CameraAccessException) {
+                            ApplyOutcome(false, error = "$label failed: ${e.message}")
+                        } catch (e: IllegalStateException) {
+                            ApplyOutcome(false, error = "$label invalid state: ${e.message}")
+                        } catch (e: IllegalArgumentException) {
+                            // A value the HAL rejects must not kill the camera thread.
+                            ApplyOutcome(false, error = "invalid $label: ${e.message}")
+                        }
+                } finally {
+                    latch.countDown()
+                }
             }
         if (!posted) {
             return ApplyOutcome(false, error = "camera thread unavailable")
