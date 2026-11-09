@@ -62,6 +62,19 @@ class ControlStateTest {
             ).put("ae_regions", JSONObject().put("supported", true).put("max_regions", 2))
             .put("ae_precapture", JSONObject().put("supported", true))
             .put(
+                "af_mode",
+                JSONObject().put("supported", true).put("modes", JSONArray().put(0).put(1).put(3)),
+            ).put("af_lock", JSONObject().put("supported", true))
+            .put("af_regions", JSONObject().put("supported", true).put("max_regions", 1))
+            .put("af_trigger", JSONObject().put("supported", true))
+            .put(
+                "focus_distance",
+                JSONObject()
+                    .put("supported", true)
+                    .put("min", 0.0)
+                    .put("max", 10.0)
+                    .put("step", 0),
+            ).put(
                 "awb_mode",
                 JSONObject().put("supported", true).put("modes", JSONArray().put(1).put(5)),
             )
@@ -255,5 +268,56 @@ class ControlStateTest {
         store.setRequested("ae_lock", false, ControlSource.HOST)
         lock = fullState(store, 2).getJSONObject("ae_lock")
         assertFalse(lock.getBoolean("locked"))
+    }
+
+    @Test
+    fun validatesFocusDistanceAgainstTheLensRange() {
+        val store = ControlStateStore(descriptor())
+
+        val ok = store.setRequested("focus_distance", 0.5, ControlSource.HOST)
+        assertTrue(ok.ok)
+        assertEquals(0.5, ok.applied as Double, 0.0)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("focus_distance", 10.5, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("focus_distance", -0.1, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("focus_distance", "near", ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun validatesAfRegionsLikeAeRegions() {
+        val store = ControlStateStore(descriptor())
+        val region = rect(0.25, 0.25, 0.5, 0.5)
+
+        val ok = store.setRequested("af_regions", JSONArray().put(region), ControlSource.HOST)
+        assertTrue(ok.ok)
+        assertEquals(1000, (ok.applied as JSONArray).getJSONObject(0).getInt("weight"))
+
+        val tooMany = JSONArray().put(region).put(region)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("af_regions", tooMany, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun afTriggerAndLockAreValidated() {
+        val store = ControlStateStore(descriptor())
+
+        val start = store.validateControl("af_trigger", "start")
+        assertTrue(start.ok)
+        assertEquals("start", start.applied)
+        assertEquals("INVALID_VALUE", store.validateControl("af_trigger", "hold").errorCode)
+        assertFalse(fullState(store).getJSONObject("af_trigger").has("requested"))
+
+        assertTrue(store.setRequested("af_lock", true, ControlSource.HOST).ok)
+        assertTrue(fullState(store).getJSONObject("af_lock").getBoolean("requested"))
     }
 }

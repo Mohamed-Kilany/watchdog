@@ -1,25 +1,16 @@
 package app.watchdog.remote
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
-import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.os.StatFs
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.camera.ApplyOutcome
 import app.watchdog.remote.camera.Camera2Controller
@@ -84,6 +75,8 @@ class CaptureService : Service() {
 
     @Volatile
     private var controlState: ControlStateStore? = null
+    private val implications = ControlImplications()
+    private val readouts = DeviceReadouts(this)
     private val stateHandler = Handler(Looper.getMainLooper())
     private val stateSeq = AtomicLong()
     private val stateLock = Any()
@@ -96,18 +89,6 @@ class CaptureService : Service() {
 
     private var lastSensorTimestampNs: Long? = null
     private var fpsEstimate = 0.0
-
-    @Volatile
-    private var cachedBatteryPercent = 0
-
-    @Volatile
-    private var lastBatteryQueryMs = 0L
-
-    @Volatile
-    private var cachedStorageFreeMb = 0L
-
-    @Volatile
-    private var lastStorageQueryMs = 0L
 
     @Volatile
     private var activeToken: String? = null
@@ -170,17 +151,17 @@ class CaptureService : Service() {
             PackageManager.PERMISSION_GRANTED
 
     private fun tryStartForeground(token: String): Boolean {
-        createNotificationChannel()
-        val notification = buildNotification(token)
+        CaptureNotifications.createChannel(this)
+        val notification = CaptureNotifications.build(this, token)
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
-                    NOTIFICATION_ID,
+                    CaptureNotifications.NOTIFICATION_ID,
                     notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
                 )
             } else {
-                startForeground(NOTIFICATION_ID, notification)
+                startForeground(CaptureNotifications.NOTIFICATION_ID, notification)
             }
             true
         } catch (e: SecurityException) {
@@ -302,6 +283,7 @@ class CaptureService : Service() {
         pipeline?.stop()
         pipeline = null
         controlState = null
+        implications.reset()
         lastSensorTimestampNs = null
         fpsEstimate = ZERO_FPS
         lastCameraStatus = null
@@ -374,6 +356,7 @@ class CaptureService : Service() {
                 val chars = camera?.cameraCharacteristics ?: return
                 CameraControls.extract(result, chars).forEach { (id, value) ->
                     store.setActual(id, value)
+                    implications.onCaptureResult(id, value)
                 }
                 updateFps(result, store)
             }
@@ -469,9 +452,7 @@ class CaptureService : Service() {
         val toApply = LinkedHashMap<String, Any>()
         val triggers = LinkedHashMap<String, Any>()
         val manualSensor = validateAssignments(store, assignments, results, toApply, triggers)
-        if (manualSensor) {
-            implyAeOff(store, toApply, results)
-        }
+        implications.apply(store, toApply, results, triggers, manualSensor)
         val controller = camera
         var outcome = controller?.applyControls(toApply) ?: ApplyOutcome(false, error = "camera is not open")
         if (outcome.ok) {
@@ -547,25 +528,6 @@ class CaptureService : Service() {
         }
     }
 
-    /**
-     * Manual ISO/exposure only take effect with AE off. Apply it atomically in
-     * the same batch and report it so the host sees the effective state.
-     */
-    private fun implyAeOff(
-        store: ControlStateStore,
-        toApply: MutableMap<String, Any>,
-        results: MutableList<JSONObject>,
-    ) {
-        if ("ae_mode" in toApply || !store.isSupported("ae_mode")) {
-            return
-        }
-        val validation = store.setRequested("ae_mode", CaptureRequest.CONTROL_AE_MODE_OFF, ControlSource.HOST)
-        if (validation.ok) {
-            validation.applied?.let { toApply["ae_mode"] = it }
-            results += JsonMessages.controlResult("ae_mode", true, applied = validation.applied)
-        }
-    }
-
     private fun handleSetStateRate(command: CommandMessage) {
         val hz = command.params.optDouble("hz", DEFAULT_STATE_RATE_HZ)
         if (hz < MIN_STATE_RATE_HZ || hz > MAX_STATE_RATE_HZ) {
@@ -638,16 +600,27 @@ class CaptureService : Service() {
         if (!server.hasSession) {
             return
         }
-        store.setReadout("battery_percent", batteryPercent())
+        store.setReadout("battery_percent", readouts.batteryPercent())
         val dropped = pipeline?.stats()?.dropped ?: 0L
         synchronized(stateLock) {
             val seq = stateSeq.incrementAndGet()
             val payload =
                 if (full) {
-                    store.fullState(seq, System.currentTimeMillis(), currentCameraId(), dropped, storageFreeMb())
+                    store.fullState(
+                        seq,
+                        System.currentTimeMillis(),
+                        currentCameraId(),
+                        dropped,
+                        readouts.storageFreeMb(),
+                    )
                 } else {
-                    store.deltaState(seq, System.currentTimeMillis(), currentCameraId(), dropped, storageFreeMb())
-                        ?: return
+                    store.deltaState(
+                        seq,
+                        System.currentTimeMillis(),
+                        currentCameraId(),
+                        dropped,
+                        readouts.storageFreeMb(),
+                    ) ?: return
                 }
             server.send(
                 Packet(
@@ -678,25 +651,6 @@ class CaptureService : Service() {
         store.setReadout("fps_actual", round(fpsEstimate * FPS_SCALE) / FPS_SCALE)
     }
 
-    private fun batteryPercent(): Int {
-        val now = System.currentTimeMillis()
-        if (lastBatteryQueryMs == 0L || now - lastBatteryQueryMs >= BATTERY_QUERY_INTERVAL_MS) {
-            val manager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            cachedBatteryPercent = manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            lastBatteryQueryMs = now
-        }
-        return cachedBatteryPercent
-    }
-
-    private fun storageFreeMb(): Long {
-        val now = System.currentTimeMillis()
-        if (lastStorageQueryMs == 0L || now - lastStorageQueryMs >= STORAGE_QUERY_INTERVAL_MS) {
-            cachedStorageFreeMb = StatFs(filesDir.absolutePath).availableBytes / BYTES_PER_MB
-            lastStorageQueryMs = now
-        }
-        return cachedStorageFreeMb
-    }
-
     override fun onDestroy() {
         running = false
         stopCamera()
@@ -707,71 +661,15 @@ class CaptureService : Service() {
     }
 
     private fun acquireWakeLock() {
-        if (wakeLock == null) {
-            val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            wakeLock?.setReferenceCounted(false)
-        }
-        // Held only between START and STOP; released in stopCapture/onDestroy.
-        wakeLock?.acquire()
+        wakeLock = CaptureNotifications.acquire(this, wakeLock)
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let { lock ->
-            if (lock.isHeld) {
-                lock.release()
-            }
-        }
-    }
-
-    private fun createNotificationChannel() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channel =
-            NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.notification_channel_capture),
-                NotificationManager.IMPORTANCE_LOW,
-            )
-        channel.description = getString(R.string.notification_channel_capture_description)
-        channel.setShowBadge(false)
-        manager.createNotificationChannel(channel)
-    }
-
-    private fun buildNotification(token: String): Notification {
-        val open =
-            PendingIntent.getActivity(
-                this,
-                0,
-                Intent(this, MainActivity::class.java),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-        val stop =
-            PendingIntent.getService(
-                this,
-                1,
-                Intent(this, CaptureService::class.java)
-                    .setAction(ACTION_STOP)
-                    .putExtra(SessionToken.EXTRA, token),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-        return NotificationCompat
-            .Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_camera)
-            .setContentTitle(getString(R.string.notification_capture_title))
-            .setContentText(getString(R.string.notification_capture_text))
-            .setContentIntent(open)
-            .setOngoing(true)
-            .setSilent(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .addAction(0, getString(R.string.notification_stop), stop)
-            .build()
+        CaptureNotifications.release(wakeLock)
     }
 
     companion object {
         private const val TAG = "WatchdogCapture"
-        private const val CHANNEL_ID = "watchdog-capture"
-        private const val NOTIFICATION_ID = 1001
-        private const val WAKE_LOCK_TAG = "watchdog:capture"
         private const val SOCKET_PREFIX = "watchdog-"
         private const val DEFAULT_STATE_RATE_HZ = 10.0
         private const val MIN_STATE_RATE_HZ = 1.0
@@ -782,11 +680,8 @@ class CaptureService : Service() {
         private const val ZERO_FPS = 0.0
         private const val MILLIS_PER_SECOND = 1000.0
         private const val NANOS_PER_SECOND = 1_000_000_000.0
-        private const val BYTES_PER_MB = 1024L * 1024L
-        private const val BATTERY_QUERY_INTERVAL_MS = 5_000L
-        private const val STORAGE_QUERY_INTERVAL_MS = 5_000L
         private val MANUAL_SENSOR_CONTROLS = setOf("iso", "exposure_time_ns", "frame_duration_ns")
-        private val TRIGGERS = setOf("ae_precapture")
+        private val TRIGGERS = setOf("ae_precapture", "af_trigger")
 
         const val ACTION_START = "app.watchdog.remote.action.START"
         const val ACTION_STOP = "app.watchdog.remote.action.STOP"

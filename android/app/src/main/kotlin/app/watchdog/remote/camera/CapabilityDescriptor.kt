@@ -38,6 +38,9 @@ object CapabilityDescriptor {
     private const val NO_ZOOM_REASON = "no digital zoom"
     private const val NO_AE_REGIONS_REASON = "no AE metering regions"
     private const val NO_AE_REASON = "AE is not available"
+    private const val NO_AF_REGIONS_REASON = "no AF metering regions"
+    private const val NO_AF_REASON = "AF is not available"
+    private const val NO_FOCUS_DISTANCE_REASON = "fixed-focus lens"
     private const val UNKNOWN_TYPE = "unknown"
 
     private val KEY_CLASSES =
@@ -241,8 +244,47 @@ object CapabilityDescriptor {
         )
         aeRegions(out, unsupported, chars)
         aeFpsRange(out, unsupported, chars)
-        aePrecapture(out, unsupported, chars)
+        val aeModes = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES)
+        if (aeModes == null || aeModes.none { it != CaptureRequest.CONTROL_AE_MODE_OFF }) {
+            unsupported.put(unsupportedEntry("ae_precapture", NO_AE_REASON))
+        } else {
+            out.put("ae_precapture", JSONObject().put("supported", true))
+        }
+        focusControls(out, unsupported, chars)
         zoom(out, unsupported, chars)
+    }
+
+    /** AF modes, regions, trigger/lock and manual focus distance (M4-T05). */
+    private fun focusControls(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
+        val modes = chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+        val available = modes != null && modes.any { it != CaptureRequest.CONTROL_AF_MODE_OFF }
+        if (!available) {
+            unsupported.put(unsupportedEntry("af_regions", NO_AF_REASON))
+            unsupported.put(unsupportedEntry("af_trigger", NO_AF_REASON))
+            unsupported.put(unsupportedEntry("af_lock", NO_AF_REASON))
+        } else {
+            out.put("af_trigger", JSONObject().put("supported", true))
+            out.put("af_lock", JSONObject().put("supported", true))
+            val regions = chars.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AF) ?: 0
+            if (regions > 0) {
+                out.put("af_regions", JSONObject().put("supported", true).put("max_regions", regions))
+            } else {
+                unsupported.put(unsupportedEntry("af_regions", NO_AF_REGIONS_REASON))
+            }
+        }
+        val minimum = chars.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+        if (minimum != null && minimum > 0f) {
+            out.put(
+                "focus_distance",
+                JSONObject()
+                    .put("supported", true)
+                    .put("min", 0.0)
+                    .put("max", minimum.toDouble())
+                    .put("step", CONTINUOUS_STEP),
+            )
+        } else {
+            unsupported.put(unsupportedEntry("focus_distance", NO_FOCUS_DISTANCE_REASON))
+        }
     }
 
     private fun aeRegions(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
@@ -263,15 +305,6 @@ object CapabilityDescriptor {
         val array = JSONArray()
         ranges.forEach { range -> array.put(JSONArray().put(range.lower).put(range.upper)) }
         out.put("ae_fps_range", JSONObject().put("supported", true).put("ranges", array))
-    }
-
-    private fun aePrecapture(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
-        val modes = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES)
-        if (modes == null || modes.none { it != CaptureRequest.CONTROL_AE_MODE_OFF }) {
-            unsupported.put(unsupportedEntry("ae_precapture", NO_AE_REASON))
-            return
-        }
-        out.put("ae_precapture", JSONObject().put("supported", true))
     }
 
     private fun modes(out: JSONObject, unsupported: JSONArray, name: String, values: IntArray?) {
