@@ -74,8 +74,8 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 ## M4. Controls and state (the feature-rich core)
 
 - [x] M4-T01 Capability descriptor — app builds one descriptor per camera from `CameraCharacteristics` without opening it (hardware level, capabilities, lens, controls with modes or min/max/step, streams/FPS/high-speed, full `{name,type}` key inventories, `unsupported` reasons) and embeds the map in `HELLO_ACK`; `watchdog device capabilities [--serial] [--json]` prints it via the provisioned session. Instrumented schema test and host summary unit tests. Per-device JSON dumps captured for all 4 cameras of the SM-A515F in `docs/verification/2026-11-09-a51/`.
-- [ ] M4-T02 State model and sync
-- [ ] M4-T03 Command pipeline
+- [x] M4-T02 State model and sync — canonical per-control entry (`requested`/`actual`/`locked`/`supported`/`source`) built from the descriptor; full `STATE` on session open and on demand, deltas only for changed entries with `seq`/`timestamp_ms`/`camera_id`/`dropped_frames`; per-session delta baseline so a reconnect starts from a full snapshot; default 10 Hz (1–30 Hz, fractional); deterministic last-writer-wins; device readouts (FPS, battery, storage) cached. Device: 34 controls, full snapshot then 1-entry deltas at 10 Hz — see `docs/verification/2026-11-09-m4-controls.md`.
+- [x] M4-T03 Command pipeline — `set_controls` validates the batch against the descriptor, returns one `COMMAND_RESULT` per control in wire order with partial success, last-writer-wins, HAL-rejection rollback, values remembered while not streaming; manual sensor values imply `ae_mode = OFF`; actuals are read over a 750 ms settle window. Device: 22–28 ms round-trip; zoom, AE lock and manual ISO/exposure actuals follow the request (see record).
 - [ ] M4-T04 Exposure
 - [ ] M4-T05 Focus **[DEVICE]**
 - [ ] M4-T06 White balance and colour **[DEVICE]**
