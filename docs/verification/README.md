@@ -26,3 +26,4 @@ Rules (from TASK.md §6/§7):
 | 2026-11-09 | M4-T01 (capabilities) | CI run 42576110391, commit `720e281` | Samsung SM-A515F, Android 13 (4 cameras) | PASS — dumps in [2026-11-09-a51/](2026-11-09-a51/) |
 | 2026-11-09 | M4-T02/T03 (state sync, command pipeline) + camera recovery | CI run 42585703374, commit `ac6ce1f` (merged `ba5c532`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-controls.md) |
 | 2026-11-09 | M4-T04 (exposure: AE FPS range, AE regions, precapture) | CI run 42589225330, commit `e494301` (merged `595e513`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-exposure.md) |
+| 2026-11-09 | M4-T05 (focus: AF mode, AF lock, tap-to-focus) | CI run 42599576938, commit `a1676c4` (merged `3f06d82`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-focus.md) |
