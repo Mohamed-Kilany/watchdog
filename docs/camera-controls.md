@@ -69,9 +69,20 @@ continuous AF hunting.
 
 ## White balance
 
-AWB presets (incandescent/fluorescent/daylight/cloudy/…), manual colour-correction gains
-(RGGB) where `COLOR_CORRECTION_MODE` allows, AWB lock, AWB regions, AWB state
-(inactive/searching/locked), colour effects, aberration correction.
+| Control | Notes |
+|---|---|
+| AWB mode | `CONTROL_AWB_MODE` presets (off/auto/incandescent/fluorescent/daylight/cloudy/…), only the modes in the descriptor |
+| AWB lock | `awb_lock = true` freezes `CONTROL_AWB_LOCK`; `awb_state` reports inactive/searching/converged/locked and `awb_gains` shows the reported RGGB gains |
+| AWB regions | `CONTROL_AWB_REGIONS`, normalized `{x,y,w,h,weight}` like AE regions, 1..`max_regions`; meaningful while AWB is running |
+| Manual gains | `awb_gains = {r,g_even,g_odd,b}` where `COLOR_CORRECTION_GAINS` is available; implies `awb_mode = OFF`, clears `awb_lock` and sets `COLOR_CORRECTION_MODE = TRANSFORM_MATRIX`. Components use the descriptor's `min`..`max` (0..8 by default) |
+| Colour matrix | `color_transform` is a row-major 3×3 matrix of 9 numbers (`COLOR_CORRECTION_TRANSFORM`); same implications as manual gains |
+| Colour effects | `effect` and `aberration_correction` are gated by their descriptor mode lists |
+
+A manual colour temperature is built from the two primitives: capture the
+converged `awb_gains` while pointing at the screen, then send a `color_transform`
+that maps the sensor colour space to the display target. `awb_state` turns
+`inactive` when AWB is off, and the `awb_gains` actual stays fixed while the
+manual values are requested.
 
 ## Zoom and lens
 

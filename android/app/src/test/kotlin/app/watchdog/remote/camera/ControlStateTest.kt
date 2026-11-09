@@ -19,6 +19,13 @@ class ControlStateTest {
             .put(JSONArray().put(15).put(30))
             .put(JSONArray().put(30).put(30))
 
+    private fun gainComponents(): JSONArray =
+        JSONArray()
+            .put("r")
+            .put("g_even")
+            .put("g_odd")
+            .put("b")
+
     private fun rect(x: Double, y: Double, w: Double, h: Double): JSONObject =
         JSONObject()
             .put("x", x)
@@ -77,6 +84,22 @@ class ControlStateTest {
             ).put(
                 "awb_mode",
                 JSONObject().put("supported", true).put("modes", JSONArray().put(1).put(5)),
+            ).put("awb_regions", JSONObject().put("supported", true).put("max_regions", 2))
+            .put(
+                "awb_gains",
+                JSONObject()
+                    .put("supported", true)
+                    .put("components", gainComponents())
+                    .put("min", 0.0)
+                    .put("max", 8.0)
+                    .put("step", 0),
+            ).put(
+                "color_transform",
+                JSONObject()
+                    .put("supported", true)
+                    .put("matrix_size", 9)
+                    .put("min", -4.0)
+                    .put("max", 4.0),
             )
 
     private fun fullState(store: ControlStateStore, seq: Long = 1): JSONObject =
@@ -96,6 +119,34 @@ class ControlStateTest {
         val unsupported = store.setRequested("torch", true, ControlSource.HOST)
         assertFalse(unsupported.ok)
         assertEquals("UNSUPPORTED", unsupported.errorCode)
+    }
+
+    @Test
+    fun unsupportedDescriptorEntriesRejectRequestsButStillCarryReadouts() {
+        val descriptor =
+            descriptor()
+                .put(
+                    "unsupported",
+                    JSONArray().put(JSONObject().put("control", "awb_gains").put("reason", "test")),
+                )
+        descriptor.remove("awb_gains")
+        val store = ControlStateStore(descriptor)
+
+        val gains =
+            JSONObject()
+                .put("r", 1.0)
+                .put("g_even", 1.0)
+                .put("g_odd", 1.0)
+                .put("b", 1.0)
+        assertEquals(
+            "UNSUPPORTED",
+            store.setRequested("awb_gains", gains, ControlSource.HOST).errorCode,
+        )
+
+        store.setReadout("awb_gains", gains)
+        val entry = fullState(store).getJSONObject("awb_gains")
+        assertFalse(entry.getBoolean("supported"))
+        assertEquals(1.0, entry.getJSONObject("actual").getDouble("r"), 0.0)
     }
 
     @Test
@@ -319,5 +370,100 @@ class ControlStateTest {
 
         assertTrue(store.setRequested("af_lock", true, ControlSource.HOST).ok)
         assertTrue(fullState(store).getJSONObject("af_lock").getBoolean("requested"))
+    }
+
+    @Test
+    fun validatesAwbRegionsLikeOtherMeteringRegions() {
+        val store = ControlStateStore(descriptor())
+        val region = rect(0.25, 0.25, 0.5, 0.5)
+
+        val ok = store.setRequested("awb_regions", JSONArray().put(region), ControlSource.HOST)
+        assertTrue(ok.ok)
+        assertEquals(1000, (ok.applied as JSONArray).getJSONObject(0).getInt("weight"))
+
+        val tooMany = JSONArray().put(region).put(region).put(region)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("awb_regions", tooMany, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun validatesAwbGainsAsRggbComponents() {
+        val store = ControlStateStore(descriptor())
+        val gains =
+            JSONObject()
+                .put("r", 1.5)
+                .put("g_even", 1.0)
+                .put("g_odd", 1.0)
+                .put("b", 2.25)
+
+        val ok = store.setRequested("awb_gains", gains, ControlSource.HOST)
+        assertTrue(ok.ok)
+        val applied = ok.applied as JSONObject
+        assertEquals(1.5, applied.getDouble("r"), 0.0)
+        assertEquals(2.25, applied.getDouble("b"), 0.0)
+
+        val missing = JSONObject().put("r", 1.0)
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("awb_gains", missing, ControlSource.HOST).errorCode,
+        )
+        val high =
+            JSONObject()
+                .put("r", 9.0)
+                .put("g_even", 1.0)
+                .put("g_odd", 1.0)
+                .put("b", 1.0)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("awb_gains", high, ControlSource.HOST).errorCode,
+        )
+        val text =
+            JSONObject()
+                .put("r", "warm")
+                .put("g_even", 1.0)
+                .put("g_odd", 1.0)
+                .put("b", 1.0)
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("awb_gains", text, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun validatesColorTransformAsARowMajorMatrix() {
+        val store = ControlStateStore(descriptor())
+        val matrix = JSONArray()
+        for (index in 0 until 9) {
+            matrix.put(if (index % 4 == 0) 1.0 else 0.0)
+        }
+
+        val ok = store.setRequested("color_transform", matrix, ControlSource.HOST)
+        assertTrue(ok.ok)
+        val applied = ok.applied as JSONArray
+        assertEquals(9, applied.length())
+        assertEquals(1.0, applied.getDouble(4), 0.0)
+
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("color_transform", JSONArray().put(1.0), ControlSource.HOST).errorCode,
+        )
+        val outside = JSONArray()
+        for (index in 0 until 9) {
+            outside.put(5.0)
+        }
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("color_transform", outside, ControlSource.HOST).errorCode,
+        )
+        val text = JSONArray()
+        for (index in 0 until 9) {
+            text.put("red")
+        }
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("color_transform", text, ControlSource.HOST).errorCode,
+        )
     }
 }

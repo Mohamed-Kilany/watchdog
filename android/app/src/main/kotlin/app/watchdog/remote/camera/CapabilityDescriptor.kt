@@ -251,6 +251,7 @@ object CapabilityDescriptor {
             out.put("ae_precapture", JSONObject().put("supported", true))
         }
         focusControls(out, unsupported, chars)
+        ColorControls.describe(out, unsupported, chars)
         zoom(out, unsupported, chars)
     }
 
