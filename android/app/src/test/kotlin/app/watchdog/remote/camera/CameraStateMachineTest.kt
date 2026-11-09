@@ -88,6 +88,38 @@ class CameraStateMachineTest {
     }
 
     @Test
+    fun `stale closed callback does not block recovery`() {
+        val machine = CameraStateMachine()
+        machine.onEvent(CameraEvent.Open("0"))
+        machine.onEvent(CameraEvent.Failed("camera disabled by policy"))
+
+        // CameraDevice.StateCallback.onClosed arrives after onError closed the
+        // failed device. It must not erase the recovery state.
+        machine.onEvent(CameraEvent.Closed)
+        assertEquals(CameraStatus.ERROR, machine.snapshot.status)
+
+        machine.onEvent(CameraEvent.Recover)
+        assertEquals(CameraStatus.OPENING, machine.snapshot.status)
+        machine.onEvent(CameraEvent.Opened)
+        machine.onEvent(CameraEvent.Configured)
+        machine.onEvent(CameraEvent.StreamStarted)
+        assertEquals(CameraStatus.STREAMING, machine.snapshot.status)
+    }
+
+    @Test
+    fun `stale closed callback does not erase recovering`() {
+        val machine = CameraStateMachine()
+        machine.onEvent(CameraEvent.Open("0"))
+        machine.onEvent(CameraEvent.Opened)
+        machine.onEvent(CameraEvent.Configured)
+        machine.onEvent(CameraEvent.StreamStarted)
+        machine.onEvent(CameraEvent.Disconnected)
+
+        machine.onEvent(CameraEvent.Closed)
+        assertEquals(CameraStatus.RECOVERING, machine.snapshot.status)
+    }
+
+    @Test
     fun `close from streaming resets the state`() {
         val machine = CameraStateMachine()
         machine.onEvent(CameraEvent.Open("0"))

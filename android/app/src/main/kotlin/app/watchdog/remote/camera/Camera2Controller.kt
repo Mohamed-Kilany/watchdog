@@ -332,7 +332,11 @@ class Camera2Controller(context: Context, private val listener: CameraController
             }
 
             override fun onClosed(camera: CameraDevice) {
-                machine.onEvent(CameraEvent.Closed)
+                // The HAL also reports Closed after we close a failed device in
+                // onError/onDisconnected; only a user close may reset the state.
+                if (closedByUser) {
+                    machine.onEvent(CameraEvent.Closed)
+                }
                 publish()
             }
         }
