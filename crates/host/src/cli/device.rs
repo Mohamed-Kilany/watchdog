@@ -1163,6 +1163,11 @@ async fn await_command_result(
 }
 
 /// Best-effort read of the actual values that follow a control change.
+///
+/// The app sends a STATE delta immediately after COMMAND_RESULT, before the
+/// first frame produced with the new request, so that delta still carries the
+/// previous actuals. Drain the whole settle window and keep the latest value
+/// seen for each id instead of returning on the first snapshot.
 async fn collect_actuals(
     live: &mut LiveSession,
     ids: &[String],
@@ -1170,7 +1175,7 @@ async fn collect_actuals(
 ) -> BTreeMap<String, Value> {
     let deadline = Instant::now() + timeout;
     let mut out = BTreeMap::new();
-    while !ids.iter().all(|id| out.contains_key(id)) {
+    loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
             break;

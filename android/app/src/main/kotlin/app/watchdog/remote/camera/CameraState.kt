@@ -115,12 +115,22 @@ class CameraStateMachine(initial: CameraSnapshot = CameraSnapshot()) {
                 }
             CameraEvent.StreamStopped ->
                 if (state.status == CameraStatus.STREAMING) state.copy(status = CameraStatus.CONFIGURED) else state
+            // `onClosed` also fires after `onError`/`onDisconnected` closed the
+            // failed device. A stale Closed must not erase ERROR/RECOVERING,
+            // otherwise recovery runs while the machine is stuck at CLOSED.
             CameraEvent.Closed ->
-                if (state.status == CameraStatus.CLOSED) state else state.copy(status = CameraStatus.CLOSED)
+                if (state.status in ACTIVE) state.copy(status = CameraStatus.CLOSED) else state
             else -> state
         }
 
     private companion object {
         private val REOPENABLE = setOf(CameraStatus.CLOSED, CameraStatus.ERROR, CameraStatus.RECOVERING)
+        private val ACTIVE =
+            setOf(
+                CameraStatus.OPENING,
+                CameraStatus.OPEN,
+                CameraStatus.CONFIGURED,
+                CameraStatus.STREAMING,
+            )
     }
 }
