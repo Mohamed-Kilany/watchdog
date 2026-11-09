@@ -21,22 +21,8 @@ object CameraControls {
     /** Apply one validated control to a request builder. */
     fun applyTo(builder: CaptureRequest.Builder, chars: CameraCharacteristics, id: String, value: Any) {
         when (id) {
-            "control_mode" -> builder.set(CaptureRequest.CONTROL_MODE, int(value))
-            "ae_mode" -> builder.set(CaptureRequest.CONTROL_AE_MODE, int(value))
-            "af_mode" -> builder.set(CaptureRequest.CONTROL_AF_MODE, int(value))
-            "awb_mode" -> builder.set(CaptureRequest.CONTROL_AWB_MODE, int(value))
-            "anti_banding" -> builder.set(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, int(value))
-            "scene_mode" -> builder.set(CaptureRequest.CONTROL_SCENE_MODE, int(value))
-            "effect" -> builder.set(CaptureRequest.CONTROL_EFFECT_MODE, int(value))
-            "noise_reduction" -> builder.set(CaptureRequest.NOISE_REDUCTION_MODE, int(value))
-            "edge_enhancement" -> builder.set(CaptureRequest.EDGE_MODE, int(value))
-            "hot_pixel" -> builder.set(CaptureRequest.HOT_PIXEL_MODE, int(value))
-            "tonemap" -> builder.set(CaptureRequest.TONEMAP_MODE, int(value))
-            "aberration_correction" -> builder.set(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, int(value))
-            "video_stabilization" -> builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, int(value))
-            "optical_stabilization" -> builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, int(value))
-            "lens_shading" -> builder.set(CaptureRequest.SHADING_MODE, int(value))
-            "face_detect" -> builder.set(CaptureRequest.STATISTICS_FACE_DETECT_MODE, int(value))
+            "zoom_ratio" -> applyZoom(builder, chars, number(value))
+            "torch" -> applyTorch(builder, bool(value))
             "ae_lock" -> builder.set(CaptureRequest.CONTROL_AE_LOCK, bool(value))
             "awb_lock" -> builder.set(CaptureRequest.CONTROL_AWB_LOCK, bool(value))
             "iso" -> builder.set(CaptureRequest.SENSOR_SENSITIVITY, int(value))
@@ -44,17 +30,56 @@ object CameraControls {
             "frame_duration_ns" -> builder.set(CaptureRequest.SENSOR_FRAME_DURATION, long(value))
             "ae_compensation" -> builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, int(value))
             "flash_mode" -> builder.set(CaptureRequest.FLASH_MODE, int(value))
-            "torch" -> {
-                val mode =
-                    if (bool(value)) {
-                        CaptureRequest.FLASH_MODE_TORCH
-                    } else {
-                        CaptureRequest.FLASH_MODE_OFF
-                    }
-                builder.set(CaptureRequest.FLASH_MODE, mode)
-            }
-            "zoom_ratio" -> applyZoom(builder, chars, number(value))
+            else -> applyMode(builder, id, value)
         }
+    }
+
+    /** Capture and scene modes, one Camera2 request key each. */
+    private fun applyMode(builder: CaptureRequest.Builder, id: String, value: Any) {
+        val key =
+            when (id) {
+                "control_mode" -> CaptureRequest.CONTROL_MODE
+                "ae_mode" -> CaptureRequest.CONTROL_AE_MODE
+                "af_mode" -> CaptureRequest.CONTROL_AF_MODE
+                "awb_mode" -> CaptureRequest.CONTROL_AWB_MODE
+                "anti_banding" -> CaptureRequest.CONTROL_AE_ANTIBANDING_MODE
+                "scene_mode" -> CaptureRequest.CONTROL_SCENE_MODE
+                "effect" -> CaptureRequest.CONTROL_EFFECT_MODE
+                else -> null
+            }
+        if (key != null) {
+            builder.set(key, int(value))
+            return
+        }
+        applyProcessing(builder, id, value)
+    }
+
+    /** Per-frame processing modes (noise reduction, tone mapping, …). */
+    private fun applyProcessing(builder: CaptureRequest.Builder, id: String, value: Any) {
+        val key =
+            when (id) {
+                "noise_reduction" -> CaptureRequest.NOISE_REDUCTION_MODE
+                "edge_enhancement" -> CaptureRequest.EDGE_MODE
+                "hot_pixel" -> CaptureRequest.HOT_PIXEL_MODE
+                "tonemap" -> CaptureRequest.TONEMAP_MODE
+                "aberration_correction" -> CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE
+                "video_stabilization" -> CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE
+                "optical_stabilization" -> CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE
+                "lens_shading" -> CaptureRequest.SHADING_MODE
+                "face_detect" -> CaptureRequest.STATISTICS_FACE_DETECT_MODE
+                else -> return
+            }
+        builder.set(key, int(value))
+    }
+
+    private fun applyTorch(builder: CaptureRequest.Builder, on: Boolean) {
+        val mode =
+            if (on) {
+                CaptureRequest.FLASH_MODE_TORCH
+            } else {
+                CaptureRequest.FLASH_MODE_OFF
+            }
+        builder.set(CaptureRequest.FLASH_MODE, mode)
     }
 
     /**
@@ -63,13 +88,30 @@ object CameraControls {
      */
     fun extract(result: TotalCaptureResult, chars: CameraCharacteristics): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
+        extractExposure(result, out)
+        extractModes(result, out)
+        extractProcessing(result, out)
+        extractCorrection(result, out)
+        extractLocks(result, out)
+        extractReadouts(result, out)
+        zoomRatio(result, chars)?.let { out["zoom_actual"] = it }
+        return out
+    }
+
+    private fun extractExposure(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.SENSOR_SENSITIVITY)?.let { out["iso"] = it }
         result.get(CaptureResult.SENSOR_EXPOSURE_TIME)?.let { out["exposure_time_ns"] = it }
         result.get(CaptureResult.SENSOR_FRAME_DURATION)?.let { out["frame_duration_ns"] = it }
+    }
+
+    private fun extractModes(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_MODE)?.let { out["ae_mode"] = it }
         result.get(CaptureResult.CONTROL_AF_MODE)?.let { out["af_mode"] = it }
         result.get(CaptureResult.CONTROL_AWB_MODE)?.let { out["awb_mode"] = it }
         result.get(CaptureResult.CONTROL_MODE)?.let { out["control_mode"] = it }
+    }
+
+    private fun extractProcessing(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_ANTIBANDING_MODE)?.let { out["anti_banding"] = it }
         result.get(CaptureResult.CONTROL_SCENE_MODE)?.let { out["scene_mode"] = it }
         result.get(CaptureResult.CONTROL_EFFECT_MODE)?.let { out["effect"] = it }
@@ -77,14 +119,23 @@ object CameraControls {
         result.get(CaptureResult.EDGE_MODE)?.let { out["edge_enhancement"] = it }
         result.get(CaptureResult.HOT_PIXEL_MODE)?.let { out["hot_pixel"] = it }
         result.get(CaptureResult.TONEMAP_MODE)?.let { out["tonemap"] = it }
+    }
+
+    private fun extractCorrection(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.COLOR_CORRECTION_ABERRATION_MODE)?.let { out["aberration_correction"] = it }
         result.get(CaptureResult.CONTROL_VIDEO_STABILIZATION_MODE)?.let { out["video_stabilization"] = it }
         result.get(CaptureResult.LENS_OPTICAL_STABILIZATION_MODE)?.let { out["optical_stabilization"] = it }
         result.get(CaptureResult.SHADING_MODE)?.let { out["lens_shading"] = it }
         result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)?.let { out["face_detect"] = it }
+    }
+
+    private fun extractLocks(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_LOCK)?.let { out["ae_lock"] = it }
         result.get(CaptureResult.CONTROL_AWB_LOCK)?.let { out["awb_lock"] = it }
         result.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION)?.let { out["ae_compensation"] = it }
+    }
+
+    private fun extractReadouts(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_STATE)?.let { out["ae_state"] = aeState(it) }
         result.get(CaptureResult.CONTROL_AF_STATE)?.let { out["af_state"] = afState(it) }
         result.get(CaptureResult.CONTROL_AWB_STATE)?.let { out["awb_state"] = awbState(it) }
@@ -97,8 +148,6 @@ object CameraControls {
                     .put("g_odd", gains.greenOdd.toDouble())
                     .put("b", gains.blue.toDouble())
         }
-        zoomRatio(result, chars)?.let { out["zoom_actual"] = it }
-        return out
     }
 
     private fun applyZoom(builder: CaptureRequest.Builder, chars: CameraCharacteristics, ratio: Double) {

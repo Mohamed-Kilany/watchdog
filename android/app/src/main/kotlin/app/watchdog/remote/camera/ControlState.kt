@@ -42,6 +42,14 @@ class ControlStateStore(private val descriptor: JSONObject) {
         var source: ControlSource = ControlSource.DEVICE,
     )
 
+    private data class StateHeader(
+        val seq: Long,
+        val timestampMs: Long,
+        val cameraId: String,
+        val droppedFrames: Long,
+        val storageFreeMb: Long?,
+    )
+
     private val entries = TreeMap<String, Entry>()
     private val lastSent = HashMap<String, String>()
     private var lastCameraId: String? = null
@@ -50,11 +58,10 @@ class ControlStateStore(private val descriptor: JSONObject) {
         val keys = descriptor.keys()
         while (keys.hasNext()) {
             val id = keys.next()
-            val spec = descriptor.optJSONObject(id) ?: continue
-            if (!spec.has("supported")) {
-                continue
+            val spec = descriptor.optJSONObject(id)
+            if (spec != null && spec.has("supported")) {
+                entries[id] = Entry(supported = spec.optBoolean("supported"))
             }
-            entries[id] = Entry(supported = spec.optBoolean("supported"))
         }
         READOUTS.forEach { id ->
             entries[id] = Entry(supported = true, source = ControlSource.DEVICE)
@@ -146,7 +153,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
             lastSent[id] = json.toString()
         }
         lastCameraId = cameraId
-        return envelope(seq, timestampMs, cameraId, state, droppedFrames, storageFreeMb)
+        return envelope(StateHeader(seq, timestampMs, cameraId, droppedFrames, storageFreeMb), state)
     }
 
     /**
@@ -178,26 +185,19 @@ class ControlStateStore(private val descriptor: JSONObject) {
         if (count == 0 && !cameraChanged) {
             return null
         }
-        return envelope(seq, timestampMs, cameraId, changed, droppedFrames, storageFreeMb)
+        return envelope(StateHeader(seq, timestampMs, cameraId, droppedFrames, storageFreeMb), changed)
     }
 
-    private fun envelope(
-        seq: Long,
-        timestampMs: Long,
-        cameraId: String,
-        state: JSONObject,
-        droppedFrames: Long,
-        storageFreeMb: Long?,
-    ): JSONObject {
+    private fun envelope(header: StateHeader, state: JSONObject): JSONObject {
         val out =
             JSONObject()
-                .put("seq", seq)
-                .put("timestamp_ms", timestampMs)
-                .put("camera_id", cameraId)
+                .put("seq", header.seq)
+                .put("timestamp_ms", header.timestampMs)
+                .put("camera_id", header.cameraId)
                 .put("state", state)
-                .put("dropped_frames", droppedFrames)
-        if (storageFreeMb != null) {
-            out.put("storage_free_mb", storageFreeMb)
+                .put("dropped_frames", header.droppedFrames)
+        if (header.storageFreeMb != null) {
+            out.put("storage_free_mb", header.storageFreeMb)
         }
         return out
     }

@@ -86,21 +86,25 @@ object JsonMessages {
                 )
         val out = ArrayList<ControlAssignment>(array.length())
         for (index in 0 until array.length()) {
-            val item =
-                array.optJSONObject(index)
-                    ?: throw ProtocolException(
-                        ProtocolError.MessageDecode,
-                        "controls[$index] must be an object",
-                    )
-            val id =
-                item.optString("id").takeIf { it.isNotEmpty() }
-                    ?: throw ProtocolException(
-                        ProtocolError.MessageDecode,
-                        "controls[$index].id is required",
-                    )
-            out += ControlAssignment(id, if (item.has("value")) item.get("value") else null)
+            out += parseAssignment(array, index)
         }
         return out
+    }
+
+    private fun parseAssignment(array: JSONArray, index: Int): ControlAssignment {
+        val item =
+            array.optJSONObject(index)
+                ?: throw ProtocolException(
+                    ProtocolError.MessageDecode,
+                    "controls[$index] must be an object",
+                )
+        val id =
+            item.optString("id").takeIf { it.isNotEmpty() }
+                ?: throw ProtocolException(
+                    ProtocolError.MessageDecode,
+                    "controls[$index].id is required",
+                )
+        return ControlAssignment(id, if (item.has("value")) item.get("value") else null)
     }
 
     /** One per-control outcome for `COMMAND_RESULT` (§5.6). */
