@@ -529,7 +529,7 @@ class CaptureService : Service() {
     }
 
     private fun handleSetStateRate(command: CommandMessage) {
-        val hz = command.params.optDouble("hz", DEFAULT_STATE_RATE_HZ.toDouble())
+        val hz = command.params.optDouble("hz", DEFAULT_STATE_RATE_HZ)
         if (hz < MIN_STATE_RATE_HZ || hz > MAX_STATE_RATE_HZ) {
             reply(
                 command.id,
@@ -735,7 +735,7 @@ class CaptureService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val WAKE_LOCK_TAG = "watchdog:capture"
         private const val SOCKET_PREFIX = "watchdog-"
-        private const val DEFAULT_STATE_RATE_HZ = 10
+        private const val DEFAULT_STATE_RATE_HZ = 10.0
         private const val MIN_STATE_RATE_HZ = 1.0
         private const val MAX_STATE_RATE_HZ = 30.0
         private const val STATE_DELTA_FLAG = 1
