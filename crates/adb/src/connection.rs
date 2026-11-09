@@ -89,10 +89,20 @@ impl Stream {
 
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
+        tracing::trace!(
+            local_id = self.local_id,
+            len = payload.len(),
+            "stream write waiting for permit"
+        );
         let permit = Arc::clone(&self.write_permit)
             .acquire_owned()
             .await
             .map_err(|_| AdbError::StreamClosed)?;
+        tracing::trace!(
+            local_id = self.local_id,
+            len = payload.len(),
+            "stream write permit acquired"
+        );
         // Flow control: the permit is restored by the reader task when the
         // device acknowledges the WRTE with OKAY. Forget it here so dropping
         // this future does not return it early.
@@ -129,10 +139,20 @@ pub struct StreamWriter {
 impl StreamWriter {
     /// Send a payload; waits for the per-stream write window (1 in flight).
     pub async fn write(&self, payload: Bytes) -> Result<()> {
+        tracing::trace!(
+            local_id = self.local_id,
+            len = payload.len(),
+            "stream write waiting for permit"
+        );
         let permit = Arc::clone(&self.write_permit)
             .acquire_owned()
             .await
             .map_err(|_| AdbError::StreamClosed)?;
+        tracing::trace!(
+            local_id = self.local_id,
+            len = payload.len(),
+            "stream write permit acquired"
+        );
         // Flow control: the permit is restored by the reader task when the
         // device acknowledges the WRTE with OKAY. Forget it here so dropping
         // this future does not return it early.
@@ -629,6 +649,12 @@ async fn write_loop<W: TransportWriter + ?Sized>(
             } => Packet::new(Command::Clse, local_id, remote_id, &[][..]),
         };
         writer.write_all(&packet.encode()).await?;
+        tracing::trace!(
+            command = %packet.command.name(),
+            arg0 = packet.arg0,
+            len = packet.payload.len(),
+            "ADB TX flushed"
+        );
     }
     Ok(())
 }
@@ -651,6 +677,13 @@ async fn read_loop<R: TransportReader + ?Sized>(
 ) -> Result<()> {
     loop {
         let packet = read_packet(reader, Duration::from_secs(3600)).await?;
+        tracing::trace!(
+            command = %packet.command.name(),
+            arg0 = packet.arg0,
+            arg1 = packet.arg1,
+            len = packet.payload.len(),
+            "ADB RX"
+        );
         match packet.command {
             Command::Okay => {
                 let local_id = packet.arg1;
@@ -661,6 +694,7 @@ async fn read_loop<R: TransportReader + ?Sized>(
                     let _ = pending.send(Ok(remote_id));
                 } else if let Some(permit) = guard.write_permits.get(&local_id) {
                     permit.add_permits(1);
+                    tracing::trace!(local_id, remote_id, "ADB OKAY permit returned");
                 }
             }
             Command::Wrte => {
