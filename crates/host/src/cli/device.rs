@@ -1276,6 +1276,11 @@ fn parse_control_value(value: &str) -> Value {
     if let Ok(float) = value.parse::<f64>() {
         return Value::from(float);
     }
+    if value.starts_with('[') || value.starts_with('{') {
+        if let Ok(json) = serde_json::from_str::<Value>(value) {
+            return json;
+        }
+    }
     let unquoted = value
         .strip_prefix('"')
         .and_then(|inner| inner.strip_suffix('"'))
@@ -1713,6 +1718,16 @@ mod tests {
         assert_eq!(parse_assignment("awb_mode=1").unwrap().1, json!(1));
         assert_eq!(parse_assignment("label=\"auto\"").unwrap().1, json!("auto"));
         assert_eq!(parse_assignment("label='auto'").unwrap().1, json!("auto"));
+        assert_eq!(
+            parse_assignment("ae_fps_range=[30,30]").unwrap().1,
+            json!([30, 30])
+        );
+        assert_eq!(
+            parse_assignment("ae_regions=[{\"x\":0.25,\"y\":0.25,\"w\":0.5,\"h\":0.5}]")
+                .unwrap()
+                .1,
+            json!([{ "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 }])
+        );
         assert_eq!(parse_assignment("iso=null").unwrap().1, Value::Null);
         assert!(parse_assignment("iso").is_err());
         assert!(parse_assignment("=1").is_err());

@@ -40,6 +40,12 @@ interface CameraController {
      */
     fun applyControls(controls: Map<String, Any>): ApplyOutcome
 
+    /**
+     * Fire a one-shot trigger (`ae_precapture`) without changing the repeating
+     * request. Returns an error when the camera is not streaming.
+     */
+    fun trigger(id: String, value: Any): ApplyOutcome
+
     fun close()
 
     fun release()
@@ -141,20 +147,24 @@ class Camera2Controller(context: Context, private val listener: CameraController
         if (controls.isEmpty()) {
             return ApplyOutcome(true)
         }
+        return runOnCameraThread("control") { applyOnHandler(controls) }
+    }
+
+    private fun runOnCameraThread(label: String, action: () -> ApplyOutcome): ApplyOutcome {
         val latch = CountDownLatch(1)
         var outcome = ApplyOutcome(false, error = "camera thread unavailable")
         val posted =
             handler.post {
                 outcome =
                     try {
-                        applyOnHandler(controls)
+                        action()
                     } catch (e: CameraAccessException) {
-                        ApplyOutcome(false, error = "apply failed: ${e.message}")
+                        ApplyOutcome(false, error = "$label failed: ${e.message}")
                     } catch (e: IllegalStateException) {
-                        ApplyOutcome(false, error = "apply invalid state: ${e.message}")
+                        ApplyOutcome(false, error = "$label invalid state: ${e.message}")
                     } catch (e: IllegalArgumentException) {
                         // A value the HAL rejects must not kill the camera thread.
-                        ApplyOutcome(false, error = "invalid control: ${e.message}")
+                        ApplyOutcome(false, error = "invalid $label: ${e.message}")
                     } finally {
                         latch.countDown()
                     }
@@ -165,7 +175,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
         return if (latch.await(APPLY_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
             outcome
         } else {
-            ApplyOutcome(false, error = "camera did not acknowledge the control batch")
+            ApplyOutcome(false, error = "camera did not acknowledge the $label")
         }
     }
 
@@ -184,7 +194,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
         // between configure and start is picked up by `startRepeating`.
         if (machine.snapshot.status == CameraStatus.STREAMING) {
             try {
-                active.setRepeatingRequest(buildRequest(camera, chars), captureCallback, handler)
+                active.setRepeatingRequest(requestBuilder(camera, chars).build(), captureCallback, handler)
             } catch (e: IllegalArgumentException) {
                 // Never keep a value the HAL rejected: the next request would
                 // fail again and the batch would silently poison the session.
@@ -194,6 +204,37 @@ class Camera2Controller(context: Context, private val listener: CameraController
             }
         }
         return ApplyOutcome(true, applied = controls)
+    }
+
+    override fun trigger(id: String, value: Any): ApplyOutcome =
+        runOnCameraThread("trigger") { triggerOnHandler(id, value) }
+
+    private fun triggerOnHandler(id: String, value: Any): ApplyOutcome {
+        val camera = device
+        val active = session
+        val chars = characteristics
+        if (camera == null || active == null || chars == null) {
+            return ApplyOutcome(false, error = "camera is not open")
+        }
+        if (machine.snapshot.status != CameraStatus.STREAMING) {
+            return ApplyOutcome(false, error = "camera is not streaming")
+        }
+        val trigger =
+            when (id) {
+                "ae_precapture" ->
+                    if (value.toString() == "start") {
+                        CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START
+                    } else {
+                        CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
+                    }
+                else -> return ApplyOutcome(false, error = "unknown trigger '$id'")
+            }
+        val request =
+            requestBuilder(camera, chars)
+                .apply { set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, trigger) }
+                .build()
+        active.capture(request, captureCallback, handler)
+        return ApplyOutcome(true, applied = mapOf(id to value))
     }
 
     override fun close() {
@@ -219,8 +260,11 @@ class Camera2Controller(context: Context, private val listener: CameraController
     }
 
     private fun openDevice(cameraId: String) {
+        val permissionGranted =
+            ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
         when {
-            !hasCameraPermission() -> fail("CAMERA permission not granted")
+            !permissionGranted -> fail("CAMERA permission not granted")
             else ->
                 try {
                     manager.openCamera(cameraId, deviceCallback, handler)
@@ -258,7 +302,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
             return
         }
         try {
-            session.setRepeatingRequest(buildRequest(camera, chars), captureCallback, handler)
+            session.setRepeatingRequest(requestBuilder(camera, chars).build(), captureCallback, handler)
             machine.onEvent(CameraEvent.StreamStarted)
             publish()
         } catch (e: CameraAccessException) {
@@ -273,12 +317,12 @@ class Camera2Controller(context: Context, private val listener: CameraController
         }
     }
 
-    private fun buildRequest(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest {
+    private fun requestBuilder(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest.Builder {
         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
         surfaces.forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
-        return builder.build()
+        return builder
     }
 
     private fun scheduleRecovery(reason: String, baseDelayMs: Long = BASE_RECOVERY_DELAY_MS) {
@@ -325,7 +369,16 @@ class Camera2Controller(context: Context, private val listener: CameraController
                 camera.close()
                 device = null
                 session = null
-                machine.onEvent(CameraEvent.Failed(describeError(error), isCameraInUse(error)))
+                val reason =
+                    when (error) {
+                        CameraDevice.StateCallback.ERROR_CAMERA_IN_USE -> "camera in use by another app"
+                        CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras in use"
+                        CameraDevice.StateCallback.ERROR_CAMERA_DISABLED -> "camera disabled by policy"
+                        CameraDevice.StateCallback.ERROR_CAMERA_DEVICE -> "camera device error"
+                        CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "camera service error"
+                        else -> "camera error $error"
+                    }
+                machine.onEvent(CameraEvent.Failed(reason, isCameraInUse(error)))
                 publish()
                 val delay = if (isCameraInUse(error)) CAMERA_IN_USE_DELAY_MS else BASE_RECOVERY_DELAY_MS
                 scheduleRecovery("error $error", delay)
@@ -368,10 +421,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
             }
         }
 
-    private fun hasCameraPermission(): Boolean =
-        ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
-
     private fun fail(reason: String) {
         DeviceLog.e(TAG, reason)
         machine.onEvent(CameraEvent.Failed(reason))
@@ -381,16 +430,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private fun publish() {
         listener.onStateChanged(machine.snapshot)
     }
-
-    private fun describeError(error: Int): String =
-        when (error) {
-            CameraDevice.StateCallback.ERROR_CAMERA_IN_USE -> "camera in use by another app"
-            CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras in use"
-            CameraDevice.StateCallback.ERROR_CAMERA_DISABLED -> "camera disabled by policy"
-            CameraDevice.StateCallback.ERROR_CAMERA_DEVICE -> "camera device error"
-            CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "camera service error"
-            else -> "camera error $error"
-        }
 
     private fun isCameraInUse(error: Int): Boolean =
         error == CameraDevice.StateCallback.ERROR_CAMERA_IN_USE ||

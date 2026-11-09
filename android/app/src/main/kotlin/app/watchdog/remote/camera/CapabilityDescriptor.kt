@@ -36,6 +36,8 @@ object CapabilityDescriptor {
     private const val NO_REASON = "not reported by CameraCharacteristics"
     private const val NO_FLASH_REASON = "no flash unit"
     private const val NO_ZOOM_REASON = "no digital zoom"
+    private const val NO_AE_REGIONS_REASON = "no AE metering regions"
+    private const val NO_AE_REASON = "AE is not available"
     private const val UNKNOWN_TYPE = "unknown"
 
     private val KEY_CLASSES =
@@ -102,10 +104,10 @@ object CapabilityDescriptor {
                 out.put(id, describe(manager.getCameraCharacteristics(id)))
             } catch (e: CameraAccessException) {
                 DeviceLog.w(TAG, "camera $id characteristics unavailable: ${e.message}")
-                out.put(id, errorDescriptor(e))
+                out.put(id, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
             } catch (e: IllegalArgumentException) {
                 DeviceLog.w(TAG, "camera $id disappeared: ${e.message}")
-                out.put(id, errorDescriptor(e))
+                out.put(id, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
             }
         }
         return out
@@ -117,9 +119,24 @@ object CapabilityDescriptor {
         val unsupported = JSONArray()
         out.put(
             "hardware_level",
-            hardwareLevel(chars.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)),
+            when (chars.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)) {
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
+                else -> "UNKNOWN"
+            },
         )
-        out.put("lens_facing", facing(chars.get(CameraCharacteristics.LENS_FACING)))
+        out.put(
+            "lens_facing",
+            when (chars.get(CameraCharacteristics.LENS_FACING)) {
+                CameraCharacteristics.LENS_FACING_BACK -> "back"
+                CameraCharacteristics.LENS_FACING_FRONT -> "front"
+                CameraCharacteristics.LENS_FACING_EXTERNAL -> "external"
+                else -> "unknown"
+            },
+        )
         out.put("sensor_orientation", chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0)
         out.put(
             "capabilities",
@@ -144,9 +161,6 @@ object CapabilityDescriptor {
         out.put("unsupported", unsupported)
         return out
     }
-
-    private fun errorDescriptor(error: Exception): JSONObject =
-        JSONObject().put("error", error.message ?: error.javaClass.simpleName)
 
     private fun addControls(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
         addModes(out, unsupported, chars)
@@ -225,7 +239,39 @@ object CapabilityDescriptor {
             chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE),
             chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP),
         )
+        aeRegions(out, unsupported, chars)
+        aeFpsRange(out, unsupported, chars)
+        aePrecapture(out, unsupported, chars)
         zoom(out, unsupported, chars)
+    }
+
+    private fun aeRegions(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
+        val maximum = chars.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE) ?: 0
+        if (maximum <= 0) {
+            unsupported.put(unsupportedEntry("ae_regions", NO_AE_REGIONS_REASON))
+            return
+        }
+        out.put("ae_regions", JSONObject().put("supported", true).put("max_regions", maximum))
+    }
+
+    private fun aeFpsRange(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
+        val ranges = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+        if (ranges == null || ranges.isEmpty()) {
+            unsupported.put(unsupportedEntry("ae_fps_range", NO_REASON))
+            return
+        }
+        val array = JSONArray()
+        ranges.forEach { range -> array.put(JSONArray().put(range.lower).put(range.upper)) }
+        out.put("ae_fps_range", JSONObject().put("supported", true).put("ranges", array))
+    }
+
+    private fun aePrecapture(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
+        val modes = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES)
+        if (modes == null || modes.none { it != CaptureRequest.CONTROL_AE_MODE_OFF }) {
+            unsupported.put(unsupportedEntry("ae_precapture", NO_AE_REASON))
+            return
+        }
+        out.put("ae_precapture", JSONObject().put("supported", true))
     }
 
     private fun modes(out: JSONObject, unsupported: JSONArray, name: String, values: IntArray?) {
@@ -488,24 +534,6 @@ object CapabilityDescriptor {
         values?.forEach { out.put(CAPABILITY_NAMES[it] ?: "CAPABILITY_$it") }
         return out
     }
-
-    private fun hardwareLevel(value: Int?): String =
-        when (value) {
-            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
-            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
-            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
-            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
-            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
-            else -> "UNKNOWN"
-        }
-
-    private fun facing(value: Int?): String =
-        when (value) {
-            CameraCharacteristics.LENS_FACING_BACK -> "back"
-            CameraCharacteristics.LENS_FACING_FRONT -> "front"
-            CameraCharacteristics.LENS_FACING_EXTERNAL -> "external"
-            else -> "unknown"
-        }
 
     private fun physicalIds(chars: CameraCharacteristics): List<String> =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

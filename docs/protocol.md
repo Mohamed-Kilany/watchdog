@@ -196,6 +196,9 @@ modes and ranges; unsupported ids are never applied):
 | `exposure_time_ns` | long | `SENSOR_EXPOSURE_TIME` |
 | `frame_duration_ns` | long | `SENSOR_FRAME_DURATION` |
 | `ae_compensation` | int (steps) | `CONTROL_AE_EXPOSURE_COMPENSATION`; the descriptor's `ev_step` is the EV per step |
+| `ae_fps_range` | `[min,max]` int pair | `CONTROL_AE_TARGET_FPS_RANGE`; must be one of the descriptor's `ranges` |
+| `ae_regions` | array of `{x,y,w,h,weight}` | `CONTROL_AE_REGIONS`; normalized to the active array, 1..`max_regions`, weight −1000..1000 (default 1000) |
+| `ae_precapture` | `"start"` / `"cancel"` | one-shot `CONTROL_AE_PRECAPTURE_TRIGGER`; never stored as requested state |
 | `flash_mode` | int | `FLASH_MODE` |
 | `torch` | bool | `FLASH_MODE` (`TORCH` / `OFF`) |
 | `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` (API 30+) or `SCALER_CROP_REGION` fallback |
@@ -218,7 +221,9 @@ applies the accepted subset atomically in the next repeating request. The
 processed in wire order, so duplicate ids resolve last-writer-wins. Setting
 `iso`, `exposure_time_ns` or `frame_duration_ns` implies `ae_mode = OFF` in the
 same batch when AE is supported, and the implicit change is reported as an
-additional result.
+additional result. `ae_precapture` is a one-shot trigger: it is applied as a
+single capture on top of the repeating request and is not retained as requested
+state.
 
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),
@@ -323,6 +328,9 @@ every control the host may send. Example:
   "ae_mode": {"supported": true, "modes": [0, 1, 2]},
   "iso": {"supported": true, "min": 50, "max": 12800, "step": 1},
   "exposure_time_ns": {"supported": true, "min": 1000, "max": 1000000000, "step": 1},
+  "ae_fps_range": {"supported": true, "ranges": [[15, 30], [30, 30]]},
+  "ae_regions": {"supported": true, "max_regions": 5},
+  "ae_precapture": {"supported": true},
   "zoom_ratio": {"supported": true, "min": 1.0, "max": 8.0, "step": 0.0,
                  "legacy_crop_region": false},
   "streams": {
@@ -345,6 +353,9 @@ every control the host may send. Example:
   `{"supported": true, "min": …, "max": …, "step": …}` (numbers; `step: 0`
   means continuous). `supported: false` and every entry in `unsupported` mean
   the host must not send that control.
+- `ae_fps_range` carries `ranges`, the allowed `[min,max]` FPS pairs;
+  `ae_regions` carries `max_regions` (1..N normalized rectangles);
+  `ae_precapture` is a one-shot trigger.
 - Key inventories are the complete dump of the camera's available
   `CaptureRequest` / `CaptureResult` / `CameraCharacteristics` keys:
   `name` is the dotted Android key and `type` its Java class. Full dump, no

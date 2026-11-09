@@ -78,6 +78,26 @@ class ControlStateStore(private val descriptor: JSONObject) {
      */
     @Synchronized
     fun setRequested(id: String, value: Any?, source: ControlSource): ControlValidation {
+        val validation = validateControl(id, value)
+        if (!validation.ok) {
+            return validation
+        }
+        val applied = validation.applied
+        val entry = entries.getValue(id)
+        entry.requested = applied
+        entry.source = source
+        if (id in LOCKS) {
+            entry.locked = applied as? Boolean
+        }
+        return ControlValidation(true, applied = applied)
+    }
+
+    /**
+     * Validate a value without recording it as requested state. Used for
+     * one-shot triggers such as `ae_precapture`.
+     */
+    @Synchronized
+    fun validateControl(id: String, value: Any?): ControlValidation {
         val entry =
             entries[id]
                 ?: return ControlValidation(
@@ -92,31 +112,21 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 message = "control '$id' is not supported by this camera",
             )
         }
-        val validation = validate(id, descriptor.optJSONObject(id), value)
-        if (!validation.ok) {
-            return validation
-        }
-        val applied = validation.applied
-        entry.requested = applied
-        entry.source = source
-        if (id in LOCKS) {
-            entry.locked = applied as? Boolean
-        }
-        return ControlValidation(true, applied = applied)
+        return validate(id, descriptor.optJSONObject(id), value)
     }
 
     /** Record a value read from `TotalCaptureResult`; never changes `source`. */
     @Synchronized
     fun setActual(id: String, value: Any?) {
         val entry = entries[id] ?: return
-        entry.actual = normalize(value)
+        entry.actual = ControlValues.normalize(value)
     }
 
     /** Record a device readout (FPS, battery, …) as both actual and source. */
     @Synchronized
     fun setReadout(id: String, value: Any?) {
         val entry = entries[id] ?: return
-        entry.actual = normalize(value)
+        entry.actual = ControlValues.normalize(value)
         entry.source = ControlSource.DEVICE
     }
 
@@ -217,17 +227,26 @@ class ControlStateStore(private val descriptor: JSONObject) {
             return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
         }
         if (spec == null) {
-            return ControlValidation(true, applied = normalize(value))
+            return ControlValidation(true, applied = ControlValues.normalize(value))
         }
         if (spec.has("modes")) {
             return validateMode(id, spec.getJSONArray("modes"), value)
+        }
+        if (spec.has("ranges")) {
+            return validateFpsRange(id, spec.getJSONArray("ranges"), value)
+        }
+        if (spec.has("max_regions")) {
+            return validateRegions(id, spec.optInt("max_regions"), value)
+        }
+        if (id in TRIGGERS) {
+            return validateTrigger(id, value)
         }
         if (spec.has("min") && spec.has("max")) {
             return validateRange(id, spec, value)
         }
         if (id in BOOLEANS) {
             val bool =
-                asBoolean(value)
+                ControlValues.asBoolean(value)
                     ?: return ControlValidation(
                         false,
                         errorCode = "INVALID_VALUE",
@@ -235,12 +254,12 @@ class ControlStateStore(private val descriptor: JSONObject) {
                     )
             return ControlValidation(true, applied = bool)
         }
-        return ControlValidation(true, applied = normalize(value))
+        return ControlValidation(true, applied = ControlValues.normalize(value))
     }
 
     private fun validateMode(id: String, modes: JSONArray, value: Any?): ControlValidation {
         val mode =
-            asInt(value)
+            ControlValues.asInt(value)
                 ?: return ControlValidation(
                     false,
                     errorCode = "INVALID_VALUE",
@@ -260,7 +279,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
 
     private fun validateRange(id: String, spec: JSONObject, value: Any?): ControlValidation {
         val number =
-            asDouble(value)
+            ControlValues.asDouble(value)
                 ?: return ControlValidation(
                     false,
                     errorCode = "INVALID_VALUE",
@@ -275,10 +294,10 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 message = "$id=$value outside [$min, $max]",
             )
         }
-        val step = spec.optDouble("step", DEFAULT_STEP)
-        if (step > DEFAULT_STEP) {
+        val step = spec.optDouble("step", ControlValues.DEFAULT_STEP)
+        if (step > ControlValues.DEFAULT_STEP) {
             val steps = (number - min) / step
-            if (abs(steps - round(steps)) > STEP_TOLERANCE) {
+            if (abs(steps - round(steps)) > ControlValues.STEP_TOLERANCE) {
                 return ControlValidation(
                     false,
                     errorCode = "STEP_MISMATCH",
@@ -286,59 +305,153 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 )
             }
         }
-        return ControlValidation(true, applied = normalizeRangeValue(id, number))
+        return ControlValidation(true, applied = ControlValues.normalizeRangeValue(id, number))
     }
 
-    private fun normalizeRangeValue(id: String, number: Double): Any =
-        when (id) {
-            "zoom_ratio" -> roundToMillis(number)
-            "exposure_time_ns", "frame_duration_ns" -> round(number).toLong()
-            "ae_compensation" -> round(number).toInt()
-            else -> if (number == round(number)) round(number).toLong() else roundToMillis(number)
+    private fun validateFpsRange(id: String, ranges: JSONArray, value: Any?): ControlValidation {
+        val pair =
+            fpsPair(value)
+                ?: return ControlValidation(
+                    false,
+                    errorCode = "INVALID_VALUE",
+                    message = "control '$id' expects [min, max]",
+                )
+        for (index in 0 until ranges.length()) {
+            val candidate = ranges.optJSONArray(index) ?: continue
+            if (candidate.optInt(0, -1) == pair.first && candidate.optInt(1, -1) == pair.second) {
+                return ControlValidation(
+                    true,
+                    applied = JSONArray().put(pair.first).put(pair.second),
+                )
+            }
         }
+        return ControlValidation(
+            false,
+            errorCode = "OUT_OF_RANGE",
+            message = "FPS range [${pair.first}, ${pair.second}] is not available for '$id'",
+        )
+    }
 
-    private fun asInt(value: Any?): Int? =
-        when (value) {
-            is Int -> value
-            is Long -> if (value in Int.MIN_VALUE..Int.MAX_VALUE) value.toInt() else null
-            is Double -> if (value == round(value)) value.toInt() else null
-            is Float -> if (value.toDouble() == round(value.toDouble())) value.toInt() else null
-            is Number -> value.toInt()
-            is String -> value.toIntOrNull()
-            else -> null
+    private fun fpsPair(value: Any?): Pair<Int, Int>? {
+        val first =
+            when (value) {
+                is JSONArray -> value.opt(0)
+                is JSONObject -> value.opt("min")
+                else -> null
+            }
+        val second =
+            when (value) {
+                is JSONArray -> value.opt(1)
+                is JSONObject -> value.opt("max")
+                else -> null
+            }
+        val min = ControlValues.asInt(first) ?: return null
+        val max = ControlValues.asInt(second) ?: return null
+        return if (max >= min) min to max else null
+    }
+
+    private fun validateRegions(id: String, maxRegions: Int, value: Any?): ControlValidation {
+        val array =
+            value as? JSONArray
+                ?: return ControlValidation(
+                    false,
+                    errorCode = "INVALID_VALUE",
+                    message = "control '$id' expects an array of regions",
+                )
+        if (array.length() < 1 || array.length() > maxRegions) {
+            return ControlValidation(
+                false,
+                errorCode = "OUT_OF_RANGE",
+                message = "'$id' accepts 1..$maxRegions regions",
+            )
         }
-
-    private fun asDouble(value: Any?): Double? =
-        when (value) {
-            is Number -> value.toDouble()
-            is String -> value.toDoubleOrNull()
-            else -> null
+        val out = JSONArray()
+        for (index in 0 until array.length()) {
+            val region =
+                array.optJSONObject(index)
+                    ?: return ControlValidation(
+                        false,
+                        errorCode = "INVALID_VALUE",
+                        message = "'$id[$index]' must be an object",
+                    )
+            val validation = validateRegion(id, index, region)
+            if (!validation.ok) {
+                return validation
+            }
+            out.put(validation.applied)
         }
+        return ControlValidation(true, applied = out)
+    }
 
-    private fun asBoolean(value: Any?): Boolean? =
-        when (value) {
-            is Boolean -> value
-            is String -> value.toBooleanStrictOrNull()
-            else -> null
+    private fun validateRegion(id: String, index: Int, region: JSONObject): ControlValidation {
+        val x = ControlValues.asDouble(region.opt("x"))
+        val y = ControlValues.asDouble(region.opt("y"))
+        val w = ControlValues.asDouble(region.opt("w"))
+        val h = ControlValues.asDouble(region.opt("h"))
+        if (x == null || y == null) {
+            return ControlValidation(
+                false,
+                errorCode = "INVALID_VALUE",
+                message = "'$id[$index]' needs x, y, w and h",
+            )
         }
-
-    private fun normalize(value: Any?): Any? =
-        when (value) {
-            is Int -> value.toLong()
-            is Float -> roundToMillis(value.toDouble())
-            is Double -> roundToMillis(value)
-            is JSONObject, is JSONArray -> value
-            else -> value
+        if (w == null || h == null) {
+            return ControlValidation(
+                false,
+                errorCode = "INVALID_VALUE",
+                message = "'$id[$index]' needs x, y, w and h",
+            )
         }
+        val startsInBounds = x >= 0.0 && y >= 0.0 && w > 0.0 && h > 0.0
+        val endsInBounds = x + w <= 1.0 && y + h <= 1.0
+        if (!startsInBounds || !endsInBounds) {
+            return ControlValidation(
+                false,
+                errorCode = "OUT_OF_RANGE",
+                message = "'$id[$index]' must fit in normalized [0,1] coordinates",
+            )
+        }
+        val weight = region.optInt("weight", DEFAULT_METERING_WEIGHT)
+        if (weight < MIN_METERING_WEIGHT || weight > MAX_METERING_WEIGHT) {
+            return ControlValidation(
+                false,
+                errorCode = "OUT_OF_RANGE",
+                message = "'$id[$index].weight' must be in [$MIN_METERING_WEIGHT, $MAX_METERING_WEIGHT]",
+            )
+        }
+        return ControlValidation(
+            true,
+            applied =
+                JSONObject()
+                    .put("x", ControlValues.roundToMillis(x))
+                    .put("y", ControlValues.roundToMillis(y))
+                    .put("w", ControlValues.roundToMillis(w))
+                    .put("h", ControlValues.roundToMillis(h))
+                    .put("weight", weight),
+        )
+    }
 
-    private fun roundToMillis(value: Double): Double = round(value * MILLIS) / MILLIS
+    private fun validateTrigger(id: String, value: Any?): ControlValidation {
+        val trigger = value?.toString()?.lowercase()
+        if (trigger != TRIGGER_START && trigger != TRIGGER_CANCEL) {
+            return ControlValidation(
+                false,
+                errorCode = "INVALID_VALUE",
+                message = "control '$id' expects \"$TRIGGER_START\" or \"$TRIGGER_CANCEL\"",
+            )
+        }
+        return ControlValidation(true, applied = trigger)
+    }
 
     private companion object {
-        const val MILLIS = 1000.0
-        const val STEP_TOLERANCE = 1e-6
-        const val DEFAULT_STEP = 0.0
+        const val DEFAULT_METERING_WEIGHT = 1000
+        const val MIN_METERING_WEIGHT = -1000
+        const val MAX_METERING_WEIGHT = 1000
+        const val TRIGGER_START = "start"
+        const val TRIGGER_CANCEL = "cancel"
         val LOCKS = setOf("ae_lock", "awb_lock")
         val BOOLEANS = setOf("ae_lock", "awb_lock", "torch")
+        val TRIGGERS = setOf("ae_precapture")
         val READOUTS =
             setOf(
                 "fps_actual",
