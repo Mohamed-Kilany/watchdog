@@ -6,11 +6,13 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
+import android.os.Binder
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.view.Surface
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.camera.ApplyOutcome
 import app.watchdog.remote.camera.Camera2Controller
@@ -88,6 +90,8 @@ class CaptureService : Service() {
     private var stateTimerRunning = false
 
     private var lastSensorTimestampNs: Long? = null
+
+    @Volatile
     private var fpsEstimate = 0.0
 
     @Volatile
@@ -96,7 +100,46 @@ class CaptureService : Service() {
     @Volatile
     private var running = false
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    @Volatile
+    private var previewSurface: Surface? = null
+
+    private val pipelineConfig = PipelineConfig()
+    private val binder = LocalBinder()
+
+    /** Local binding for the on-device UI; the host never uses this path. */
+    inner class LocalBinder : Binder() {
+        fun service(): CaptureService = this@CaptureService
+    }
+
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    /**
+     * Attach or detach the [MainActivity] preview surface. Safe before the
+     * camera opens: the controller remembers the surface and includes it in
+     * the first session.
+     */
+    fun setPreviewSurface(surface: Surface?) {
+        previewSurface = surface
+        camera?.setPreviewSurface(surface)
+    }
+
+    /** Values for the on-device status panels (`docs/android-app.md`). */
+    fun uiStatus(): UiStatus {
+        val snapshot = camera?.snapshot
+        return UiStatus(
+            hostConnected = transport?.hasSession == true,
+            hostName = transport?.hostName,
+            cameraId = snapshot?.cameraId,
+            cameraStatus = snapshot?.status ?: CameraStatus.CLOSED,
+            fps = fpsEstimate.takeIf { it > ZERO_FPS },
+            width = pipelineConfig.width,
+            height = pipelineConfig.height,
+            jpegQuality = pipelineConfig.jpegQuality,
+            droppedFrames = pipeline?.stats()?.dropped ?: 0L,
+            batteryPercent = readouts.batteryPercent(),
+            storageFreeMb = readouts.storageFreeMb(),
+        )
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -261,7 +304,7 @@ class CaptureService : Service() {
             return
         }
         controlState = ControlStateStore(capabilities?.optJSONObject(cameraId) ?: JSONObject())
-        val framePipeline = FramePipeline(PipelineConfig()) { frame -> sendFrame(frame) }
+        val framePipeline = FramePipeline(pipelineConfig) { frame -> sendFrame(frame) }
         framePipeline.start()
         val surface = framePipeline.surface
         if (surface == null) {
@@ -273,6 +316,7 @@ class CaptureService : Service() {
         camera = controller
         pipeline = framePipeline
         controller.open(cameraId, listOf(surface))
+        controller.setPreviewSurface(previewSurface)
         controller.startStreaming()
         DeviceLog.i(TAG, "camera $cameraId opening")
     }
