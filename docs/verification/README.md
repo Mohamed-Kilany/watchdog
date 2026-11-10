@@ -28,3 +28,4 @@ Rules (from TASK.md §6/§7):
 | 2026-11-09 | M4-T04 (exposure: AE FPS range, AE regions, precapture) | CI run 42589225330, commit `e494301` (merged `595e513`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-exposure.md) |
 | 2026-11-09 | M4-T05 (focus: AF mode, AF lock, tap-to-focus) | CI run 42599576938, commit `a1676c4` (merged `3f06d82`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-focus.md) |
 | 2026-11-09 | M4-T06 (white balance: AWB presets, lock, regions, colour effects) | CI run 42612624713, commit `8dbda76` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-wb.md) |
+| 2026-11-10 | M4-T07 (zoom/lens: zoom ratio, lens metadata, stabilization, shading, distortion) | CI run 42780597519, commit `cc4d4aa` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-10-m4-lens.md) |

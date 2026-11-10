@@ -1,0 +1,75 @@
+===== descriptor lens entries
+zoom_ratio: {"legacy_crop_region": false, "max": 8, "min": 1, "step": 0, "supported": true}
+filter_density: null
+distortion_correction: null
+optical_stabilization: {"modes": [0, 1], "supported": true}
+video_stabilization: {"modes": [0], "supported": true}
+lens_shading: {"modes": [0, 1, 2], "supported": true}
+lens: {"apertures": [2], "filter_densities": [0], "focal_lengths": [4.599999904632568], "focus_distance_calibration": "calibrated", "hyperfocal_distance": 0.2777778, "minimum_focus_distance": 10, "optical_zoom": {"max": 1, "min": 1}}
+unsupported: ['awb_gains', 'color_transform', 'distortion_correction', 'filter_density']
+PASS descriptor lists zoom range :: {"legacy_crop_region": false, "max": 8, "min": 1, "step": 0, "supported": true}
+PASS descriptor lists focal lengths :: [4.599999904632568]
+PASS descriptor lists apertures :: [2]
+PASS descriptor lists filter densities :: [0]
+PASS descriptor lists optical zoom span :: {"max": 1, "min": 1}
+PASS descriptor lists focus calibration :: calibrated
+PASS descriptor lists optical stabilization :: modes=[0, 1]
+PASS descriptor lists video stabilization :: modes=[0]
+PASS descriptor lists lens shading :: modes=[0, 1, 2]
+===== baseline lens readouts
+{'zoom_actual': 1, 'lens_focal_length': 4.6, 'lens_aperture': 2, 'lens_filter_density': 0, 'lens_state': 'stationary'}
+PASS lens_focal_length readout present :: 4.6
+PASS lens_aperture readout present :: 2
+PASS lens_filter_density readout present :: 0
+PASS lens_state readout present :: stationary
+PASS zoom_actual readout present :: 1
+===== zoom presets
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "zoom_ratio", "ok": true}], "round_trip_ms": 481}
+PASS zoom_ratio=1.0 applied :: actual=1
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "zoom_ratio", "ok": true}], "round_trip_ms": 45}
+PASS zoom_ratio=2.0 applied :: actual=2
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 4, "control": "zoom_ratio", "ok": true}], "round_trip_ms": 130}
+PASS zoom_ratio=4.0 applied :: actual=3.989
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 8, "control": "zoom_ratio", "ok": true}], "round_trip_ms": 173}
+PASS zoom_ratio=8.0 applied :: actual=7.968
+===== zoom rejects out-of-range values
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "zoom_ratio", "error_code": "OUT_OF_RANGE", "message": "zoom_ratio=0.5 outside [1.0, 8.0]", "ok": false}], "round_trip_ms": 72}
+PASS zoom_ratio=0.5 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "zoom_ratio", "error_code": "OUT_OF_RANGE", "message": "zoom_ratio=16.0 outside [1.0, 8.0]", "ok": false}], "round_trip_ms": 25}
+PASS zoom_ratio=16.0 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "zoom_ratio", "ok": true}], "round_trip_ms": 93}
+===== optical stabilization
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "optical_stabilization", "ok": true}], "round_trip_ms": 69}
+PASS optical_stabilization=0 applied :: actual=0
+{"actual": {"optical_stabilization": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "optical_stabilization", "ok": true}], "round_trip_ms": 47}
+PASS optical_stabilization=1 applied :: actual=1
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "optical_stabilization", "error_code": "OUT_OF_RANGE", "message": "mode 2 is not available for 'optical_stabilization'", "ok": false}], "round_trip_ms": 60}
+PASS unavailable optical mode rejected :: codes=['OUT_OF_RANGE']
+{"actual": {"optical_stabilization": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "optical_stabilization", "ok": true}], "round_trip_ms": 54}
+===== video stabilization
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "video_stabilization", "ok": true}], "round_trip_ms": 118}
+PASS video_stabilization=0 applied :: actual=0
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "video_stabilization", "error_code": "OUT_OF_RANGE", "message": "mode 1 is not available for 'video_stabilization'", "ok": false}], "round_trip_ms": 78}
+PASS unavailable video mode rejected :: codes=['OUT_OF_RANGE']
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "video_stabilization", "ok": true}], "round_trip_ms": 29}
+===== lens shading
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "lens_shading", "ok": true}], "round_trip_ms": 31}
+PASS lens_shading=0 applied :: actual=0
+{"actual": {"lens_shading": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "lens_shading", "ok": true}], "round_trip_ms": 74}
+PASS lens_shading=1 applied :: actual=1
+{"actual": {"lens_shading": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "lens_shading", "ok": true}], "round_trip_ms": 56}
+PASS lens_shading=2 applied :: actual=2
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "lens_shading", "error_code": "OUT_OF_RANGE", "message": "mode 3 is not available for 'lens_shading'", "ok": false}], "round_trip_ms": 65}
+PASS unavailable shading mode rejected :: codes=['OUT_OF_RANGE']
+{"actual": {"lens_shading": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "lens_shading", "ok": true}], "round_trip_ms": 65}
+===== unsupported lens controls
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "filter_density", "error_code": "UNSUPPORTED", "message": "control 'filter_density' is not supported by this camera", "ok": false}], "round_trip_ms": 1454}
+PASS filter_density rejected as UNSUPPORTED :: codes=['UNSUPPORTED']
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "distortion_correction", "error_code": "UNSUPPORTED", "message": "control 'distortion_correction' is not supported by this camera", "ok": false}], "round_trip_ms": 44}
+PASS distortion_correction rejected as UNSUPPORTED :: codes=['UNSUPPORTED']
+===== restore
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "zoom_ratio", "ok": true}, {"applied": 0, "control": "optical_stabilization", "ok": true}, {"applied": 0, "control": "video_stabilization", "ok": true}, {"applied": 0, "control": "lens_shading", "ok": true}], "round_trip_ms": 121}
+{'zoom_actual': 1, 'optical_stabilization': 0, 'video_stabilization': 0, 'lens_shading': 0, 'lens_state': 'stationary'}
+PASS restored zoom and stabilization :: zoom=1 optical=0 shading=0
+PASS no transient camera-thread errors :: count=0 rt=[]
+===== summary: 33/33 passed
