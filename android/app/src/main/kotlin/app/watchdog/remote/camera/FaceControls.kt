@@ -14,6 +14,11 @@ import org.json.JSONObject
  * them over the viewfinder (M6-T04) and never burn them into the video.
  */
 internal object FaceControls {
+    private const val X = 0
+    private const val Y = 1
+    private const val WIDTH = 2
+    private const val HEIGHT = 3
+
     /** Add `face_count` and `faces` to a result extraction. */
     fun extract(result: TotalCaptureResult, chars: CameraCharacteristics, out: MutableMap<String, Any>) {
         val faces = result.get(CaptureResult.STATISTICS_FACES) ?: return
@@ -35,11 +40,10 @@ internal object FaceControls {
                 intArrayOf(bounds.left, bounds.top, bounds.right, bounds.bottom),
                 intArrayOf(active.left, active.top, active.width(), active.height()),
             ) ?: return out
-        val (x, y, width, height) = values
         return out
-            .put("x", x)
-            .put("y", y)
-            .put("w", width)
-            .put("h", height)
+            .put("x", values[X])
+            .put("y", values[Y])
+            .put("w", values[WIDTH])
+            .put("h", values[HEIGHT])
     }
 }
