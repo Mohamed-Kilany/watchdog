@@ -3,6 +3,7 @@ package app.watchdog.remote
 import android.hardware.camera2.CaptureRequest
 import app.watchdog.remote.camera.ControlSource
 import app.watchdog.remote.camera.ControlStateStore
+import app.watchdog.remote.camera.TonemapControls
 import app.watchdog.remote.protocol.JsonMessages
 import org.json.JSONObject
 
@@ -61,9 +62,9 @@ class ControlImplications {
     /** The mode implied by a tonemap parameter control (M4-T08). */
     private fun tonemapMode(toApply: Map<String, Any>): Int? =
         when {
-            "tonemap_curve" in toApply -> CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE
-            "tonemap_gamma" in toApply -> CaptureRequest.TONEMAP_MODE_GAMMA_VALUE
-            "tonemap_preset_curve" in toApply -> CaptureRequest.TONEMAP_MODE_PRESET_CURVE
+            "tonemap_curve" in toApply -> TonemapControls.MODE_CONTRAST_CURVE
+            "tonemap_gamma" in toApply -> TonemapControls.MODE_GAMMA_VALUE
+            "tonemap_preset_curve" in toApply -> TonemapControls.MODE_PRESET_CURVE
             else -> null
         }
 

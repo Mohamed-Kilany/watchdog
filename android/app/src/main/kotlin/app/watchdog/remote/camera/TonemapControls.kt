@@ -15,9 +15,9 @@ import org.json.JSONObject
  * batch so the request is always valid.
  */
 internal object TonemapControls {
-    private const val MODE_CONTRAST_CURVE = CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE
-    private const val MODE_GAMMA_VALUE = CaptureRequest.TONEMAP_MODE_GAMMA_VALUE
-    private const val MODE_PRESET_CURVE = CaptureRequest.TONEMAP_MODE_PRESET_CURVE
+    internal const val MODE_CONTRAST_CURVE = CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE
+    internal const val MODE_GAMMA_VALUE = CaptureRequest.TONEMAP_MODE_GAMMA_VALUE
+    internal const val MODE_PRESET_CURVE = CaptureRequest.TONEMAP_MODE_PRESET_CURVE
     private const val PRESET_SRGB = CaptureRequest.TONEMAP_PRESET_CURVE_SRGB
     private const val PRESET_REC709 = CaptureRequest.TONEMAP_PRESET_CURVE_REC709
     private const val MIN_GAMMA = 0.1
