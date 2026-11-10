@@ -1,6 +1,5 @@
 package app.watchdog.remote.camera
 
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -12,50 +11,32 @@ import org.junit.Test
 class ZoomMathTest {
     @Test
     fun ratioOneUsesTheWholeActiveArray() {
-        assertArrayEquals(
-            intArrayOf(0, 0, 4000, 3000),
-            ZoomMath.cropRegion(0, 0, 4000, 3000, 1.0),
-        )
+        assertEquals(CropRegion(0, 0, 4000, 3000), ZoomMath.cropRegion(0, 0, 4000, 3000, 1.0))
     }
 
     @Test
     fun ratioTwoCentresAHalfSizeCrop() {
-        assertArrayEquals(
-            intArrayOf(1000, 750, 3000, 2250),
-            ZoomMath.cropRegion(0, 0, 4000, 3000, 2.0),
-        )
+        assertEquals(CropRegion(1000, 750, 3000, 2250), ZoomMath.cropRegion(0, 0, 4000, 3000, 2.0))
     }
 
     @Test
     fun oddDimensionsStayInsideTheActiveArray() {
-        assertArrayEquals(
-            intArrayOf(1000, 750, 3001, 2251),
-            ZoomMath.cropRegion(0, 0, 4001, 3001, 2.0),
-        )
+        assertEquals(CropRegion(1000, 750, 3001, 2251), ZoomMath.cropRegion(0, 0, 4001, 3001, 2.0))
     }
 
     @Test
     fun offsetActiveArrayKeepsItsOrigin() {
-        assertArrayEquals(
-            intArrayOf(1008, 756, 3008, 2256),
-            ZoomMath.cropRegion(8, 6, 4000, 3000, 2.0),
-        )
+        assertEquals(CropRegion(1008, 756, 3008, 2256), ZoomMath.cropRegion(8, 6, 4000, 3000, 2.0))
     }
 
     @Test
     fun extremeRatiosClampToOnePixel() {
-        assertArrayEquals(
-            intArrayOf(1999, 1499, 2000, 1500),
-            ZoomMath.cropRegion(0, 0, 4000, 3000, 100_000.0),
-        )
+        assertEquals(CropRegion(1999, 1499, 2000, 1500), ZoomMath.cropRegion(0, 0, 4000, 3000, 100_000.0))
     }
 
     @Test
     fun ratiosBelowOneDoNotEnlargeTheCrop() {
-        assertArrayEquals(
-            intArrayOf(0, 0, 4000, 3000),
-            ZoomMath.cropRegion(0, 0, 4000, 3000, 0.5),
-        )
+        assertEquals(CropRegion(0, 0, 4000, 3000), ZoomMath.cropRegion(0, 0, 4000, 3000, 0.5))
     }
 
     @Test
@@ -65,6 +46,7 @@ class ZoomMathTest {
         assertNull(ZoomMath.cropRegion(0, 0, 4000, 3000, 0.0))
         assertNull(ZoomMath.cropRegion(0, 0, 4000, 3000, -2.0))
         assertNull(ZoomMath.cropRegion(0, 0, 4000, 3000, Double.NaN))
+        assertNull(ZoomMath.cropRegion(0, 0, 4000, 3000, Double.POSITIVE_INFINITY))
     }
 
     @Test

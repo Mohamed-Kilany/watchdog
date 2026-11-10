@@ -249,7 +249,7 @@ object CameraControls {
         }
         val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
         val crop = ZoomMath.cropRegion(active.left, active.top, active.width(), active.height(), ratio) ?: return
-        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(crop[0], crop[1], crop[2], crop[3]))
+        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(crop.left, crop.top, crop.right, crop.bottom))
     }
 
     private fun zoomRatio(result: TotalCaptureResult, chars: CameraCharacteristics): Double? {

@@ -126,6 +126,9 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 message = "control '$id' is not supported by this camera",
             )
         }
+        if (value == null || value == JSONObject.NULL) {
+            return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
+        }
         return validate(id, descriptor.optJSONObject(id), value)
     }
 
@@ -237,9 +240,6 @@ class ControlStateStore(private val descriptor: JSONObject) {
     }
 
     private fun validate(id: String, spec: JSONObject?, value: Any?): ControlValidation {
-        if (value == null || value == JSONObject.NULL) {
-            return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
-        }
         if (spec == null) {
             return ControlValidation(true, applied = ControlValues.normalize(value))
         }
@@ -253,21 +253,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
             return validateRegions(id, spec.optInt("max_regions"), value)
         }
         if (spec.has("values")) {
-            val number =
-                ControlValues.asDouble(value)
-                    ?: return ControlValidation(
-                        false,
-                        errorCode = "INVALID_VALUE",
-                        message = "control '$id' expects a number",
-                    )
-            if (ControlValues.matchesChoice(spec.getJSONArray("values"), number)) {
-                return ControlValidation(true, applied = ControlValues.roundToMillis(number))
-            }
-            return ControlValidation(
-                false,
-                errorCode = "OUT_OF_RANGE",
-                message = "$id=$value is not one of the available values",
-            )
+            return ControlValues.validateChoice(id, spec.getJSONArray("values"), value)
         }
         if (spec.has("components")) {
             return ColorControls.validateGains(spec, value)

@@ -2,6 +2,9 @@ package app.watchdog.remote.camera
 
 import kotlin.math.roundToInt
 
+/** Pixel crop inside the sensor active array. */
+internal data class CropRegion(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
 /**
  * Digital zoom math shared by the Camera2 request builder (M4-T07).
  *
@@ -10,9 +13,12 @@ import kotlin.math.roundToInt
  * active-array pixels; the crop is always centred like `CONTROL_ZOOM_RATIO`.
  */
 internal object ZoomMath {
-    /** Crop region `[left, top, right, bottom]` for [ratio] inside the active array. */
-    fun cropRegion(activeLeft: Int, activeTop: Int, activeWidth: Int, activeHeight: Int, ratio: Double): IntArray? {
-        if (activeWidth <= 0 || activeHeight <= 0 || ratio.isNaN() || ratio <= 0.0) {
+    /** Crop region for [ratio] inside the active array. */
+    fun cropRegion(activeLeft: Int, activeTop: Int, activeWidth: Int, activeHeight: Int, ratio: Double): CropRegion? {
+        if (activeWidth <= 0 || activeHeight <= 0) {
+            return null
+        }
+        if (!ratio.isFinite() || ratio <= 0.0) {
             return null
         }
         val effective = ratio.coerceAtLeast(1.0)
@@ -20,7 +26,7 @@ internal object ZoomMath {
         val height = (activeHeight / effective).roundToInt().coerceIn(1, activeHeight)
         val left = activeLeft + (activeWidth - width) / 2
         val top = activeTop + (activeHeight - height) / 2
-        return intArrayOf(left, top, left + width, top + height)
+        return CropRegion(left, top, left + width, top + height)
     }
 
     /** Zoom ratio implied by a crop region width, or `null` for an invalid crop. */
