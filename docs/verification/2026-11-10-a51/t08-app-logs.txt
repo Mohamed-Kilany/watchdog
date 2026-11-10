@@ -1,0 +1,312 @@
+# connected to 192.168.93.76:45393 (app 0.1.0-dev+6937705 versionCode 1000)
+[I] 1794318377585 INFO WatchdogTransport: listening on localabstract:watchdog-e012f4e3a8ad1d36eabe104d7ee71d38
+[I] 1794318377594 INFO WatchdogCapture: camera 0 opening
+[I] 1794318377594 INFO WatchdogCapture: capture service started (session token accepted)
+[I] 1794318377594 INFO WatchdogCapture: camera OPENING (was none)
+[I] 1794318377627 INFO WatchdogCapture: camera OPEN (was OPENING)
+[I] 1794318377698 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318377699 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318377802 INFO WatchdogCapture: camera CONFIGURED (was OPEN)
+[I] 1794318377808 INFO WatchdogCapture: camera STREAMING (was CONFIGURED)
+[I] 1794318378503 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318378503 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318383423 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318383425 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318383640 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318383747 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318383748 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318383817 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318383818 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318423158 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318423159 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318423199 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318423200 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318423402 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318423403 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318423507 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318423508 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318423663 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318423665 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318424513 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318424513 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318425277 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318425279 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318425343 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318425345 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318425507 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318425507 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318426350 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318426351 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318426477 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318426478 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318427316 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318427318 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318428393 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318428393 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318429374 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318429375 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318430131 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318430132 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318430656 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318430769 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318430770 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318431597 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318431598 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318432357 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318432358 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318432430 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318432430 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318432543 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318432544 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318433399 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318433399 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318434214 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318434216 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318434290 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318434292 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318434423 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318434424 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318435245 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318435246 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318435354 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318435355 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318436205 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318437271 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318437272 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318438153 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318438155 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318438915 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318438916 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318439002 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318439123 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318439126 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318439970 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318439971 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318440690 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318440694 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318440768 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318440768 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318440895 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318440897 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318441795 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318441796 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318442507 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318442509 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318442568 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318442571 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318442693 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318442695 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318443554 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318443555 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318444362 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318444363 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318445421 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318445422 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318446202 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318446204 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318446245 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318446246 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318446355 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318446356 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318447264 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318447266 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318448180 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318448181 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318448295 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318448418 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318448419 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318449266 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318449267 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318450134 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318450136 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318450194 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318450195 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318450309 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318450309 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318451131 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318451135 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318452229 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318452230 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318453088 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318453093 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318453862 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318453863 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318453920 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318453920 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318454048 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318454048 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318454875 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318454876 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318455612 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318455612 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318455687 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318455688 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318455789 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318455790 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318456648 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318456650 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318457447 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318457447 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318457542 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318457544 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318457678 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318457678 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318458521 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318458521 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318458625 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318458627 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318459477 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318459477 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318460242 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318460244 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318461074 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318461074 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318461850 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318461851 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318461934 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318461936 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318462068 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318462068 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318462907 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318462908 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318463716 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318463717 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318463759 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318463760 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318463880 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318463881 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318464730 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318464732 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318464852 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318464853 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318465675 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318465676 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318466697 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318466698 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318467519 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318467519 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318468325 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318468327 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318468379 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318468381 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318468491 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318468492 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318469351 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318469352 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318469763 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318469764 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318470594 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318470594 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318471378 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318471378 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318472203 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318473050 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318473050 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318473113 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318473113 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318473220 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318473222 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318474088 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318474861 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318474862 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318475021 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318475021 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318475161 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318475161 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318476029 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318476029 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318476803 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318476804 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318476888 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318476889 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318477052 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318477053 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318477901 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318477906 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318478600 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318478600 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318479464 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318479465 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318480316 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318480317 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318480376 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318480376 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318480488 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318480488 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318481332 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318481334 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318482148 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318482149 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318482246 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318482247 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318482375 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318482375 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318483207 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318483209 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318484252 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318484254 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318484314 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318484314 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318484436 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318484436 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318485364 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318485367 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318486437 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318486438 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318486535 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318486535 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318486720 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318486722 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318487618 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318487620 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318488394 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318488394 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318488534 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318488534 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318488712 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318488713 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318489738 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318489739 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318490241 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318490242 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318491198 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318491200 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318491975 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318491978 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318492029 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318492029 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318492415 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318492416 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318493329 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318493330 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318493793 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318493794 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318494660 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318494661 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318494820 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318494822 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318495648 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318495648 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318495787 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318495789 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318496811 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318496811 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318497619 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318497619 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318497705 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318497706 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318497822 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318497822 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318498645 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318498646 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318499428 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318499430 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318500234 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318500234 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318501001 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318501002 INFO WatchdogCapture: host session open: watchdog
+[I] 1794318501062 INFO WatchdogCapture: host session closed: host_closed
+[I] 1794318501063 DEBUG WatchdogOutbound: poll interrupted: null
+[I] 1794318513560 INFO WatchdogTransport: host session accepted (watchdog)
+[I] 1794318513561 INFO WatchdogCapture: host session open: watchdog
+# app closed the session: error
