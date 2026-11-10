@@ -82,7 +82,7 @@ internal object LensControls {
     private fun filterDensity(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
         val densities = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FILTER_DENSITIES)
         val choices = densities?.filter { it > 0f }?.distinct()
-        if (choices.isNullOrEmpty()) {
+        if (densities == null || choices.isNullOrEmpty()) {
             unsupported.put(unsupportedEntry("filter_density", NO_FILTER_DENSITY_REASON))
             return
         }
