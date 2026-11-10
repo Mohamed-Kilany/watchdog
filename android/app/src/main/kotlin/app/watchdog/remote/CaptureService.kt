@@ -783,6 +783,9 @@ class CaptureService : Service() {
         }
 
         private fun outputValue(output: OutputConfig, id: String): Any? =
+            cameraOutputValue(output, id) ?: mediaOutputValue(output, id)
+
+        private fun cameraOutputValue(output: OutputConfig, id: String): Any? =
             when (id) {
                 OutputConfigs.CAMERA_ID -> output.cameraId
                 OutputConfigs.PHYSICAL -> output.physicalId ?: OutputConfigs.LOGICAL
@@ -791,6 +794,11 @@ class CaptureService : Service() {
                 OutputConfigs.STREAM_ROTATION -> output.rotation
                 OutputConfigs.STILL_FORMAT -> output.stillFormat
                 OutputConfigs.STILL_SIZE -> output.stillSize.toJson()
+                else -> null
+            }
+
+        private fun mediaOutputValue(output: OutputConfig, id: String): Any? =
+            when (id) {
                 OutputConfigs.VIDEO_SIZE -> output.videoSize.toJson()
                 OutputConfigs.VIDEO_BITRATE -> output.videoBitrate
                 OutputConfigs.VIDEO_CODEC -> output.videoCodec

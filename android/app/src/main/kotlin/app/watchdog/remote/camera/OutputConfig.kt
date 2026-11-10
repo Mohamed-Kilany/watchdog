@@ -159,14 +159,12 @@ object OutputConfigs {
 
     fun sizes(array: JSONArray?): List<OutputSize> {
         if (array == null) return emptyList()
-        val out = ArrayList<OutputSize>(array.length())
-        for (index in 0 until array.length()) {
-            val entry = array.optJSONObject(index) ?: continue
-            val width = ControlValues.asInt(entry.opt("width")) ?: continue
-            val height = ControlValues.asInt(entry.opt("height")) ?: continue
-            if (width > 0 && height > 0) out += OutputSize(width, height)
+        return (0 until array.length()).mapNotNull { index ->
+            val entry = array.optJSONObject(index) ?: return@mapNotNull null
+            val width = ControlValues.asInt(entry.opt("width")) ?: return@mapNotNull null
+            val height = ControlValues.asInt(entry.opt("height")) ?: return@mapNotNull null
+            if (width > 0 && height > 0) OutputSize(width, height) else null
         }
-        return out
     }
 
     fun streamSizes(descriptor: JSONObject): List<OutputSize> =
@@ -213,12 +211,16 @@ object OutputConfigs {
     /** Best supported range for the stream size, preferring a fixed 30 fps. */
     fun defaultFpsRange(descriptor: JSONObject, size: OutputSize): JSONArray? {
         val ranges = descriptor.optJSONObject("ae_fps_range")?.optJSONArray("ranges") ?: return null
+        val supported =
+            (0 until ranges.length())
+                .mapNotNull { ranges.optJSONArray(it) }
+                .filter { isFpsSupported(descriptor, size, it) }
+                .mapNotNull { fpsPair(it) }
         var best: Pair<Int, Int>? = null
         var fallback: Pair<Int, Int>? = null
-        for (index in 0 until ranges.length()) {
-            val pair = fpsPair(ranges.optJSONArray(index)) ?: continue
-            if (!isFpsSupported(descriptor, size, ranges.optJSONArray(index))) continue
-            if (fallback == null || pair.second > fallback.second) fallback = pair
+        supported.forEach { pair ->
+            val previous = fallback
+            if (previous == null || pair.second > previous.second) fallback = pair
             if (pair.second <= PREFERRED_MAX_FPS && betterRange(pair, best)) {
                 best = pair
             }
@@ -265,13 +267,12 @@ object OutputConfigs {
 
     private fun sizeEntry(array: JSONArray?, size: OutputSize): JSONObject? {
         if (array == null) return null
-        for (index in 0 until array.length()) {
-            val entry = array.optJSONObject(index) ?: continue
-            val width = ControlValues.asInt(entry.opt("width")) ?: continue
-            val height = ControlValues.asInt(entry.opt("height")) ?: continue
-            if (width == size.width && height == size.height) return entry
-        }
-        return null
+        return (0 until array.length())
+            .mapNotNull { array.optJSONObject(it) }
+            .firstOrNull { entry ->
+                ControlValues.asInt(entry.opt("width")) == size.width &&
+                    ControlValues.asInt(entry.opt("height")) == size.height
+            }
     }
 
     private fun pickStreamSize(descriptor: JSONObject): OutputSize {
