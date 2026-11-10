@@ -19,11 +19,17 @@ class ControlImplicationsTest {
                     .put("modes", JSONArray().put(1).put(4).put(5)),
             ).put("tonemap_curve", JSONObject().put("supported", true).put("max_points", 4))
 
+    private fun points(vararg values: Double): JSONArray {
+        val out = JSONArray()
+        values.forEach { out.put(it) }
+        return out
+    }
+
     private fun curve(): JSONObject =
         JSONObject()
-            .put("red", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
-            .put("green", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
-            .put("blue", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+            .put("red", points(0.0, 0.0, 1.0, 1.0))
+            .put("green", points(0.0, 0.0, 1.0, 1.0))
+            .put("blue", points(0.0, 0.0, 1.0, 1.0))
 
     @Test
     fun contrastCurveImpliesTheMatchingMode() {

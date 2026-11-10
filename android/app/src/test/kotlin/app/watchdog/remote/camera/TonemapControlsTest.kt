@@ -9,8 +9,7 @@ import org.junit.Test
 
 /** M4-T08 contrast-curve validation. */
 class TonemapControlsTest {
-    private fun spec(maxPoints: Int = 4): JSONObject =
-        JSONObject().put("supported", true).put("max_points", maxPoints)
+    private fun spec(maxPoints: Int = 4): JSONObject = JSONObject().put("supported", true).put("max_points", maxPoints)
 
     private fun channel(vararg points: Double): JSONArray {
         val out = JSONArray()

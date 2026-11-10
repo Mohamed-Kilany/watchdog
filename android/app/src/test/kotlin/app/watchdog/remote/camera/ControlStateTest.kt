@@ -33,6 +33,12 @@ class ControlStateTest {
             .put("w", w)
             .put("h", h)
 
+    private fun points(vararg values: Double): JSONArray {
+        val out = JSONArray()
+        values.forEach { out.put(it) }
+        return out
+    }
+
     private fun descriptor(): JSONObject =
         JSONObject()
             .put(
@@ -550,9 +556,9 @@ class ControlStateTest {
         val store = ControlStateStore(descriptor())
         val curve =
             JSONObject()
-                .put("red", JSONArray().put(0.0).put(0.0).put(0.5).put(0.5).put(1.0).put(1.0))
-                .put("green", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
-                .put("blue", JSONArray().put(0.0).put(0.1).put(1.0).put(0.9))
+                .put("red", points(0.0, 0.0, 0.5, 0.5, 1.0, 1.0))
+                .put("green", points(0.0, 0.0, 1.0, 1.0))
+                .put("blue", points(0.0, 0.1, 1.0, 0.9))
 
         val ok = store.setRequested("tonemap_curve", curve, ControlSource.HOST)
         assertTrue(ok.ok)
@@ -561,16 +567,16 @@ class ControlStateTest {
         assertEquals(0.5, applied.getJSONArray("red").getDouble(3), 0.0)
         assertEquals(0.1, applied.getJSONArray("blue").getDouble(1), 0.0)
 
-        val missing = JSONObject().put("red", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+        val missing = JSONObject().put("red", points(0.0, 0.0, 1.0, 1.0))
         assertEquals(
             "INVALID_VALUE",
             store.setRequested("tonemap_curve", missing, ControlSource.HOST).errorCode,
         )
         val decreasing =
             JSONObject()
-                .put("red", JSONArray().put(0.5).put(0.0).put(0.2).put(0.5))
-                .put("green", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
-                .put("blue", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+                .put("red", points(0.5, 0.0, 0.2, 0.5))
+                .put("green", points(0.0, 0.0, 1.0, 1.0))
+                .put("blue", points(0.0, 0.0, 1.0, 1.0))
         assertEquals(
             "INVALID_VALUE",
             store.setRequested("tonemap_curve", decreasing, ControlSource.HOST).errorCode,
