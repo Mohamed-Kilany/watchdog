@@ -25,7 +25,7 @@ class OutboundQueueTest {
     @Test
     fun `control packets wait for capacity instead of being dropped`() {
         val queue = OutboundQueue(capacity = 1, controlWaitMs = 2_000)
-        assertTrue(queue.offer(frame(1)))
+        assertTrue(queue.offer(control()))
 
         val accepted = AtomicBoolean(false)
         val producer = Thread { accepted.set(queue.offer(control())) }
