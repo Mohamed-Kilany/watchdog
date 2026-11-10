@@ -32,19 +32,14 @@ internal object FaceControls {
         }
         val values =
             FaceMath.normalize(
-                bounds.left,
-                bounds.top,
-                bounds.right,
-                bounds.bottom,
-                active.left,
-                active.top,
-                active.width(),
-                active.height(),
+                intArrayOf(bounds.left, bounds.top, bounds.right, bounds.bottom),
+                intArrayOf(active.left, active.top, active.width(), active.height()),
             ) ?: return out
+        val (x, y, width, height) = values
         return out
-            .put("x", values[0])
-            .put("y", values[1])
-            .put("w", values[2])
-            .put("h", values[3])
+            .put("x", x)
+            .put("y", y)
+            .put("w", width)
+            .put("h", height)
     }
 }
