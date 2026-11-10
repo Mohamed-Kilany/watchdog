@@ -1537,6 +1537,30 @@ fn render_controls(out: &mut String, descriptor: &serde_json::Value) {
                 .get("step")
                 .map_or_else(|| "1".to_string(), serde_json::Value::to_string);
             controls.push(format!("{name}[{min}..{max} step {step}]"));
+        } else if let Some(sizes) = value.get("sizes").and_then(serde_json::Value::as_array) {
+            controls.push(format!("{name}[{} size(s)]", sizes.len()));
+        } else if let Some(by_format) = value
+            .get("sizes_by_format")
+            .and_then(serde_json::Value::as_object)
+        {
+            let formats = by_format
+                .iter()
+                .map(|(format, sizes)| format!("{format} {}", sizes.as_array().map_or(0, Vec::len)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            controls.push(format!("{name}[{formats}]"));
+        } else if let Some(values) = value.get("values").and_then(serde_json::Value::as_array) {
+            let values = values
+                .iter()
+                .map(|item| {
+                    item.as_str()
+                        .map_or_else(|| item.to_string(), |text| text.to_string())
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            controls.push(format!("{name}[{values}]"));
+        } else if value.get("structural").and_then(serde_json::Value::as_bool) == Some(true) {
+            controls.push(format!("{name}[on/off]"));
         } else {
             controls.push(name.clone());
         }
@@ -1649,6 +1673,18 @@ mod tests {
                 "control_mode": {"supported": true, "modes": [0, 1]},
                 "iso": {"supported": true, "min": 50, "max": 12800, "step": 1},
                 "zoom_ratio": {"supported": false},
+                "stream_size": {
+                    "supported": true,
+                    "structural": true,
+                    "sizes": [{"width": 1280, "height": 720}]
+                },
+                "still_format": {"supported": true, "structural": true, "values": ["JPEG", "RAW_SENSOR"]},
+                "still_size": {
+                    "supported": true,
+                    "structural": true,
+                    "sizes_by_format": {"JPEG": [{"width": 4000, "height": 3000}]}
+                },
+                "audio": {"supported": true, "structural": true},
                 "streams": {
                     "available": true,
                     "formats": {"JPEG": [{"width": 1920, "height": 1080}], "YUV_420_888": []},
@@ -1672,6 +1708,10 @@ mod tests {
         assert!(text.contains("lens: back / LEVEL_3, capabilities: 2"));
         assert!(text.contains("control_mode[0,1]"));
         assert!(text.contains("iso[50..12800 step 1]"));
+        assert!(text.contains("stream_size[1 size(s)]"));
+        assert!(text.contains("still_format[JPEG,RAW_SENSOR]"));
+        assert!(text.contains("still_size[JPEG 1]"));
+        assert!(text.contains("audio[on/off]"));
         assert!(!text.contains("zoom_ratio["));
         assert!(text.contains("streams: JPEG 1, YUV_420_888 0 size(s)"));
         assert!(text.contains("fps: 1 range(s); high-speed: 0 size(s)"));

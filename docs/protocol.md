@@ -253,6 +253,20 @@ it with `af_trigger = start` for tap-to-focus. Setting `awb_gains` or
 switches `COLOR_CORRECTION_MODE` to `TRANSFORM_MATRIX` in the same batch; the
 implicit changes are reported as additional results.
 
+Output-configuration controls (`camera_id`, `physical_camera_id`, `stream_size`,
+`jpeg_quality`, `stream_rotation`, `still_format`, `still_size`, `video_size`,
+`video_bitrate`, `video_codec`, `video_container`, `audio`) are **structural**:
+they are validated as one atomic batch against the descriptor and applied by
+rebuilding the pipeline/capture session, never as Camera2 request keys. If any
+structural assignment is invalid the whole structural batch is rolled back and
+each assignment reports its own error; accepted non-structural siblings still
+apply. `camera_id` and `physical_camera_id` are resolved before the other
+structural values, so dependent controls validate against the selected camera;
+switching camera resets output controls to that camera's defaults. When a
+stream-size change makes the current `ae_fps_range` impossible, the app selects
+the best supported range and reports it with `source = "auto"`; an explicit
+impossible FPS/size pair returns `error_code = "UNSUPPORTED_COMBINATION"`.
+
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),
 `record_start` (`{max_duration_secs?, segment_secs?, bitrate_bps?, codec?, size?}`),
@@ -376,6 +390,25 @@ every control the host may send. Example:
   "tonemap_preset_curve": {"supported": true, "modes": [0, 1]},
   "test_pattern": {"supported": true, "modes": [0, 1, 2]},
   "face_detect": {"supported": true, "modes": [0, 1, 2]},
+  "camera_id": {"supported": true, "structural": true, "values": ["0", "1"]},
+  "physical_camera_id": {"supported": true, "structural": true,
+                         "values": ["none", "2"]},
+  "stream_size": {"supported": true, "structural": true,
+                  "sizes": [{"width": 1920, "height": 1080,
+                             "min_frame_duration_ns": 33333333}]},
+  "jpeg_quality": {"supported": true, "structural": true, "min": 1, "max": 100, "step": 1},
+  "stream_rotation": {"supported": true, "structural": true, "modes": [0, 90, 180, 270]},
+  "still_format": {"supported": true, "structural": true, "values": ["JPEG", "RAW_SENSOR"]},
+  "still_size": {"supported": true, "structural": true,
+                 "sizes_by_format": {"JPEG": [{"width": 4032, "height": 3024}],
+                                     "RAW_SENSOR": [{"width": 4032, "height": 3024}]}},
+  "video_size": {"supported": true, "structural": true,
+                 "sizes": [{"width": 1920, "height": 1080}]},
+  "video_bitrate": {"supported": true, "structural": true,
+                    "min": 100000, "max": 100000000, "step": 1},
+  "video_codec": {"supported": true, "structural": true, "values": ["h264", "h265"]},
+  "video_container": {"supported": true, "structural": true, "values": ["mp4"]},
+  "audio": {"supported": true, "structural": true},
   "streams": {
     "available": true,
     "formats": {"YUV_420_888": [{"width": 1920, "height": 1080}],
@@ -402,6 +435,12 @@ every control the host may send. Example:
   `ae_precapture` is a one-shot trigger. `af_regions` carries `max_regions`
   too; `af_trigger` and `af_lock` are one-shot/boolean controls; `focus_distance`
   is a continuous range in dioptres (0 = infinity).
+- Structural output entries additionally carry `"structural": true` and one of
+  `values` (camera ids, still formats, codecs, containers), `sizes`
+  (`{width,height[,min_frame_duration_ns]}`), `sizes_by_format`, or
+  `min`/`max` (quality, bitrate). They are sent through `set_controls` like any
+  other control, but are applied as a configuration batch rather than request
+  keys. `audio` is a boolean structural control.
 - Key inventories are the complete dump of the camera's available
   `CaptureRequest` / `CaptureResult` / `CameraCharacteristics` keys:
   `name` is the dotted Android key and `type` its Java class. Full dump, no

@@ -104,7 +104,7 @@ object CapabilityDescriptor {
             }
         for (id in ids) {
             try {
-                out.put(id, describe(manager.getCameraCharacteristics(id)))
+                out.put(id, describe(manager.getCameraCharacteristics(id), ids))
             } catch (e: CameraAccessException) {
                 DeviceLog.w(TAG, "camera $id characteristics unavailable: ${e.message}")
                 out.put(id, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
@@ -117,7 +117,7 @@ object CapabilityDescriptor {
     }
 
     /** Build the descriptor for one camera without opening it. */
-    fun describe(chars: CameraCharacteristics): JSONObject {
+    fun describe(chars: CameraCharacteristics, cameraIds: List<String> = emptyList()): JSONObject {
         val out = JSONObject()
         val unsupported = JSONArray()
         out.put(
@@ -146,7 +146,7 @@ object CapabilityDescriptor {
             capabilityNames(chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)),
         )
         out.put("physical_ids", stringArray(physicalIds(chars)))
-        addControls(out, unsupported, chars)
+        addControls(out, unsupported, chars, cameraIds)
         out.put("streams", streams(chars))
         out.put(
             "available_request_keys",
@@ -164,10 +164,16 @@ object CapabilityDescriptor {
         return out
     }
 
-    private fun addControls(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
+    private fun addControls(
+        out: JSONObject,
+        unsupported: JSONArray,
+        chars: CameraCharacteristics,
+        cameraIds: List<String>,
+    ) {
         addModes(out, unsupported, chars)
         addValues(out, unsupported, chars)
         TonemapControls.describe(out, unsupported, chars)
+        OutputControls.describe(out, unsupported, chars, cameraIds)
     }
 
     private fun addModes(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
