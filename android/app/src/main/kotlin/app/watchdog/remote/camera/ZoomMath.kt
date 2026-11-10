@@ -11,13 +11,7 @@ import kotlin.math.roundToInt
  */
 internal object ZoomMath {
     /** Crop region `[left, top, right, bottom]` for [ratio] inside the active array. */
-    fun cropRegion(
-        activeLeft: Int,
-        activeTop: Int,
-        activeWidth: Int,
-        activeHeight: Int,
-        ratio: Double,
-    ): IntArray? {
+    fun cropRegion(activeLeft: Int, activeTop: Int, activeWidth: Int, activeHeight: Int, ratio: Double): IntArray? {
         if (activeWidth <= 0 || activeHeight <= 0 || ratio.isNaN() || ratio <= 0.0) {
             return null
         }
