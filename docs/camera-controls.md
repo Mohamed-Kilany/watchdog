@@ -1,7 +1,8 @@
 # Camera controls
 
 > Status: descriptor live (M4-T01); state sync and the command pipeline live
-> (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05).
+> (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05);
+> white balance live (M4-T06); zoom and lens live (M4-T07).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
@@ -86,8 +87,21 @@ manual values are requested.
 
 ## Zoom and lens
 
-`zoomRatio` (API 30+) with legacy crop-region fallback; focal length, aperture and filter
-density where adjustable; optical/video stabilization; lens shading; distortion correction.
+| Control | Notes |
+|---|---|
+| Zoom ratio | `zoom_ratio` uses `CONTROL_ZOOM_RATIO` when the camera reports `CONTROL_ZOOM_RATIO_RANGE` (API 30+); otherwise the app centres a `SCALER_CROP_REGION`. The descriptor's `min`/`max`/`step` and `legacy_crop_region` say which path is active. `zoom_actual` is read back from the capture result (or derived from the crop width) |
+| Optical zoom / focal length | `lens.focal_lengths` lists the lens set in mm; `lens.optical_zoom` gives the span relative to the widest lens (`min` 1.0). Logical multi-camera devices also list `physical_ids` (camera selection is M4-T09) |
+| Aperture | `lens.apertures` is fixed lens metadata (`LENS_APERTURE` readout); Camera2 has no request key for a variable aperture |
+| Filter density | `filter_density` is settable only when `lens.filter_densities` lists a real choice; its `values` array is the accepted set. Otherwise the control is unsupported and `lens_filter_density` still reports the actual ND density |
+| Optical stabilization | `optical_stabilization` from `LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION` (`LENS_OPTICAL_STABILIZATION_MODE`); effective in `CONTROL_MODE = AUTO` with video stabilization off |
+| Video stabilization | `video_stabilization` from `CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES` (`CONTROL_VIDEO_STABILIZATION_MODE`); when both stabilizations are on the platform ignores video stabilization |
+| Lens shading | `lens_shading` maps to `SHADING_MODE`; modes come from `SHADING_AVAILABLE_MODES` (off/fast/high quality) |
+| Distortion correction | `distortion_correction` maps to `DISTORTION_CORRECTION_MODE` (Android 13 / API 33); modes come from `DISTORTION_CORRECTION_AVAILABLE_MODES`. Devices without it are listed in `unsupported` |
+
+Lens readouts (`TotalCaptureResult`): `lens_focal_length` (mm), `lens_aperture`
+(f-number), `lens_filter_density` and `lens_state` (`stationary` / `moving`). The
+descriptor's `lens.focus_distance_calibration` tells the host whether the manual
+focus distance is calibrated, approximate or uncalibrated.
 
 ## Flash / torch / scene / image processing
 

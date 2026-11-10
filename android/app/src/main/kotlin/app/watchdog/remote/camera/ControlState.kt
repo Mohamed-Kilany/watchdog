@@ -252,6 +252,23 @@ class ControlStateStore(private val descriptor: JSONObject) {
         if (spec.has("max_regions")) {
             return validateRegions(id, spec.optInt("max_regions"), value)
         }
+        if (spec.has("values")) {
+            val number =
+                ControlValues.asDouble(value)
+                    ?: return ControlValidation(
+                        false,
+                        errorCode = "INVALID_VALUE",
+                        message = "control '$id' expects a number",
+                    )
+            if (ControlValues.matchesChoice(spec.getJSONArray("values"), number)) {
+                return ControlValidation(true, applied = ControlValues.roundToMillis(number))
+            }
+            return ControlValidation(
+                false,
+                errorCode = "OUT_OF_RANGE",
+                message = "$id=$value is not one of the available values",
+            )
+        }
         if (spec.has("components")) {
             return ColorControls.validateGains(spec, value)
         }
@@ -483,6 +500,10 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 "focus_distance_diopters",
                 "awb_gains",
                 "zoom_actual",
+                "lens_focal_length",
+                "lens_aperture",
+                "lens_filter_density",
+                "lens_state",
             )
     }
 }

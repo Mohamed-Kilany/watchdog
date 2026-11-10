@@ -2,6 +2,7 @@ package app.watchdog.remote.camera
 
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
 import kotlin.math.round
 
 /**
@@ -50,6 +51,17 @@ internal object ControlValues {
             is JSONObject, is JSONArray -> value
             else -> value
         }
+
+    /** Whether [number] equals one of the discrete [values] within tolerance. */
+    fun matchesChoice(values: JSONArray, number: Double): Boolean {
+        for (index in 0 until values.length()) {
+            val candidate = values.optDouble(index, Double.NaN)
+            if (abs(candidate - number) <= STEP_TOLERANCE) {
+                return true
+            }
+        }
+        return false
+    }
 
     fun normalizeRangeValue(id: String, number: Double): Any =
         when (id) {
