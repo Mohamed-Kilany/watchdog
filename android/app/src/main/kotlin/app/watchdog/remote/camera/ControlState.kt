@@ -255,6 +255,9 @@ class ControlStateStore(private val descriptor: JSONObject) {
         if (spec.has("values")) {
             return ControlValues.validateChoice(id, spec.getJSONArray("values"), value)
         }
+        if (spec.has("max_points")) {
+            return TonemapControls.validateCurve(spec, value)
+        }
         if (spec.has("components")) {
             return ColorControls.validateGains(spec, value)
         }
@@ -490,6 +493,8 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 "lens_aperture",
                 "lens_filter_density",
                 "lens_state",
+                "face_count",
+                "faces",
             )
     }
 }

@@ -372,6 +372,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
         targets().forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
+        CameraControls.applyTonemap(builder, requested)
         return builder
     }
 

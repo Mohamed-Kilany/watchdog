@@ -3,6 +3,7 @@ package app.watchdog.remote
 import android.hardware.camera2.CaptureRequest
 import app.watchdog.remote.camera.ControlSource
 import app.watchdog.remote.camera.ControlStateStore
+import app.watchdog.remote.camera.TonemapControls
 import app.watchdog.remote.protocol.JsonMessages
 import org.json.JSONObject
 
@@ -54,6 +55,33 @@ class ControlImplications {
         }
         if ("awb_gains" in toApply || "color_transform" in toApply) {
             implyAwbOff(store, toApply, results)
+        }
+        tonemapMode(toApply)?.let { implyTonemapMode(store, toApply, results, it) }
+    }
+
+    /** The mode implied by a tonemap parameter control (M4-T08). */
+    private fun tonemapMode(toApply: Map<String, Any>): Int? =
+        when {
+            "tonemap_curve" in toApply -> TonemapControls.MODE_CONTRAST_CURVE
+            "tonemap_gamma" in toApply -> TonemapControls.MODE_GAMMA_VALUE
+            "tonemap_preset_curve" in toApply -> TonemapControls.MODE_PRESET_CURVE
+            else -> null
+        }
+
+    /** A tonemap parameter only takes effect with its matching mode. */
+    private fun implyTonemapMode(
+        store: ControlStateStore,
+        toApply: MutableMap<String, Any>,
+        results: MutableList<JSONObject>,
+        mode: Int,
+    ) {
+        if ("tonemap" in toApply || !store.isSupported("tonemap")) {
+            return
+        }
+        val validation = store.setRequested("tonemap", mode, ControlSource.HOST)
+        if (validation.ok) {
+            validation.applied?.let { toApply["tonemap"] = it }
+            results += JsonMessages.controlResult("tonemap", true, applied = validation.applied)
         }
     }
 

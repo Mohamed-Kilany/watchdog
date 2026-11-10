@@ -22,6 +22,17 @@ import kotlin.math.roundToInt
 object CameraControls {
     private const val DEFAULT_METERING_WEIGHT = 1000
 
+    /**
+     * Apply the requested tone-mapping mode and its matching parameter. Kept
+     * separate from [applyTo] because the companion parameter must be chosen
+     * from the full requested map, not one control at a time.
+     */
+    fun applyTonemap(builder: CaptureRequest.Builder, requested: Map<String, Any>) {
+        val mode = (requested["tonemap"] as? Number)?.toInt() ?: return
+        builder.set(CaptureRequest.TONEMAP_MODE, mode)
+        TonemapControls.applyParameter(builder, mode, requested)
+    }
+
     /** Apply one validated control to a request builder. */
     fun applyTo(builder: CaptureRequest.Builder, chars: CameraCharacteristics, id: String, value: Any) {
         when (id) {
@@ -85,7 +96,7 @@ object CameraControls {
                 "noise_reduction" -> CaptureRequest.NOISE_REDUCTION_MODE
                 "edge_enhancement" -> CaptureRequest.EDGE_MODE
                 "hot_pixel" -> CaptureRequest.HOT_PIXEL_MODE
-                "tonemap" -> CaptureRequest.TONEMAP_MODE
+                "test_pattern" -> CaptureRequest.SENSOR_TEST_PATTERN_MODE
                 "aberration_correction" -> CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE
                 "video_stabilization" -> CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE
                 "optical_stabilization" -> CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE
@@ -175,6 +186,8 @@ object CameraControls {
         extractLocks(result, out)
         extractReadouts(result, out)
         ColorControls.extract(result, out)
+        TonemapControls.extract(result, out)
+        FaceControls.extract(result, chars, out)
         zoomRatio(result, chars)?.let { out["zoom_actual"] = it }
         return out
     }
@@ -200,6 +213,7 @@ object CameraControls {
         result.get(CaptureResult.EDGE_MODE)?.let { out["edge_enhancement"] = it }
         result.get(CaptureResult.HOT_PIXEL_MODE)?.let { out["hot_pixel"] = it }
         result.get(CaptureResult.TONEMAP_MODE)?.let { out["tonemap"] = it }
+        result.get(CaptureResult.SENSOR_TEST_PATTERN_MODE)?.let { out["test_pattern"] = it }
     }
 
     private fun extractCorrection(result: TotalCaptureResult, out: MutableMap<String, Any>) {
