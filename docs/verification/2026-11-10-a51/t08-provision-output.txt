@@ -1,0 +1,48 @@
+{
+  "serial": "192.168.93.76:45393",
+  "steps": [
+    {
+      "name": "device",
+      "status": "passed",
+      "duration_ms": 375,
+      "detail": "samsung SM-A515F (a51) Î“Ã‡Ã¶ Android 13 (SDK 33), arm64-v8a"
+    },
+    {
+      "name": "app",
+      "status": "passed",
+      "duration_ms": 4924,
+      "detail": "installed 0.1.0-dev+6937705 (versionCode 1000)"
+    },
+    {
+      "name": "permissions",
+      "status": "passed",
+      "duration_ms": 1328,
+      "detail": "granted CAMERA, RECORD_AUDIO, POST_NOTIFICATIONS; appops allow CAMERA, RECORD_AUDIO, WAKE_LOCK, START_FOREGROUND, RUN_ANY_IN_BACKGROUND, POST_NOTIFICATION"
+    },
+    {
+      "name": "battery",
+      "status": "passed",
+      "duration_ms": 608,
+      "detail": "Doze whitelist + active standby bucket (device reports 5); warnings: standby bucket is 5, expected 10 (active)"
+    },
+    {
+      "name": "screen",
+      "status": "passed",
+      "duration_ms": 484,
+      "detail": "stay_on_while_plugged_in 7 -> 7 (original recorded for restore); screen awake"
+    },
+    {
+      "name": "launch",
+      "status": "passed",
+      "duration_ms": 586,
+      "detail": "activity foregrounded; capture service started with a fresh session token"
+    },
+    {
+      "name": "verify",
+      "status": "passed",
+      "duration_ms": 1116,
+      "detail": "handshake ok (app 0.1.0-dev+6937705 versionCode 1000, protocol 1); first frame 1280x720 JPEG (128239 bytes)"
+    }
+  ],
+  "token": "e012f4e3a8ad1d36eabe104d7ee71d38"
+}

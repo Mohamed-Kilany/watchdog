@@ -1,0 +1,119 @@
+===== descriptor T08 entries
+torch: {"supported": true}
+flash_mode: {"modes": [0, 1, 2], "supported": true}
+scene_mode: {"modes": [1], "supported": true}
+noise_reduction: {"modes": [0, 1, 2], "supported": true}
+edge_enhancement: {"modes": [0, 1, 2], "supported": true}
+hot_pixel: {"modes": [0, 1, 2], "supported": true}
+tonemap: {"modes": [0, 1, 2], "supported": true}
+tonemap_curve: {"max_points": 128, "supported": true}
+tonemap_gamma: null
+tonemap_preset_curve: null
+lens_shading: {"modes": [0, 1, 2], "supported": true}
+face_detect: {"modes": [0, 1], "supported": true}
+test_pattern: {"modes": [0], "supported": true}
+unsupported: ['awb_gains', 'color_transform', 'distortion_correction', 'filter_density', 'tonemap_gamma', 'tonemap_preset_curve']
+===== baseline T08 readouts
+{'torch': False, 'flash_mode': 0, 'scene_mode': 1, 'noise_reduction': 1, 'edge_enhancement': 1, 'hot_pixel': 1, 'tonemap': 1, 'lens_shading': 1, 'face_detect': 0, 'test_pattern': 0, 'face_count': 0, 'faces': []}
+===== mode controls
+PASS scene_mode lists modes :: modes=[1]
+{"actual": {"scene_mode": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "scene_mode", "ok": true}], "round_trip_ms": 59}
+PASS scene_mode=1 applied :: actual=1
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "scene_mode", "error_code": "OUT_OF_RANGE", "message": "mode 0 is not available for 'scene_mode'", "ok": false}], "round_trip_ms": 38}
+PASS scene_mode=0 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "scene_mode", "ok": true}], "round_trip_ms": 52}
+PASS noise_reduction lists modes :: modes=[0, 1, 2]
+{"actual": {"noise_reduction": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "noise_reduction", "ok": true}], "round_trip_ms": 147}
+PASS noise_reduction=0 applied :: actual=0
+{"actual": {"noise_reduction": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "noise_reduction", "ok": true}], "round_trip_ms": 33}
+PASS noise_reduction=1 applied :: actual=1
+{"actual": {"noise_reduction": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "noise_reduction", "ok": true}], "round_trip_ms": 51}
+PASS noise_reduction=2 applied :: actual=2
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "noise_reduction", "error_code": "OUT_OF_RANGE", "message": "mode 3 is not available for 'noise_reduction'", "ok": false}], "round_trip_ms": 22}
+PASS noise_reduction=3 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {"noise_reduction": 2}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "noise_reduction", "ok": true}], "round_trip_ms": 48}
+PASS edge_enhancement lists modes :: modes=[0, 1, 2]
+{"actual": {"edge_enhancement": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "edge_enhancement", "ok": true}], "round_trip_ms": 69}
+PASS edge_enhancement=0 applied :: actual=0
+{"actual": {"edge_enhancement": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "edge_enhancement", "ok": true}], "round_trip_ms": 55}
+PASS edge_enhancement=1 applied :: actual=1
+{"actual": {"edge_enhancement": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "edge_enhancement", "ok": true}], "round_trip_ms": 81}
+PASS edge_enhancement=2 applied :: actual=2
+{"actual": {"edge_enhancement": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "edge_enhancement", "ok": true}], "round_trip_ms": 56}
+PASS hot_pixel lists modes :: modes=[0, 1, 2]
+{"actual": {"hot_pixel": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "hot_pixel", "ok": true}], "round_trip_ms": 206}
+PASS hot_pixel=0 applied :: actual=0
+{"actual": {"hot_pixel": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "hot_pixel", "ok": true}], "round_trip_ms": 114}
+PASS hot_pixel=1 applied :: actual=1
+{"actual": {"hot_pixel": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "hot_pixel", "ok": true}], "round_trip_ms": 57}
+PASS hot_pixel=2 applied :: actual=2
+{"actual": {"hot_pixel": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "hot_pixel", "ok": true}], "round_trip_ms": 30}
+PASS lens_shading lists modes :: modes=[0, 1, 2]
+{"actual": {"lens_shading": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "lens_shading", "ok": true}], "round_trip_ms": 35}
+PASS lens_shading=0 applied :: actual=0
+{"actual": {"lens_shading": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "lens_shading", "ok": true}], "round_trip_ms": 43}
+PASS lens_shading=1 applied :: actual=1
+{"actual": {"lens_shading": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "lens_shading", "ok": true}], "round_trip_ms": 74}
+PASS lens_shading=2 applied :: actual=2
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "lens_shading", "error_code": "OUT_OF_RANGE", "message": "mode 3 is not available for 'lens_shading'", "ok": false}], "round_trip_ms": 48}
+PASS lens_shading=3 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {"lens_shading": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "lens_shading", "ok": true}], "round_trip_ms": 53}
+PASS face_detect lists modes :: modes=[0, 1]
+{"actual": {"face_detect": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "face_detect", "ok": true}], "round_trip_ms": 40}
+PASS face_detect=0 applied :: actual=0
+{"actual": {"face_detect": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "face_detect", "ok": true}], "round_trip_ms": 38}
+PASS face_detect=1 applied :: actual=1
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "face_detect", "error_code": "OUT_OF_RANGE", "message": "mode 2 is not available for 'face_detect'", "ok": false}], "round_trip_ms": 58}
+PASS face_detect=2 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {"face_detect": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "face_detect", "ok": true}], "round_trip_ms": 40}
+PASS test_pattern lists modes :: modes=[0]
+{"actual": {"test_pattern": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "test_pattern", "ok": true}], "round_trip_ms": 43}
+PASS test_pattern=0 applied :: actual=0
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "test_pattern", "error_code": "OUT_OF_RANGE", "message": "mode 1 is not available for 'test_pattern'", "ok": false}], "round_trip_ms": 67}
+PASS test_pattern=1 rejected :: codes=['OUT_OF_RANGE']
+{"actual": {}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "test_pattern", "ok": true}], "round_trip_ms": 41}
+PASS flash_mode lists modes :: modes=[0, 1, 2]
+{"actual": {"flash_mode": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "flash_mode", "ok": true}], "round_trip_ms": 23}
+PASS flash_mode=0 applied :: actual=0
+{"actual": {"flash_mode": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "flash_mode", "ok": true}], "round_trip_ms": 58}
+PASS flash_mode=1 requested :: requested=1 actual=1
+{"actual": {"flash_mode": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "flash_mode", "ok": true}], "round_trip_ms": 62}
+PASS flash_mode=2 applied :: actual=2
+{"actual": {"flash_mode": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "flash_mode", "ok": true}], "round_trip_ms": 55}
+===== torch
+{"actual": {"torch": true}, "error": null, "exit": 0, "results": [{"applied": true, "control": "torch", "ok": true}], "round_trip_ms": 57}
+PASS torch on drives FLASH_MODE_TORCH :: flash_mode=2
+{"actual": {"torch": false}, "error": null, "exit": 0, "results": [{"applied": false, "control": "torch", "ok": true}], "round_trip_ms": 56}
+PASS torch off drives FLASH_MODE_OFF :: flash_mode=0
+===== tonemap mode
+{"actual": {"tonemap": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "tonemap", "ok": true}], "round_trip_ms": 38}
+PASS tonemap=0 applied :: actual=0
+{"actual": {"tonemap": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "tonemap", "ok": true}], "round_trip_ms": 86}
+PASS tonemap=1 applied :: actual=1
+{"actual": {"tonemap": 2}, "error": null, "exit": 0, "results": [{"applied": 2, "control": "tonemap", "ok": true}], "round_trip_ms": 85}
+PASS tonemap=2 applied :: actual=2
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "tonemap", "error_code": "OUT_OF_RANGE", "message": "mode 3 is not available for 'tonemap'", "ok": false}], "round_trip_ms": 218}
+PASS tonemap=3 rejected :: codes=['OUT_OF_RANGE']
+===== tonemap parameters
+{"actual": {"tonemap_curve": {"blue": [0, 0, 0.5, 0.5, 1, 1], "green": [0, 0, 0.5, 0.5, 1, 1], "red": [0, 0, 0.5, 0.5, 1, 1]}}, "error": null, "exit": 0, "results": [{"applied": {"blue": [0, 0, 0.5, 0.5, 1, 1], "green": [0, 0, 0.5, 0.5, 1, 1], "red": [0, 0, 0.5, 0.5, 1, 1]}, "control": "tonemap_curve", "ok": true}, {"applied": 0, "control": "tonemap", "ok": true}], "round_trip_ms": 104}
+PASS tonemap_curve implies CONTRAST_CURVE mode :: tonemap=0
+PASS tonemap_curve actual has three channels :: lengths=6,6,6
+PASS tonemap_curve actual stays in [0,1] :: red=[0, 0, 0.5, 0.5, 1, 1]
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "tonemap_curve", "error_code": "INVALID_VALUE", "message": "tonemap_curve expects an object with red, green and blue arrays", "ok": false}], "round_trip_ms": 27}
+PASS malformed tonemap_curve rejected :: codes=['INVALID_VALUE']
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "tonemap_gamma", "error_code": "UNSUPPORTED", "message": "control 'tonemap_gamma' is not supported by this camera", "ok": false}], "round_trip_ms": 29}
+PASS tonemap_gamma rejected as UNSUPPORTED :: codes=['UNSUPPORTED']
+{"actual": {}, "error": null, "exit": 1, "results": [{"control": "tonemap_preset_curve", "error_code": "UNSUPPORTED", "message": "control 'tonemap_preset_curve' is not supported by this camera", "ok": false}], "round_trip_ms": 30}
+PASS tonemap_preset_curve rejected as UNSUPPORTED :: codes=['UNSUPPORTED']
+===== face readouts
+{"actual": {"face_detect": 1}, "error": null, "exit": 0, "results": [{"applied": 1, "control": "face_detect", "ok": true}], "round_trip_ms": 190}
+PASS face_count readout present :: face_count=0
+PASS faces readout present :: faces=[]
+{"actual": {"face_detect": 0}, "error": null, "exit": 0, "results": [{"applied": 0, "control": "face_detect", "ok": true}], "round_trip_ms": 24}
+===== restore
+{"actual": {"tonemap": 1}, "error": null, "exit": 0, "results": [{"applied": false, "control": "torch", "ok": true}, {"applied": 0, "control": "flash_mode", "ok": true}, {"applied": 1, "control": "scene_mode", "ok": true}, {"applied": 0, "control": "noise_reduction", "ok": true}, {"applied": 0, "control": "edge_enhancement", "ok": true}, {"applied": 0, "control": "hot_pixel", "ok": true}, {"applied": 1, "control": "tonemap", "ok": true}, {"applied": 0, "control": "lens_shading", "ok": true}, {"applied": 0, "control": "face_detect", "ok": true}, {"applied": 0, "control": "test_pattern", "ok": true}], "round_trip_ms": 15}
+{'flash_mode': 0, 'scene_mode': 1, 'noise_reduction': 0, 'edge_enhancement': 0, 'hot_pixel': 0, 'tonemap': 1, 'lens_shading': 0, 'face_detect': 0, 'test_pattern': 0, 'face_count': 0}
+PASS restored T08 controls :: snapshot={'flash_mode': 0, 'noise_reduction': 0, 'edge_enhancement': 0, 'hot_pixel': 0, 'lens_shading': 0, 'face_detect': 0, 'tonemap': 1}
+PASS no transient camera-thread errors :: count=0 rt=[]
+===== retries: 0 []
+===== summary: 48/48 passed
