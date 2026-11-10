@@ -167,6 +167,7 @@ object CapabilityDescriptor {
     private fun addControls(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
         addModes(out, unsupported, chars)
         addValues(out, unsupported, chars)
+        TonemapControls.describe(out, unsupported, chars)
     }
 
     private fun addModes(out: JSONObject, unsupported: JSONArray, chars: CameraCharacteristics) {
@@ -191,6 +192,12 @@ object CapabilityDescriptor {
         modes(out, unsupported, "edge_enhancement", chars.get(CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES))
         modes(out, unsupported, "hot_pixel", chars.get(CameraCharacteristics.HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES))
         modes(out, unsupported, "tonemap", chars.get(CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES))
+        modes(
+            out,
+            unsupported,
+            "test_pattern",
+            chars.get(CameraCharacteristics.SENSOR_AVAILABLE_TEST_PATTERN_MODES),
+        )
         modes(
             out,
             unsupported,

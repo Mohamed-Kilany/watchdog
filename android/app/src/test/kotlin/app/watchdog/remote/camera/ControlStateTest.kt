@@ -122,6 +122,14 @@ class ControlStateTest {
                             .put(1)
                             .put(2),
                     ),
+            ).put(
+                "test_pattern",
+                JSONObject()
+                    .put("supported", true)
+                    .put("modes", JSONArray().put(0).put(1).put(2)),
+            ).put(
+                "tonemap_curve",
+                JSONObject().put("supported", true).put("max_points", 4),
             )
 
     private fun fullState(store: ControlStateStore, seq: Long = 1): JSONObject =
@@ -520,6 +528,75 @@ class ControlStateTest {
             "INVALID_VALUE",
             store.setRequested("distortion_correction", 1.5, ControlSource.HOST).errorCode,
         )
+    }
+
+    @Test
+    fun validatesTestPatternModes() {
+        val store = ControlStateStore(descriptor())
+
+        assertTrue(store.setRequested("test_pattern", 1, ControlSource.HOST).ok)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("test_pattern", 3, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("test_pattern", 1.5, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun validatesTonemapContrastCurvesThroughTheStore() {
+        val store = ControlStateStore(descriptor())
+        val curve =
+            JSONObject()
+                .put("red", JSONArray().put(0.0).put(0.0).put(0.5).put(0.5).put(1.0).put(1.0))
+                .put("green", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+                .put("blue", JSONArray().put(0.0).put(0.1).put(1.0).put(0.9))
+
+        val ok = store.setRequested("tonemap_curve", curve, ControlSource.HOST)
+        assertTrue(ok.ok)
+        val applied = ok.applied as JSONObject
+        assertEquals(6, applied.getJSONArray("red").length())
+        assertEquals(0.5, applied.getJSONArray("red").getDouble(3), 0.0)
+        assertEquals(0.1, applied.getJSONArray("blue").getDouble(1), 0.0)
+
+        val missing = JSONObject().put("red", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("tonemap_curve", missing, ControlSource.HOST).errorCode,
+        )
+        val decreasing =
+            JSONObject()
+                .put("red", JSONArray().put(0.5).put(0.0).put(0.2).put(0.5))
+                .put("green", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+                .put("blue", JSONArray().put(0.0).put(0.0).put(1.0).put(1.0))
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("tonemap_curve", decreasing, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun faceReadoutsAreAlwaysAvailable() {
+        val store = ControlStateStore(descriptor())
+        val face =
+            JSONObject()
+                .put("id", 3)
+                .put("score", 80)
+                .put("x", 0.25)
+                .put("y", 0.25)
+                .put("w", 0.5)
+                .put("h", 0.5)
+        store.setReadout("face_count", 1)
+        store.setReadout("faces", JSONArray().put(face))
+
+        val state = fullState(store)
+        assertEquals(1, state.getJSONObject("face_count").getInt("actual"))
+        assertEquals("device", state.getJSONObject("face_count").getString("source"))
+        val read = state.getJSONObject("faces").getJSONArray("actual").getJSONObject(0)
+        assertEquals(3, read.getInt("id"))
+        assertEquals(0.5, read.getDouble("w"), 0.0)
     }
 
     @Test

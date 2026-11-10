@@ -186,6 +186,10 @@ modes and ranges; unsupported ids are never applied):
 | `edge_enhancement` | int | `EDGE_MODE` |
 | `hot_pixel` | int | `HOT_PIXEL_MODE` |
 | `tonemap` | int | `TONEMAP_MODE` |
+| `tonemap_curve` | `{red:[…],green:[…],blue:[…]}` | `TONEMAP_CURVE`; flat `[in,out,…]` points, 2..`max_points` per channel, inputs increasing, values in `[0,1]`; implies `tonemap = CONTRAST_CURVE` |
+| `tonemap_gamma` | double | `TONEMAP_GAMMA`; implies `tonemap = GAMMA_VALUE` |
+| `tonemap_preset_curve` | int | `TONEMAP_PRESET_CURVE` (`0` = sRGB, `1` = Rec.709); implies `tonemap = PRESET_CURVE` |
+| `test_pattern` | int | `SENSOR_TEST_PATTERN_MODE`; modes come from the descriptor |
 | `aberration_correction` | int | `COLOR_CORRECTION_ABERRATION_MODE` |
 | `video_stabilization` | int | `CONTROL_VIDEO_STABILIZATION_MODE` |
 | `optical_stabilization` | int | `LENS_OPTICAL_STABILIZATION_MODE` |
@@ -218,7 +222,10 @@ Read-only entries in `STATE` (never accepted in `set_controls`):
 (double; also reported as the `focus_distance` actual), `awb_gains`
 (`{r,g_even,g_odd,b}`), `color_transform` (row-major 3×3 matrix),
 `zoom_actual` (double), `lens_focal_length` (mm), `lens_aperture` (f-number),
-`lens_filter_density` and `lens_state` (`stationary` / `moving`).
+`lens_filter_density`, `lens_state` (`stationary` / `moving`), `face_count`
+(int) and `faces` (array of `{id,score,x,y,w,h}` normalized to the active
+array). The `tonemap_curve`, `tonemap_gamma` and `tonemap_preset_curve`
+controls also carry the value the device used in their `actual`.
 
 ### 5.5 COMMAND — host → app
 
@@ -236,6 +243,8 @@ same batch when AE is supported, and the implicit change is reported as an
 additional result. `ae_precapture` is a one-shot trigger: it is applied as a
 single capture on top of the repeating request and is not retained as requested
 state. Setting `focus_distance` implies `af_mode = OFF` and clears `af_lock`;
+setting a tonemap parameter (`tonemap_curve`, `tonemap_gamma` or
+`tonemap_preset_curve`) implies its matching `tonemap` mode in the same batch.
 `af_lock = true` switches `af_mode` to `AUTO`, starts a one-shot AF scan and
 remembers the previous mode, while `af_lock = false` restores it and sends
 `af_trigger = cancel`. `af_regions` only positions the AF metering window; pair
@@ -361,6 +370,12 @@ every control the host may send. Example:
                  "legacy_crop_region": false},
   "filter_density": {"supported": true, "values": [0.0, 0.5, 1.0]},
   "distortion_correction": {"supported": true, "modes": [0, 1, 2]},
+  "tonemap": {"supported": true, "modes": [0, 1, 2]},
+  "tonemap_curve": {"supported": true, "max_points": 64},
+  "tonemap_gamma": {"supported": true, "min": 0.1, "max": 5.0, "step": 0.01},
+  "tonemap_preset_curve": {"supported": true, "modes": [0, 1]},
+  "test_pattern": {"supported": true, "modes": [0, 1, 2]},
+  "face_detect": {"supported": true, "modes": [0, 1, 2]},
   "streams": {
     "available": true,
     "formats": {"YUV_420_888": [{"width": 1920, "height": 1080}],

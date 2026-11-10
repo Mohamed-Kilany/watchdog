@@ -2,7 +2,8 @@
 
 > Status: descriptor live (M4-T01); state sync and the command pipeline live
 > (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05);
-> white balance live (M4-T06); zoom and lens live (M4-T07).
+> white balance live (M4-T06); zoom and lens live (M4-T07); flash, scene and
+> image processing live (M4-T08).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
@@ -105,10 +106,24 @@ focus distance is calibrated, approximate or uncalibrated.
 
 ## Flash / torch / scene / image processing
 
-Torch (`FLASH_MODE_TORCH`) on/off, flash mode, scene modes, noise reduction, edge
-enhancement, hot-pixel, tonemap mode (incl. contrast curve/gamma where exposed),
-shading, face detection (boxes drawn in the **host** UI, never on the device video),
-test pattern modes.
+| Control | Notes |
+|---|---|
+| Torch | `torch = true/false` maps to `FLASH_MODE_TORCH` / `FLASH_MODE_OFF`; advertised only when `FLASH_INFO_AVAILABLE` |
+| Flash mode | `flash_mode` modes (off/single/torch) from the descriptor |
+| Scene mode | `scene_mode` from `CONTROL_AVAILABLE_SCENE_MODES` (`CONTROL_SCENE_MODE`) |
+| Noise reduction | `noise_reduction` from `NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES` |
+| Edge enhancement | `edge_enhancement` from `EDGE_AVAILABLE_EDGE_MODES` |
+| Hot pixel | `hot_pixel` from `HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES` |
+| Tonemap mode | `tonemap` from `TONEMAP_AVAILABLE_TONE_MAP_MODES` |
+| Contrast curve | `tonemap_curve` when the mode list includes `CONTRAST_CURVE`: `{"red":[in,out,…],"green":[…],"blue":[…]}`. Each channel has 2..`max_points` points, inputs strictly increasing, all values in `[0,1]`. Implies `tonemap = CONTRAST_CURVE`; the mode alone sends a neutral linear curve |
+| Gamma | `tonemap_gamma` when `GAMMA_VALUE` is available (`0.1..5.0`); implies `tonemap = GAMMA_VALUE` |
+| Preset curve | `tonemap_preset_curve` when `PRESET_CURVE` is available: `0` = sRGB, `1` = Rec.709; implies `tonemap = PRESET_CURVE` |
+| Lens shading | `lens_shading` (`SHADING_MODE`) |
+| Face detection | `face_detect` from `STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES`; `face_count` and `faces` (`[{id,score,x,y,w,h}]`, normalized to the active array) are readouts |
+| Test pattern | `test_pattern` from `SENSOR_AVAILABLE_TEST_PATTERN_MODES` (`SENSOR_TEST_PATTERN_MODE`); a solid-colour pattern uses the device's default pattern data |
+
+Face boxes are data only: the host draws them over the viewfinder (M6-T04) and
+they are never burned into the device video or the stream.
 
 ## Output configuration
 
