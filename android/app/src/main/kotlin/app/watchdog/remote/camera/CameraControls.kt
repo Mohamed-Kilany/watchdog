@@ -203,7 +203,12 @@ object CameraControls {
         result.get(CaptureResult.CONTROL_AF_MODE)?.let { out["af_mode"] = it }
         result.get(CaptureResult.CONTROL_AWB_MODE)?.let { out["awb_mode"] = it }
         result.get(CaptureResult.CONTROL_MODE)?.let { out["control_mode"] = it }
+        result.get(CaptureResult.FLASH_MODE)?.let { out.putAll(flashReadouts(it)) }
     }
+
+    /** Map a reported flash mode to the `flash_mode` and `torch` actuals. */
+    internal fun flashReadouts(mode: Int): Map<String, Any> =
+        mapOf("flash_mode" to mode, "torch" to (mode == CaptureResult.FLASH_MODE_TORCH))
 
     private fun extractProcessing(result: TotalCaptureResult, out: MutableMap<String, Any>) {
         result.get(CaptureResult.CONTROL_AE_ANTIBANDING_MODE)?.let { out["anti_banding"] = it }

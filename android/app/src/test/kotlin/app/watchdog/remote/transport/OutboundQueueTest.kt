@@ -25,7 +25,7 @@ class OutboundQueueTest {
     @Test
     fun `control packets wait for capacity instead of being dropped`() {
         val queue = OutboundQueue(capacity = 1, controlWaitMs = 2_000)
-        assertTrue(queue.offer(frame(1)))
+        assertTrue(queue.offer(control()))
 
         val accepted = AtomicBoolean(false)
         val producer = Thread { accepted.set(queue.offer(control())) }
@@ -35,6 +35,28 @@ class OutboundQueueTest {
         producer.join(2_000)
         assertTrue(accepted.get())
         assertEquals(0L, queue.droppedFrames())
+    }
+
+    @Test
+    fun `control packets evict a queued frame instead of failing`() {
+        val queue = OutboundQueue(capacity = 1, controlWaitMs = 50)
+        assertTrue(queue.offer(frame(1)))
+
+        assertTrue(queue.offer(control()))
+
+        assertEquals(1L, queue.droppedFrames())
+        assertEquals(MessageType.STATE, queue.poll(0)?.type)
+    }
+
+    @Test
+    fun `control packets are never evicted for other controls`() {
+        val queue = OutboundQueue(capacity = 1, controlWaitMs = 50)
+        assertTrue(queue.offer(control()))
+
+        assertFalse(queue.offer(control()))
+
+        assertEquals(0L, queue.droppedFrames())
+        assertNotNull(queue.poll(0))
     }
 
     @Test
