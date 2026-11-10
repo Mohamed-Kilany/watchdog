@@ -38,6 +38,28 @@ class OutboundQueueTest {
     }
 
     @Test
+    fun `control packets evict a queued frame instead of failing`() {
+        val queue = OutboundQueue(capacity = 1, controlWaitMs = 50)
+        assertTrue(queue.offer(frame(1)))
+
+        assertTrue(queue.offer(control()))
+
+        assertEquals(1L, queue.droppedFrames())
+        assertEquals(MessageType.STATE, queue.poll(0)?.type)
+    }
+
+    @Test
+    fun `control packets are never evicted for other controls`() {
+        val queue = OutboundQueue(capacity = 1, controlWaitMs = 50)
+        assertTrue(queue.offer(control()))
+
+        assertFalse(queue.offer(control()))
+
+        assertEquals(0L, queue.droppedFrames())
+        assertNotNull(queue.poll(0))
+    }
+
+    @Test
     fun `closed queue rejects packets`() {
         val queue = OutboundQueue(capacity = 1)
         queue.close()

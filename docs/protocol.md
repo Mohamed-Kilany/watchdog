@@ -437,6 +437,8 @@ documented payload, (b) re-encode to the exact same bytes, (c) reject every
 - `payload_len` ≤ 64 MiB (a 4K JPEG is ~10 MiB; manifests are KBs).
 - Sender must honor transport backpressure: `FRAME` is dropped (never queued
   unboundedly) when the app's send queue is full — the host sees seq gaps.
+  Control messages evict queued `FRAME`/`LOG_CHUNK` packets first, so a video
+  burst cannot starve `STATE` or `COMMAND_RESULT`.
 - `STATE` is rate-limited (default 10 Hz, max 30 Hz) and diff-compressed.
 - `COMMAND`s are processed in order; a slow command never blocks `STATE`/`FRAME`.
 

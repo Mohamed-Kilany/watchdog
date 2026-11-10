@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * Bounded outbound queue (`docs/protocol.md` §8). `FRAME` and `LOG_CHUNK` are
  * dropped when the queue is full so a slow host only causes sequence gaps or
- * missing log lines; control messages wait briefly and then report failure,
+ * missing log lines. Control messages first evict the oldest droppable packet
+ * so a video burst cannot starve them, then wait briefly and report failure,
  * which fails the session instead of silently losing state.
  */
 class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAIT_MS) {
@@ -25,12 +26,21 @@ class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAI
         if (closed) {
             return false
         }
-        if (packet.type == MessageType.FRAME || packet.type == MessageType.LOG_CHUNK) {
+        if (isDroppable(packet)) {
             val accepted = queue.offer(packet)
             if (!accepted) {
                 dropped.incrementAndGet()
             }
             return accepted
+        }
+        if (queue.offer(packet)) {
+            return true
+        }
+        // A burst of queued frames must not starve a control message. Evict the
+        // oldest droppable packet (video/log is already best-effort) and retry
+        // before falling back to the timed wait.
+        if (evictDroppable() && queue.offer(packet)) {
+            return true
         }
         return try {
             queue.offer(packet, controlWaitMs, TimeUnit.MILLISECONDS)
@@ -39,6 +49,22 @@ class OutboundQueue(capacity: Int, private val controlWaitMs: Long = CONTROL_WAI
             Thread.currentThread().interrupt()
             false
         }
+    }
+
+    private fun isDroppable(packet: Packet): Boolean =
+        packet.type == MessageType.FRAME || packet.type == MessageType.LOG_CHUNK
+
+    /** Drop the oldest queued frame/log chunk, returning whether one was found. */
+    private fun evictDroppable(): Boolean {
+        val iterator = queue.iterator()
+        while (iterator.hasNext()) {
+            if (isDroppable(iterator.next())) {
+                iterator.remove()
+                dropped.incrementAndGet()
+                return true
+            }
+        }
+        return false
     }
 
     fun poll(timeoutMs: Long): Packet? =
