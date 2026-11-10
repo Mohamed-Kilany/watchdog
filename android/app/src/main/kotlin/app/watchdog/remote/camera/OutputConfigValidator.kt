@@ -93,8 +93,9 @@ object OutputConfigValidator {
 
     private fun physical(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
-        val spec = supported(descriptor, OutputConfigs.PHYSICAL)
-            ?: return unsupported(OutputConfigs.PHYSICAL)
+        val spec =
+            supported(descriptor, OutputConfigs.PHYSICAL)
+                ?: return unsupported(OutputConfigs.PHYSICAL)
         val text = OutputConfigs.asString(value)?.trim().orEmpty()
         val id = if (text.isEmpty() || text.equals(OutputConfigs.LOGICAL, ignoreCase = true)) null else text
         val allowed = OutputConfigs.values(spec)
@@ -131,10 +132,12 @@ object OutputConfigValidator {
 
     private fun jpegQuality(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
-        val spec = supported(descriptor, OutputConfigs.JPEG_QUALITY)
-            ?: return unsupported(OutputConfigs.JPEG_QUALITY)
-        val quality = ControlValues.asInt(value)
-            ?: return invalid(OutputConfigs.JPEG_QUALITY, "jpeg_quality expects an integer")
+        val spec =
+            supported(descriptor, OutputConfigs.JPEG_QUALITY)
+                ?: return unsupported(OutputConfigs.JPEG_QUALITY)
+        val quality =
+            ControlValues.asInt(value)
+                ?: return invalid(OutputConfigs.JPEG_QUALITY, "jpeg_quality expects an integer")
         val min = spec.optInt("min", OutputConfigs.MIN_JPEG_QUALITY)
         val max = spec.optInt("max", OutputConfigs.MAX_JPEG_QUALITY)
         if (quality !in min..max) {
@@ -146,8 +149,9 @@ object OutputConfigValidator {
     private fun rotation(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
         supported(descriptor, OutputConfigs.STREAM_ROTATION) ?: return unsupported(OutputConfigs.STREAM_ROTATION)
-        val rotation = ControlValues.asInt(value)
-            ?: return invalid(OutputConfigs.STREAM_ROTATION, "stream_rotation expects an integer")
+        val rotation =
+            ControlValues.asInt(value)
+                ?: return invalid(OutputConfigs.STREAM_ROTATION, "stream_rotation expects an integer")
         if (rotation !in OutputConfigs.ROTATIONS) {
             return outOfRange(
                 OutputConfigs.STREAM_ROTATION,
@@ -159,10 +163,12 @@ object OutputConfigValidator {
 
     private fun stillFormat(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
-        val spec = supported(descriptor, OutputConfigs.STILL_FORMAT)
-            ?: return unsupported(OutputConfigs.STILL_FORMAT)
-        val format = OutputConfigs.asString(value)?.uppercase()
-            ?: return invalid(OutputConfigs.STILL_FORMAT, "still_format expects a string")
+        val spec =
+            supported(descriptor, OutputConfigs.STILL_FORMAT)
+                ?: return unsupported(OutputConfigs.STILL_FORMAT)
+        val format =
+            OutputConfigs.asString(value)?.uppercase()
+                ?: return invalid(OutputConfigs.STILL_FORMAT, "still_format expects a string")
         val formats = OutputConfigs.values(spec)
         if (format !in formats) {
             return outOfRange(
@@ -214,10 +220,12 @@ object OutputConfigValidator {
 
     private fun videoBitrate(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
-        val spec = supported(descriptor, OutputConfigs.VIDEO_BITRATE)
-            ?: return unsupported(OutputConfigs.VIDEO_BITRATE)
-        val bitrate = ControlValues.asInt(value)
-            ?: return invalid(OutputConfigs.VIDEO_BITRATE, "video_bitrate expects an integer")
+        val spec =
+            supported(descriptor, OutputConfigs.VIDEO_BITRATE)
+                ?: return unsupported(OutputConfigs.VIDEO_BITRATE)
+        val bitrate =
+            ControlValues.asInt(value)
+                ?: return invalid(OutputConfigs.VIDEO_BITRATE, "video_bitrate expects an integer")
         val min = spec.optInt("min", OutputConfigs.MIN_VIDEO_BITRATE)
         val max = spec.optInt("max", OutputConfigs.MAX_VIDEO_BITRATE)
         if (bitrate !in min..max) {
@@ -229,8 +237,9 @@ object OutputConfigValidator {
     private fun videoCodec(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
         val spec = supported(descriptor, OutputConfigs.VIDEO_CODEC) ?: return unsupported(OutputConfigs.VIDEO_CODEC)
-        val codec = OutputConfigs.asString(value)?.lowercase()
-            ?: return invalid(OutputConfigs.VIDEO_CODEC, "video_codec expects a string")
+        val codec =
+            OutputConfigs.asString(value)?.lowercase()
+                ?: return invalid(OutputConfigs.VIDEO_CODEC, "video_codec expects a string")
         val codecs = OutputConfigs.values(spec)
         if (codec !in codecs) {
             return outOfRange(OutputConfigs.VIDEO_CODEC, "video_codec=$codec is not one of ${codecs.joinToString()}")
@@ -240,10 +249,12 @@ object OutputConfigValidator {
 
     private fun videoContainer(current: OutputConfig, value: Any?, descriptors: JSONObject): Step {
         val descriptor = descriptorFor(current.cameraId, descriptors)
-        val spec = supported(descriptor, OutputConfigs.VIDEO_CONTAINER)
-            ?: return unsupported(OutputConfigs.VIDEO_CONTAINER)
-        val container = OutputConfigs.asString(value)?.lowercase()
-            ?: return invalid(OutputConfigs.VIDEO_CONTAINER, "video_container expects a string")
+        val spec =
+            supported(descriptor, OutputConfigs.VIDEO_CONTAINER)
+                ?: return unsupported(OutputConfigs.VIDEO_CONTAINER)
+        val container =
+            OutputConfigs.asString(value)?.lowercase()
+                ?: return invalid(OutputConfigs.VIDEO_CONTAINER, "video_container expects a string")
         val containers = OutputConfigs.values(spec)
         if (container !in containers) {
             return outOfRange(
@@ -258,8 +269,9 @@ object OutputConfigValidator {
         val descriptor = descriptorFor(current.cameraId, descriptors)
         val spec = descriptor.optJSONObject(OutputConfigs.AUDIO)
         if (spec == null || !spec.optBoolean("supported")) return unsupported(OutputConfigs.AUDIO)
-        val enabled = ControlValues.asBoolean(value)
-            ?: return invalid(OutputConfigs.AUDIO, "audio expects a boolean")
+        val enabled =
+            ControlValues.asBoolean(value)
+                ?: return invalid(OutputConfigs.AUDIO, "audio expects a boolean")
         return Step(current.copy(audio = enabled), enabled)
     }
 
@@ -269,14 +281,12 @@ object OutputConfigValidator {
     private fun supported(descriptor: JSONObject, id: String): JSONObject? =
         descriptor.optJSONObject(id)?.takeIf { it.optBoolean("supported") }
 
-    private fun invalid(id: String, message: String): Step =
-        Step(null, null, error(id, "INVALID_VALUE", message))
+    private fun invalid(id: String, message: String): Step = Step(null, null, error(id, "INVALID_VALUE", message))
 
     private fun unsupported(id: String): Step =
         Step(null, null, error(id, "UNSUPPORTED", "control '$id' is not supported by this camera"))
 
-    private fun outOfRange(id: String, message: String): Step =
-        Step(null, null, error(id, "OUT_OF_RANGE", message))
+    private fun outOfRange(id: String, message: String): Step = Step(null, null, error(id, "OUT_OF_RANGE", message))
 
     private fun error(id: String, code: String, message: String): OutputError = OutputError(id, code, message)
 }

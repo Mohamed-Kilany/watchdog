@@ -14,8 +14,7 @@ import org.junit.Test
  * combination rule.
  */
 class OutputConfigTest {
-    private fun size(width: Int, height: Int): JSONObject =
-        JSONObject().put("width", width).put("height", height)
+    private fun size(width: Int, height: Int): JSONObject = JSONObject().put("width", width).put("height", height)
 
     private fun sizes(vararg pairs: Pair<Int, Int>): JSONArray {
         val out = JSONArray()
@@ -65,24 +64,29 @@ class OutputConfigTest {
             .put(OutputConfigs.JPEG_QUALITY, structural(range(1, 100)))
             .put(
                 OutputConfigs.STREAM_ROTATION,
-                structural(JSONObject().put("modes", JSONArray().put(0).put(90).put(180).put(270))),
-            )
-            .put(OutputConfigs.STILL_FORMAT, structural(JSONObject().put("values", formats)))
+                structural(
+                    JSONObject().put(
+                        "modes",
+                        JSONArray()
+                            .put(0)
+                            .put(90)
+                            .put(180)
+                            .put(270),
+                    ),
+                ),
+            ).put(OutputConfigs.STILL_FORMAT, structural(JSONObject().put("values", formats)))
             .put(OutputConfigs.STILL_SIZE, structural(JSONObject().put("sizes_by_format", stillByFormat)))
             .put(
                 OutputConfigs.VIDEO_SIZE,
                 structural(JSONObject().put("sizes", sizes(1920 to 1080, 1280 to 720))),
-            )
-            .put(OutputConfigs.VIDEO_BITRATE, structural(range(100_000, 100_000_000)))
+            ).put(OutputConfigs.VIDEO_BITRATE, structural(range(100_000, 100_000_000)))
             .put(
                 OutputConfigs.VIDEO_CODEC,
                 structural(JSONObject().put("values", JSONArray().put("h264").put("h265"))),
-            )
-            .put(
+            ).put(
                 OutputConfigs.VIDEO_CONTAINER,
                 structural(JSONObject().put("values", JSONArray().put("mp4"))),
-            )
-            .put(OutputConfigs.AUDIO, structural(JSONObject()))
+            ).put(OutputConfigs.AUDIO, structural(JSONObject()))
             .put(
                 "ae_fps_range",
                 JSONObject()
@@ -103,18 +107,15 @@ class OutputConfigTest {
         return out
     }
 
-    private fun structural(spec: JSONObject): JSONObject =
-        spec.put("supported", true).put("structural", true)
+    private fun structural(spec: JSONObject): JSONObject = spec.put("supported", true).put("structural", true)
 
-    private fun range(min: Int, max: Int): JSONObject =
-        JSONObject().put("min", min).put("max", max).put("step", 1)
+    private fun range(min: Int, max: Int): JSONObject = JSONObject().put("min", min).put("max", max).put("step", 1)
 
     private fun validate(
         current: OutputConfig,
         descriptors: JSONObject,
         vararg assignments: Pair<String, Any>,
-    ): OutputValidation =
-        OutputConfigValidator.validate(current, assignments.toList(), descriptors)
+    ): OutputValidation = OutputConfigValidator.validate(current, assignments.toList(), descriptors)
 
     @Test
     fun defaultsPreferStreamingFriendlyOutputs() {

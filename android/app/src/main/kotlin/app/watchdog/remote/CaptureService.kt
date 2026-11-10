@@ -705,11 +705,7 @@ class CaptureService : Service() {
          * configuration. Quality/rotation only need the pipeline's per-frame
          * config; video and still settings are recorded for M5.
          */
-        private fun applyOutputConfig(
-            previous: OutputConfig,
-            next: OutputConfig,
-            applied: Set<String>,
-        ): ApplyOutcome {
+        private fun applyOutputConfig(previous: OutputConfig, next: OutputConfig, applied: Set<String>): ApplyOutcome {
             val controller = camera ?: return ApplyOutcome(false, error = "camera is not open")
             val cameraChanged = previous.cameraId != next.cameraId
             val sizeChanged = previous.streamSize != next.streamSize
@@ -748,9 +744,10 @@ class CaptureService : Service() {
             }
             config = next
             val auto =
-                OutputConfigs.CONTROL_IDS.filter { id ->
-                    id !in applied && outputValue(previous, id)?.toString() != outputValue(next, id)?.toString()
-                }.toSet()
+                OutputConfigs.CONTROL_IDS
+                    .filter { id ->
+                        id !in applied && outputValue(previous, id)?.toString() != outputValue(next, id)?.toString()
+                    }.toSet()
             recordState(store, next, applied, auto)
             return ApplyOutcome(true)
         }
@@ -802,11 +799,7 @@ class CaptureService : Service() {
                 else -> null
             }
 
-        private fun applyDefaultFps(
-            store: ControlStateStore,
-            output: OutputConfig,
-            controller: CameraController,
-        ) {
+        private fun applyDefaultFps(store: ControlStateStore, output: OutputConfig, controller: CameraController) {
             val descriptor = capabilities?.optJSONObject(output.cameraId) ?: return
             val range = OutputConfigs.defaultFpsRange(descriptor, output.streamSize) ?: return
             val validation = store.setRequested(FPS_CONTROL, range, ControlSource.AUTO)

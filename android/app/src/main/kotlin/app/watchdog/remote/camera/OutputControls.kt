@@ -73,7 +73,8 @@ object OutputControls {
 
     private fun streamControls(out: JSONObject, unsupported: JSONArray, map: StreamConfigurationMap) {
         val sizes =
-            map.getOutputSizes(ImageFormat.YUV_420_888)
+            map
+                .getOutputSizes(ImageFormat.YUV_420_888)
                 ?.filter { it.width % 2 == 0 && it.height % 2 == 0 }
                 .orEmpty()
         if (sizes.isEmpty()) {
@@ -180,8 +181,7 @@ object OutputControls {
         return out
     }
 
-    private fun range(min: Int, max: Int): JSONObject =
-        JSONObject().put("min", min).put("max", max).put("step", 1)
+    private fun range(min: Int, max: Int): JSONObject = JSONObject().put("min", min).put("max", max).put("step", 1)
 
     private fun modes(values: List<Int>): JSONArray {
         val out = JSONArray()
@@ -195,8 +195,7 @@ object OutputControls {
         return out
     }
 
-    private fun structural(spec: JSONObject): JSONObject =
-        spec.put("supported", true).put("structural", true)
+    private fun structural(spec: JSONObject): JSONObject = spec.put("supported", true).put("structural", true)
 
     private fun supportsRaw(chars: CameraCharacteristics): Boolean =
         chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)?.contains(

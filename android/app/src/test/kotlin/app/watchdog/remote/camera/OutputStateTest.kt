@@ -16,22 +16,22 @@ class OutputStateTest {
                     .put("supported", true)
                     .put("structural", true)
                     .put("values", JSONArray().put("0")),
-            )
-            .put(
+            ).put(
                 OutputConfigs.STREAM_SIZE,
                 JSONObject()
                     .put("supported", true)
                     .put("structural", true)
                     .put("sizes", JSONArray()),
-            )
-            .put(
+            ).put(
                 "iso",
-                JSONObject().put("supported", true).put("min", 50).put("max", 3200).put("step", 1),
-            )
-            .put("unsupported", JSONArray())
+                JSONObject()
+                    .put("supported", true)
+                    .put("min", 50)
+                    .put("max", 3200)
+                    .put("step", 1),
+            ).put("unsupported", JSONArray())
 
-    private fun size(width: Int, height: Int): JSONObject =
-        JSONObject().put("width", width).put("height", height)
+    private fun size(width: Int, height: Int): JSONObject = JSONObject().put("width", width).put("height", height)
 
     @Test
     fun structuralControlsCannotBeWrittenThroughTheGenericPath() {
@@ -65,7 +65,8 @@ class OutputStateTest {
         val store = ControlStateStore(descriptor())
         store.setStructural(OutputConfigs.CAMERA_ID, "0", ControlSource.AUTO)
         val camera =
-            store.fullState(2, 0, "0", 0, null)
+            store
+                .fullState(2, 0, "0", 0, null)
                 .getJSONObject("state")
                 .getJSONObject(OutputConfigs.CAMERA_ID)
         assertEquals("auto", camera.getString("source"))

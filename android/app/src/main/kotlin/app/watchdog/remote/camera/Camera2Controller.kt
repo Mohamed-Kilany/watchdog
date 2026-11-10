@@ -105,10 +105,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private val executor = Executor { command -> handler.post(command) }
 
-    private data class PendingReconfigure(
-        val switchDevice: Boolean,
-        val released: (() -> Unit)?,
-    )
+    private data class PendingReconfigure(val switchDevice: Boolean, val released: (() -> Unit)?)
 
     @Volatile
     private var characteristics: CameraCharacteristics? = null
