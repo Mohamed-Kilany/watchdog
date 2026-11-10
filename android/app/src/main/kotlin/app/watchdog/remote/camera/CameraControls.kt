@@ -33,6 +33,7 @@ object CameraControls {
             "awb_gains" -> ColorControls.applyGains(builder, value)
             "color_transform" -> ColorControls.applyTransform(builder, value)
             "focus_distance" -> applyFocusDistance(builder, number(value))
+            "filter_density" -> builder.set(CaptureRequest.LENS_FILTER_DENSITY, number(value).toFloat())
             else -> applyValue(builder, id, value)
         }
     }
@@ -75,6 +76,10 @@ object CameraControls {
 
     /** Per-frame processing modes (noise reduction, tone mapping, …). */
     private fun applyProcessing(builder: CaptureRequest.Builder, id: String, value: Any) {
+        if (id == "distortion_correction") {
+            applyDistortionCorrection(builder, int(value))
+            return
+        }
         val key =
             when (id) {
                 "noise_reduction" -> CaptureRequest.NOISE_REDUCTION_MODE
@@ -89,6 +94,13 @@ object CameraControls {
                 else -> return
             }
         builder.set(key, int(value))
+    }
+
+    /** Distortion correction is a public Camera2 key from Android 13 (API 33). */
+    private fun applyDistortionCorrection(builder: CaptureRequest.Builder, mode: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            builder.set(CaptureRequest.DISTORTION_CORRECTION_MODE, mode)
+        }
     }
 
     private fun applyTorch(builder: CaptureRequest.Builder, on: Boolean) {
@@ -196,6 +208,9 @@ object CameraControls {
         result.get(CaptureResult.LENS_OPTICAL_STABILIZATION_MODE)?.let { out["optical_stabilization"] = it }
         result.get(CaptureResult.SHADING_MODE)?.let { out["lens_shading"] = it }
         result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)?.let { out["face_detect"] = it }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            result.get(CaptureResult.DISTORTION_CORRECTION_MODE)?.let { out["distortion_correction"] = it }
+        }
     }
 
     private fun extractLocks(result: TotalCaptureResult, out: MutableMap<String, Any>) {
@@ -217,32 +232,38 @@ object CameraControls {
             out["focus_distance"] = it.toDouble()
             out["focus_distance_diopters"] = it.toDouble()
         }
+        result.get(CaptureResult.LENS_FOCAL_LENGTH)?.let { out["lens_focal_length"] = it.toDouble() }
+        result.get(CaptureResult.LENS_APERTURE)?.let { out["lens_aperture"] = it.toDouble() }
+        result.get(CaptureResult.LENS_FILTER_DENSITY)?.let { out["lens_filter_density"] = it.toDouble() }
+        result.get(CaptureResult.LENS_STATE)?.let { out["lens_state"] = lensState(it) }
     }
 
+    /**
+     * Use `CONTROL_ZOOM_RATIO` when the camera reports a zoom range (API 30+),
+     * otherwise centre a crop region — the same choice the descriptor makes.
+     */
     private fun applyZoom(builder: CaptureRequest.Builder, chars: CameraCharacteristics, ratio: Double) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (supportsZoomRatio(chars)) {
             builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, ratio.toFloat())
             return
         }
         val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
-        val width = (active.width() / ratio).roundToInt().coerceIn(1, active.width())
-        val height = (active.height() / ratio).roundToInt().coerceIn(1, active.height())
-        val left = active.left + (active.width() - width) / 2
-        val top = active.top + (active.height() - height) / 2
-        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(left, top, left + width, top + height))
+        val crop = ZoomMath.cropRegion(active.left, active.top, active.width(), active.height(), ratio) ?: return
+        builder.set(CaptureRequest.SCALER_CROP_REGION, Rect(crop.left, crop.top, crop.right, crop.bottom))
     }
 
     private fun zoomRatio(result: TotalCaptureResult, chars: CameraCharacteristics): Double? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (supportsZoomRatio(chars)) {
             result.get(CaptureResult.CONTROL_ZOOM_RATIO)?.let { return it.toDouble() }
         }
         val active = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return null
         val crop = result.get(CaptureResult.SCALER_CROP_REGION) ?: return null
-        if (crop.width() <= 0) {
-            return null
-        }
-        return active.width().toDouble() / crop.width()
+        return ZoomMath.ratioFromCrop(active.width(), crop.width())
     }
+
+    private fun supportsZoomRatio(chars: CameraCharacteristics): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            chars.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) != null
 
     private fun aeState(value: Int): String =
         when (value) {
@@ -273,6 +294,13 @@ object CameraControls {
             CaptureResult.CONTROL_AWB_STATE_SEARCHING -> "searching"
             CaptureResult.CONTROL_AWB_STATE_CONVERGED -> "converged"
             CaptureResult.CONTROL_AWB_STATE_LOCKED -> "locked"
+            else -> "unknown"
+        }
+
+    private fun lensState(value: Int): String =
+        when (value) {
+            CaptureResult.LENS_STATE_STATIONARY -> "stationary"
+            CaptureResult.LENS_STATE_MOVING -> "moving"
             else -> "unknown"
         }
 

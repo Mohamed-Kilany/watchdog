@@ -146,7 +146,6 @@ object CapabilityDescriptor {
             capabilityNames(chars.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)),
         )
         out.put("physical_ids", stringArray(physicalIds(chars)))
-        out.put("lens", lens(chars))
         addControls(out, unsupported, chars)
         out.put("streams", streams(chars))
         out.put(
@@ -253,6 +252,7 @@ object CapabilityDescriptor {
         focusControls(out, unsupported, chars)
         ColorControls.describe(out, unsupported, chars)
         zoom(out, unsupported, chars)
+        LensControls.describe(out, unsupported, chars)
     }
 
     /** AF modes, regions, trigger/lock and manual focus distance (M4-T05). */
@@ -438,27 +438,6 @@ object CapabilityDescriptor {
         }
     }
 
-    private fun lens(chars: CameraCharacteristics): JSONObject {
-        val out = JSONObject()
-        out.put(
-            "focal_lengths",
-            floatArray(chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)),
-        )
-        out.put(
-            "apertures",
-            floatArray(chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)),
-        )
-        out.put(
-            "hyperfocal_distance",
-            chars.get(CameraCharacteristics.LENS_INFO_HYPERFOCAL_DISTANCE) ?: JSONObject.NULL,
-        )
-        out.put(
-            "minimum_focus_distance",
-            chars.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: JSONObject.NULL,
-        )
-        return out
-    }
-
     private fun streams(chars: CameraCharacteristics): JSONObject {
         val out = JSONObject()
         val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
@@ -579,12 +558,6 @@ object CapabilityDescriptor {
     private fun stringArray(values: List<String>): JSONArray {
         val out = JSONArray()
         values.forEach { out.put(it) }
-        return out
-    }
-
-    private fun floatArray(values: FloatArray?): JSONArray {
-        val out = JSONArray()
-        values?.forEach { out.put(it.toDouble()) }
         return out
     }
 

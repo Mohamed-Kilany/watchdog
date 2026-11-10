@@ -208,14 +208,17 @@ modes and ranges; unsupported ids are never applied):
 | `color_transform` | array of 9 numbers | `COLOR_CORRECTION_TRANSFORM` (row-major 3×3, sent as rationals); same implications as `awb_gains` |
 | `flash_mode` | int | `FLASH_MODE` |
 | `torch` | bool | `FLASH_MODE` (`TORCH` / `OFF`) |
-| `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` (API 30+) or `SCALER_CROP_REGION` fallback |
+| `zoom_ratio` | double | `CONTROL_ZOOM_RATIO` when the camera reports a zoom range (API 30+), otherwise a centred `SCALER_CROP_REGION`; the descriptor's `legacy_crop_region` selects the path |
+| `filter_density` | double, one of `values` | `LENS_FILTER_DENSITY`; only advertised when the lens lists an adjustable ND choice |
+| `distortion_correction` | int | `DISTORTION_CORRECTION_MODE` (API 33); modes come from the descriptor |
 
 Read-only entries in `STATE` (never accepted in `set_controls`):
 `fps_actual` (double), `recording` (bool), `battery_percent` (int),
 `ae_state` / `af_state` / `awb_state` (strings), `focus_distance_diopters`
 (double; also reported as the `focus_distance` actual), `awb_gains`
-(`{r,g_even,g_odd,b}`), `color_transform` (row-major 3×3 matrix) and
-`zoom_actual` (double).
+(`{r,g_even,g_odd,b}`), `color_transform` (row-major 3×3 matrix),
+`zoom_actual` (double), `lens_focal_length` (mm), `lens_aperture` (f-number),
+`lens_filter_density` and `lens_state` (`stationary` / `moving`).
 
 ### 5.5 COMMAND — host → app
 
@@ -338,7 +341,9 @@ every control the host may send. Example:
   "sensor_orientation": 90,
   "capabilities": ["BACKWARD_COMPATIBLE", "MANUAL_SENSOR", "RAW"],
   "physical_ids": [],
-  "lens": {"focal_lengths": [4.3], "apertures": [1.8],
+  "lens": {"focal_lengths": [4.3], "apertures": [1.8], "filter_densities": [0.0],
+           "focus_distance_calibration": "calibrated",
+           "optical_zoom": {"min": 1.0, "max": 1.0},
            "hyperfocal_distance": 2.3, "minimum_focus_distance": 0.1},
   "control_mode": {"supported": true, "modes": [0, 1]},
   "ae_mode": {"supported": true, "modes": [0, 1, 2]},
@@ -354,6 +359,8 @@ every control the host may send. Example:
   "focus_distance": {"supported": true, "min": 0.0, "max": 10.0, "step": 0.0},
   "zoom_ratio": {"supported": true, "min": 1.0, "max": 8.0, "step": 0.0,
                  "legacy_crop_region": false},
+  "filter_density": {"supported": true, "values": [0.0, 0.5, 1.0]},
+  "distortion_correction": {"supported": true, "modes": [0, 1, 2]},
   "streams": {
     "available": true,
     "formats": {"YUV_420_888": [{"width": 1920, "height": 1080}],
@@ -370,10 +377,11 @@ every control the host may send. Example:
 }
 ```
 
-- Control objects are either `{"supported": true, "modes": [...]}` or
+- Control objects are either `{"supported": true, "modes": [...]}`,
   `{"supported": true, "min": …, "max": …, "step": …}` (numbers; `step: 0`
-  means continuous). `supported: false` and every entry in `unsupported` mean
-  the host must not send that control.
+  means continuous) or, for discrete numeric choices such as ND filter
+  densities, `{"supported": true, "values": […]}`. `supported: false` and
+  every entry in `unsupported` mean the host must not send that control.
 - `ae_fps_range` carries `ranges`, the allowed `[min,max]` FPS pairs;
   `ae_regions` carries `max_regions` (1..N normalized rectangles);
   `ae_precapture` is a one-shot trigger. `af_regions` carries `max_regions`

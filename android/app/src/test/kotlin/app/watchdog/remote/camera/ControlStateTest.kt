@@ -100,6 +100,28 @@ class ControlStateTest {
                     .put("matrix_size", 9)
                     .put("min", -4.0)
                     .put("max", 4.0),
+            ).put(
+                "filter_density",
+                JSONObject()
+                    .put("supported", true)
+                    .put(
+                        "values",
+                        JSONArray()
+                            .put(0.0)
+                            .put(0.5)
+                            .put(1.0),
+                    ),
+            ).put(
+                "distortion_correction",
+                JSONObject()
+                    .put("supported", true)
+                    .put(
+                        "modes",
+                        JSONArray()
+                            .put(0)
+                            .put(1)
+                            .put(2),
+                    ),
             )
 
     private fun fullState(store: ControlStateStore, seq: Long = 1): JSONObject =
@@ -465,5 +487,54 @@ class ControlStateTest {
             "INVALID_VALUE",
             store.setRequested("color_transform", text, ControlSource.HOST).errorCode,
         )
+    }
+
+    @Test
+    fun validatesDiscreteNumericValues() {
+        val store = ControlStateStore(descriptor())
+
+        val ok = store.setRequested("filter_density", 0.5, ControlSource.HOST)
+        assertTrue(ok.ok)
+        assertEquals(0.5, ok.applied as Double, 0.0)
+
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("filter_density", 0.25, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("filter_density", "dense", ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun validatesDistortionCorrectionModes() {
+        val store = ControlStateStore(descriptor())
+
+        assertTrue(store.setRequested("distortion_correction", 2, ControlSource.HOST).ok)
+        assertEquals(
+            "OUT_OF_RANGE",
+            store.setRequested("distortion_correction", 3, ControlSource.HOST).errorCode,
+        )
+        assertEquals(
+            "INVALID_VALUE",
+            store.setRequested("distortion_correction", 1.5, ControlSource.HOST).errorCode,
+        )
+    }
+
+    @Test
+    fun lensReadoutsAreAlwaysAvailable() {
+        val store = ControlStateStore(descriptor())
+        store.setReadout("lens_focal_length", 4.6)
+        store.setReadout("lens_aperture", 2.0)
+        store.setReadout("lens_filter_density", 0.0)
+        store.setReadout("lens_state", "stationary")
+
+        val state = fullState(store)
+        assertEquals(4.6, state.getJSONObject("lens_focal_length").getDouble("actual"), 0.0)
+        assertEquals(2.0, state.getJSONObject("lens_aperture").getDouble("actual"), 0.0)
+        assertEquals(0.0, state.getJSONObject("lens_filter_density").getDouble("actual"), 0.0)
+        assertEquals("stationary", state.getJSONObject("lens_state").getString("actual"))
+        assertEquals("device", state.getJSONObject("lens_state").getString("source"))
     }
 }

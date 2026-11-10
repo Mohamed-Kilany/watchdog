@@ -126,6 +126,9 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 message = "control '$id' is not supported by this camera",
             )
         }
+        if (value == null || value == JSONObject.NULL) {
+            return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
+        }
         return validate(id, descriptor.optJSONObject(id), value)
     }
 
@@ -237,9 +240,6 @@ class ControlStateStore(private val descriptor: JSONObject) {
     }
 
     private fun validate(id: String, spec: JSONObject?, value: Any?): ControlValidation {
-        if (value == null || value == JSONObject.NULL) {
-            return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
-        }
         if (spec == null) {
             return ControlValidation(true, applied = ControlValues.normalize(value))
         }
@@ -251,6 +251,9 @@ class ControlStateStore(private val descriptor: JSONObject) {
         }
         if (spec.has("max_regions")) {
             return validateRegions(id, spec.optInt("max_regions"), value)
+        }
+        if (spec.has("values")) {
+            return ControlValues.validateChoice(id, spec.getJSONArray("values"), value)
         }
         if (spec.has("components")) {
             return ColorControls.validateGains(spec, value)
@@ -483,6 +486,10 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 "focus_distance_diopters",
                 "awb_gains",
                 "zoom_actual",
+                "lens_focal_length",
+                "lens_aperture",
+                "lens_filter_density",
+                "lens_state",
             )
     }
 }
