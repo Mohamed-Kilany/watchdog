@@ -39,6 +39,8 @@
     <string name="value_quality_format">%1$d</string>
     <string name="value_storage_format">%1$d MB</string>
     <string name="value_battery_format">%1$d%%</string>
+    <string name="value_camera_format">%1$s · %2$s</string>
+    <string name="value_temperature_format">%1$.1f °C</string>
     <string name="permission_title">Permissions needed</string>
     <string name="permission_message">Provisioning did not grant: %1$s.\n\nGrant them in system settings, then return to this screen.</string>
     <string name="permission_open_settings">Open app settings</string>

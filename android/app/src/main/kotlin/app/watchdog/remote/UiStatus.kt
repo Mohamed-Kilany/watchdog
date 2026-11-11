@@ -11,6 +11,7 @@ data class UiStatus(
     val hostConnected: Boolean = false,
     val hostName: String? = null,
     val cameraId: String? = null,
+    val cameraFacing: String? = null,
     val cameraStatus: CameraStatus = CameraStatus.CLOSED,
     val fps: Double? = null,
     val width: Int = 0,
@@ -19,4 +20,5 @@ data class UiStatus(
     val droppedFrames: Long = 0L,
     val batteryPercent: Int = 0,
     val storageFreeMb: Long = 0L,
+    val temperatureC: Double? = null,
 )

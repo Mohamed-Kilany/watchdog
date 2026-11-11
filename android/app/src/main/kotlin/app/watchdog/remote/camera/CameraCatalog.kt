@@ -53,7 +53,7 @@ object CameraCatalog {
             emptyList()
         }
 
-    private fun facingName(facing: Int?): String =
+    fun facingName(facing: Int?): String =
         when (facing) {
             CameraCharacteristics.LENS_FACING_BACK -> "back"
             CameraCharacteristics.LENS_FACING_FRONT -> "front"

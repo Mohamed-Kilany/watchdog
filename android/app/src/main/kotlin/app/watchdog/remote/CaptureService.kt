@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.os.Binder
@@ -148,6 +149,10 @@ class CaptureService : Service() {
             hostConnected = hostConnected,
             hostName = if (hostConnected) transport?.hostName ?: lastHostName else null,
             cameraId = snapshot?.cameraId,
+            cameraFacing =
+                CameraCatalog.facingName(
+                    camera?.cameraCharacteristics?.get(CameraCharacteristics.LENS_FACING),
+                ),
             cameraStatus = snapshot?.status ?: CameraStatus.CLOSED,
             fps = fpsEstimate.takeIf { it > ZERO_FPS },
             width = pipelineConfig.width,
@@ -156,6 +161,7 @@ class CaptureService : Service() {
             droppedFrames = pipeline?.stats()?.dropped ?: 0L,
             batteryPercent = readouts.batteryPercent(),
             storageFreeMb = readouts.storageFreeMb(),
+            temperatureC = readouts.temperatureC(),
         )
     }
 
