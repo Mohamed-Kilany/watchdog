@@ -17,6 +17,7 @@ import android.os.HandlerThread
 import android.view.Surface
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.log.DeviceLog
+import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
@@ -316,42 +317,78 @@ class Camera2Controller(context: Context, private val listener: CameraController
     }
 
     override fun trigger(id: String, value: Any): ApplyOutcome =
-        runOnCameraThread("trigger") { triggerOnHandler(id, value) }
-
-    private fun triggerOnHandler(id: String, value: Any): ApplyOutcome {
-        val camera = device
-        val active = session
-        val chars = characteristics
-        if (camera == null || active == null || chars == null) {
-            return ApplyOutcome(false, error = "camera is not open")
-        }
-        if (machine.snapshot.status != CameraStatus.STREAMING) {
-            return ApplyOutcome(false, error = "camera is not streaming")
-        }
-        val (key, trigger) =
-            when (id) {
-                "ae_precapture" ->
-                    CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER to
-                        if (value.toString() == "start") {
-                            CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START
-                        } else {
-                            CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
-                        }
-                "af_trigger" ->
-                    CaptureRequest.CONTROL_AF_TRIGGER to
-                        if (value.toString() == "start") {
-                            CaptureRequest.CONTROL_AF_TRIGGER_START
-                        } else {
-                            CaptureRequest.CONTROL_AF_TRIGGER_CANCEL
-                        }
-                else -> return ApplyOutcome(false, error = "unknown trigger '$id'")
+        runOnCameraThread("trigger") {
+            val camera = device
+            val active = session
+            val chars = characteristics
+            if (camera == null || active == null || chars == null) {
+                return@runOnCameraThread ApplyOutcome(false, error = "camera is not open")
             }
-        val request =
-            requestBuilder(camera, chars)
-                .apply { set(key, trigger) }
-                .build()
-        active.capture(request, captureCallback, handler)
-        return ApplyOutcome(true, applied = mapOf(id to value))
+            if (machine.snapshot.status != CameraStatus.STREAMING) {
+                return@runOnCameraThread ApplyOutcome(false, error = "camera is not streaming")
+            }
+            val (key, trigger) =
+                when (id) {
+                    "ae_precapture" ->
+                        CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER to
+                            if (value.toString() == "start") {
+                                CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START
+                            } else {
+                                CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
+                            }
+                    "af_trigger" ->
+                        CaptureRequest.CONTROL_AF_TRIGGER to
+                            if (value.toString() == "start") {
+                                CaptureRequest.CONTROL_AF_TRIGGER_START
+                            } else {
+                                CaptureRequest.CONTROL_AF_TRIGGER_CANCEL
+                            }
+                    else -> return@runOnCameraThread ApplyOutcome(false, error = "unknown trigger '$id'")
+                }
+            val request =
+                requestBuilder(camera, chars)
+                    .apply { set(key, trigger) }
+                    .build()
+            active.capture(request, captureCallback, handler)
+            ApplyOutcome(true, applied = mapOf(id to value))
+        }
+
+    /**
+     * M4-T10: probe every advertised request key on the camera thread's
+     * session. Blocks the calling (probe worker) thread; capture callbacks are
+     * delivered on the camera handler, so there is no deadlock.
+     */
+    fun probe(cameraId: String, onlyKey: String?): JSONObject {
+        val ready = CountDownLatch(1)
+        var engine: KeyProbeEngine? = null
+        val posted =
+            handler.post {
+                val activeDevice = device
+                val activeSession = session
+                val activeChars = characteristics
+                if (activeDevice != null && activeSession != null && activeChars != null) {
+                    engine =
+                        KeyProbeEngine(
+                            activeDevice,
+                            activeSession,
+                            activeChars,
+                            handler,
+                            targets.toList(),
+                            HashMap(requested),
+                        )
+                }
+                ready.countDown()
+            }
+        if (!posted || !ready.await(PROBE_READY_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            return JSONObject().put("camera_id", cameraId).put("error", "camera thread unavailable")
+        }
+        val runner =
+            engine
+                ?: return JSONObject().put("camera_id", cameraId).put("error", "camera is not open")
+        return runCatching { runner.run(cameraId, onlyKey) }
+            .getOrElse {
+                JSONObject().put("camera_id", cameraId).put("error", "probe failed: ${it.message}")
+            }
     }
 
     override fun close() {
@@ -609,6 +646,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
         private const val CAMERA_IN_USE_DELAY_MS = 3_000L
         private const val MAX_RECOVERY_DELAY_MS = 10_000L
         private const val APPLY_TIMEOUT_MS = 2_000L
+        private const val PROBE_READY_TIMEOUT_MS = 2_000L
     }
 }
 
