@@ -3,7 +3,7 @@
 > Status: descriptor live (M4-T01); state sync and the command pipeline live
 > (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05);
 > white balance live (M4-T06); zoom and lens live (M4-T07); flash, scene and
-> image processing live (M4-T08).
+> image processing live (M4-T08); output configuration live (M4-T09).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
@@ -127,9 +127,45 @@ they are never burned into the device video or the stream.
 
 ## Output configuration
 
-Camera/physical camera selection, preview size, FPS range, JPEG quality, orientation,
-still format (JPEG; RAW_SENSOR→DNG when supported), video size/bitrate/codec/container,
-audio on/off. Invalid stream combinations are rejected with a clear error.
+These controls are **structural**: they change the frame pipeline or capture
+session instead of a Camera2 request key. The app validates the whole structural
+batch first and applies it atomically; an invalid value leaves the previous
+configuration untouched. `camera_id` and `physical_camera_id` are resolved
+before the other structural controls in a batch, so dependent values validate
+against the selected camera's descriptor.
+
+| Control | Notes |
+|---|---|
+| Camera | `camera_id` values from the descriptor. Switching camera rebuilds the state store and resets every output control to the new camera's defaults |
+| Physical camera | `physical_camera_id = "none"` selects the logical camera; any other value must be one of `physical_ids`. Sessions use `OutputConfiguration.setPhysicalCameraId` and requests target that physical camera (API 28+) |
+| Stream size | `stream_size = {width,height}` for the YUV_420_888 live stream; only even sizes reported by `SCALER_STREAM_CONFIGURATION_MAP`. Changing it rebuilds the `ImageReader` and capture session |
+| JPEG quality | `jpeg_quality` 1..100 (descriptor `min`/`max`), used by the live encoder and still capture |
+| Stream rotation | `stream_rotation` 0/90/180/270; carried in the `FRAME` header, pixels are never rotated on the device |
+| Still format | `still_format` is `JPEG`, plus `RAW_SENSOR` when the camera advertises RAW; M5 writes DNG for RAW |
+| Still size | `still_size = {width,height}` for the current still format. Switching format selects the largest size of the new format when the old size is unavailable |
+| Video size | `video_size = {width,height}` from the MediaRecorder/PRIVATE outputs |
+| Video bitrate | `video_bitrate` in bits/s, 100 kbit/s..100 Mbit/s |
+| Video codec | `video_codec` is `h264` or `h265`, only when a platform encoder exists |
+| Video container | `video_container` is `mp4` |
+| Audio | `audio = true/false` for recording, advertised only when an AAC encoder exists |
+
+Defaults: 1280x720 live stream, maximum JPEG still, 1920x1080 video, 8 Mbit/s,
+H.264 in MP4, audio off, rotation 0.
+
+Validation rules:
+
+- Unsupported, unknown or out-of-range values return `UNSUPPORTED`,
+  `UNKNOWN_CAMERA`, `INVALID_VALUE` or `OUT_OF_RANGE`; the whole structural batch
+  is rolled back.
+- `ae_fps_range` is not structural. When a stream-size change makes the requested
+  range impossible, the app selects the best supported range and reports it with
+  `source = "auto"`. An explicit impossible FPS/size pair returns
+  `UNSUPPORTED_COMBINATION`.
+- RAW still capture with a live stream above 1080p is rejected as
+  `UNSUPPORTED_COMBINATION`. Other concurrent-surface combinations are validated
+  by the capture-session callback when M5 adds them.
+- Video and still settings are recorded in the state model now; M5 consumes them
+  when still capture and recording land.
 
 ## Filming screens — best practice
 

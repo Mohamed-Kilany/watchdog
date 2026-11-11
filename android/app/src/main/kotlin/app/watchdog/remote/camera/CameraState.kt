@@ -15,6 +15,9 @@ enum class CameraStatus {
 sealed interface CameraEvent {
     data class Open(val cameraId: String) : CameraEvent
 
+    /** Switch to another camera while the service stays alive. */
+    data class Switch(val cameraId: String) : CameraEvent
+
     data object Opened : CameraEvent
 
     data object Configured : CameraEvent
@@ -62,6 +65,8 @@ class CameraStateMachine(initial: CameraSnapshot = CameraSnapshot()) {
     private fun reduce(state: CameraSnapshot, event: CameraEvent): CameraSnapshot =
         when (event) {
             is CameraEvent.Open -> onOpen(state, event.cameraId)
+            is CameraEvent.Switch ->
+                state.copy(status = CameraStatus.OPENING, cameraId = event.cameraId, lastError = null)
             is CameraEvent.Failed -> onFailed(state, event)
             CameraEvent.Disconnected -> onDisconnected(state)
             CameraEvent.Recover -> onRecover(state)

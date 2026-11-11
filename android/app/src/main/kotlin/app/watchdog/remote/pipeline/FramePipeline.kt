@@ -20,11 +20,14 @@ import java.util.concurrent.atomic.AtomicLong
  * A sender thread drains the queue into [sink]; a slow sink only causes
  * drop-oldest, never unbounded memory or a blocked camera thread.
  */
-class FramePipeline(private val config: PipelineConfig, private val sink: FrameSink) {
-    private val queue = FrameQueue(config.queueCapacity)
+class FramePipeline(initialConfig: PipelineConfig, private val sink: FrameSink) {
+    private val queue = FrameQueue(initialConfig.queueCapacity)
     private val sequence = AtomicLong(0)
     private val jpegBuffer = ByteArrayOutputStream(INITIAL_JPEG_BUFFER)
-    private var nv21 = ByteArray(nv21Size(config.width, config.height))
+    private var nv21 = ByteArray(nv21Size(initialConfig.width, initialConfig.height))
+
+    @Volatile
+    private var config: PipelineConfig = initialConfig
 
     private var thread: HandlerThread? = null
     private var reader: ImageReader? = null
@@ -62,6 +65,15 @@ class FramePipeline(private val config: PipelineConfig, private val sink: FrameS
     }
 
     fun stats(): QueueStats = queue.stats()
+
+    /**
+     * Update the per-frame encoding settings. Quality and rotation apply from
+     * the next frame; a size change needs a new pipeline because the
+     * `ImageReader` is fixed at construction.
+     */
+    fun updateConfig(next: PipelineConfig) {
+        config = next
+    }
 
     private fun onImageAvailable(source: ImageReader) {
         val image = source.acquireLatestImage() ?: return
