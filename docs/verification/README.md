@@ -30,3 +30,4 @@ Rules (from TASK.md §6/§7):
 | 2026-11-09 | M4-T06 (white balance: AWB presets, lock, regions, colour effects) | CI run 42612624713, commit `8dbda76` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-09-m4-wb.md) |
 | 2026-11-10 | M4-T07 (zoom/lens: zoom ratio, lens metadata, stabilization, shading, distortion) | CI run 42780597519, commit `cc4d4aa` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-10-m4-lens.md) |
 | 2026-11-10 | M4-T08 (flash/torch, scene, image processing: tonemap, face detect, test pattern) | CI run 42825780915, commit `6937705` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-10-m4-flash-scene.md) |
+| 2026-11-11 | M4-T09 (output configuration: structural controls, atomic rollback, stream rebuilds, camera switch) + early M4-T13 panels | CI run 42974793752, commit `70c0061` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-11-m4-output.md) |

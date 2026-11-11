@@ -1,0 +1,49 @@
+[2m2026-11-11T07:05:01.572234Z[0m [32m INFO[0m [2mwatchdog[0m[2m:[0m watchdog starting [3mdata_dir[0m[2m=[0mC:\Users\user\AppData\Local\watchdog
+{
+  "serial": "192.168.93.76:45393",
+  "steps": [
+    {
+      "name": "device",
+      "status": "passed",
+      "duration_ms": 277,
+      "detail": "samsung SM-A515F (a51) — Android 13 (SDK 33), arm64-v8a"
+    },
+    {
+      "name": "app",
+      "status": "passed",
+      "duration_ms": 107,
+      "detail": "already installed 0.1.0-dev+70c0061 (versionCode 1000)"
+    },
+    {
+      "name": "permissions",
+      "status": "passed",
+      "duration_ms": 800,
+      "detail": "granted CAMERA, RECORD_AUDIO, POST_NOTIFICATIONS; appops allow CAMERA, RECORD_AUDIO, WAKE_LOCK, START_FOREGROUND, RUN_ANY_IN_BACKGROUND, POST_NOTIFICATION"
+    },
+    {
+      "name": "battery",
+      "status": "passed",
+      "duration_ms": 557,
+      "detail": "Doze whitelist + active standby bucket (device reports 5); warnings: standby bucket is 5, expected 10 (active)"
+    },
+    {
+      "name": "screen",
+      "status": "passed",
+      "duration_ms": 457,
+      "detail": "stay_on_while_plugged_in 7 -> 7 (original recorded for restore); screen awake"
+    },
+    {
+      "name": "launch",
+      "status": "passed",
+      "duration_ms": 216,
+      "detail": "activity foregrounded; capture service started with a fresh session token"
+    },
+    {
+      "name": "verify",
+      "status": "passed",
+      "duration_ms": 1270,
+      "detail": "handshake ok (app 0.1.0-dev+70c0061 versionCode 1000, protocol 1); first frame 1280x720 JPEG (221637 bytes)"
+    }
+  ],
+  "token": "f7c2ca9338303d33a24568473c4ec334"
+}

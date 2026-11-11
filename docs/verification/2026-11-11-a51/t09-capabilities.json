@@ -1,0 +1,6129 @@
+[2m2026-11-11T07:05:05.414970Z[0m [32m INFO[0m [2mwatchdog[0m[2m:[0m watchdog starting [3mdata_dir[0m[2m=[0mC:\Users\user\AppData\Local\watchdog
+{
+  "0": {
+    "aberration_correction": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "ae_compensation": {
+      "ev_step": 0.1,
+      "max": 20,
+      "min": -20,
+      "step": 1,
+      "supported": true
+    },
+    "ae_fps_range": {
+      "ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "supported": true
+    },
+    "ae_lock": {
+      "supported": true
+    },
+    "ae_mode": {
+      "modes": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "supported": true
+    },
+    "ae_precapture": {
+      "supported": true
+    },
+    "ae_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "af_lock": {
+      "supported": true
+    },
+    "af_mode": {
+      "modes": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "supported": true
+    },
+    "af_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "af_trigger": {
+      "supported": true
+    },
+    "anti_banding": {
+      "modes": [
+        0,
+        3
+      ],
+      "supported": true
+    },
+    "audio": {
+      "structural": true,
+      "supported": true
+    },
+    "available_characteristics_keys": [
+      {
+        "name": "android.colorCorrection.availableAberrationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableAntibandingModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableTargetFpsRanges",
+        "type": "android.util.Range<java.lang.Integer>[]"
+      },
+      {
+        "name": "android.control.aeCompensationRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.aeCompensationStep",
+        "type": "android.util.Rational"
+      },
+      {
+        "name": "android.control.aeLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.afAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableEffects",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableSceneModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableVideoStabilizationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.maxRegionsAe",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAf",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAwb",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoostRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.zoomRatioRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.flash.info.available",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.info.supportedHardwareLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.availableThumbnailSizes",
+        "type": "android.util.Size[]"
+      },
+      {
+        "name": "android.lens.facing",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.availableApertures",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFilterDensities",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFocalLengths",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableOpticalStabilization",
+        "type": "int[]"
+      },
+      {
+        "name": "android.lens.info.focusDistanceCalibration",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.hyperfocalDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.info.minimumFocusDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.noiseReduction.availableNoiseReductionModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.availableCapabilities",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.maxNumInputStreams",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProc",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProcStalling",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputRaw",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.partialResultCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.pipelineMaxDepth",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.scaler.availableMaxDigitalZoom",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.scaler.croppingType",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.mandatoryStreamCombinations",
+        "type": "android.hardware.camera2.params.MandatoryStreamCombination[]"
+      },
+      {
+        "name": "android.scaler.streamConfigurationMap",
+        "type": "android.hardware.camera2.params.StreamConfigurationMap"
+      },
+      {
+        "name": "android.sensor.availableTestPatternModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.sensor.blackLevelPattern",
+        "type": "android.hardware.camera2.params.BlackLevelPattern"
+      },
+      {
+        "name": "android.sensor.calibrationTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.calibrationTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.info.activeArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.colorFilterArrangement",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.exposureTimeRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.maxFrameDuration",
+        "type": "java.lang.Long"
+      },
+      {
+        "name": "android.sensor.info.physicalSize",
+        "type": "android.util.SizeF"
+      },
+      {
+        "name": "android.sensor.info.pixelArraySize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.sensor.info.preCorrectionActiveArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.sensitivityRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.timestampSource",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.whiteLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.maxAnalogSensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant1",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant2",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.shading.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableFaceDetectModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableLensShadingMapModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.maxFaceCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sync.maxLatency",
+        "type": "java.lang.Integer"
+      }
+    ],
+    "available_request_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "available_result_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.afSceneChange",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.awbState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.flash.state",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.sensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faces",
+        "type": "android.hardware.camera2.params.Face[]"
+      },
+      {
+        "name": "android.statistics.oisSamples",
+        "type": "android.hardware.camera2.params.OisSample[]"
+      },
+      {
+        "name": "android.statistics.sceneFlicker",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "awb_lock": {
+      "supported": true
+    },
+    "awb_mode": {
+      "modes": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6
+      ],
+      "supported": true
+    },
+    "awb_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "camera_id": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "capabilities": [
+      "BACKWARD_COMPATIBLE",
+      "BURST_CAPTURE",
+      "CONSTRAINED_HIGH_SPEED_VIDEO"
+    ],
+    "control_mode": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "edge_enhancement": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "effect": {
+      "modes": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        8
+      ],
+      "supported": true
+    },
+    "exposure_time_ns": {
+      "max": 125000000,
+      "min": 61000,
+      "step": 1,
+      "supported": true
+    },
+    "face_detect": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "flash_mode": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "focus_distance": {
+      "max": 10,
+      "min": 0,
+      "step": 0,
+      "supported": true
+    },
+    "frame_duration_ns": {
+      "max": 142857142,
+      "min": 0,
+      "step": 1,
+      "supported": true
+    },
+    "hardware_level": "LIMITED",
+    "hot_pixel": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "iso": {
+      "max": 4000,
+      "min": 20,
+      "step": 1,
+      "supported": true
+    },
+    "jpeg_quality": {
+      "max": 100,
+      "min": 1,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "lens": {
+      "apertures": [
+        2
+      ],
+      "filter_densities": [
+        0
+      ],
+      "focal_lengths": [
+        4.599999904632568
+      ],
+      "focus_distance_calibration": "calibrated",
+      "hyperfocal_distance": 0.2777778,
+      "minimum_focus_distance": 10,
+      "optical_zoom": {
+        "max": 1,
+        "min": 1
+      }
+    },
+    "lens_facing": "back",
+    "lens_shading": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "noise_reduction": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "optical_stabilization": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "physical_camera_id": {
+      "supported": false
+    },
+    "physical_ids": [],
+    "scene_mode": {
+      "modes": [
+        1
+      ],
+      "supported": true
+    },
+    "sensor_orientation": 90,
+    "still_format": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "JPEG"
+      ]
+    },
+    "still_size": {
+      "sizes_by_format": {
+        "JPEG": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ]
+      },
+      "structural": true,
+      "supported": true
+    },
+    "stream_rotation": {
+      "modes": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "stream_size": {
+      "sizes": [
+        {
+          "height": 3000,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 2250,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 2992,
+          "min_frame_duration_ns": 33331760,
+          "width": 2992
+        },
+        {
+          "height": 2160,
+          "min_frame_duration_ns": 33331760,
+          "width": 3840
+        },
+        {
+          "height": 1800,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 1440,
+          "min_frame_duration_ns": 33331760,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "min_frame_duration_ns": 16665880,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "min_frame_duration_ns": 16665880,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "min_frame_duration_ns": 16665880,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "streams": {
+      "available": true,
+      "formats": {
+        "JPEG": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ],
+        "PRIVATE": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ],
+        "YUV_420_888": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ]
+      },
+      "fps_ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "high_speed_video": {
+        "fps_ranges": [
+          {
+            "fps_ranges": [
+              [
+                30,
+                120
+              ],
+              [
+                120,
+                120
+              ],
+              [
+                30,
+                240
+              ],
+              [
+                240,
+                240
+              ]
+            ],
+            "height": 720,
+            "width": 1280
+          }
+        ],
+        "sizes": [
+          {
+            "height": 720,
+            "width": 1280
+          }
+        ]
+      }
+    },
+    "test_pattern": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "tonemap": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "tonemap_curve": {
+      "max_points": 128,
+      "supported": true
+    },
+    "torch": {
+      "supported": true
+    },
+    "unsupported": [
+      {
+        "control": "awb_gains",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "color_transform",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "filter_density",
+        "reason": "no adjustable neutral-density filter"
+      },
+      {
+        "control": "distortion_correction",
+        "reason": "no distortion correction"
+      },
+      {
+        "control": "tonemap_gamma",
+        "reason": "gamma value is not available"
+      },
+      {
+        "control": "tonemap_preset_curve",
+        "reason": "preset curve is not available"
+      },
+      {
+        "control": "physical_camera_id",
+        "reason": "not a logical multi-camera"
+      }
+    ],
+    "video_bitrate": {
+      "max": 100000000,
+      "min": 100000,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "video_codec": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "h264",
+        "h265"
+      ]
+    },
+    "video_container": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "mp4"
+      ]
+    },
+    "video_size": {
+      "sizes": [
+        {
+          "height": 3000,
+          "width": 4000
+        },
+        {
+          "height": 2250,
+          "width": 4000
+        },
+        {
+          "height": 2992,
+          "width": 2992
+        },
+        {
+          "height": 2160,
+          "width": 3840
+        },
+        {
+          "height": 1800,
+          "width": 4000
+        },
+        {
+          "height": 1440,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "video_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "zoom_ratio": {
+      "legacy_crop_region": false,
+      "max": 8,
+      "min": 1,
+      "step": 0,
+      "supported": true
+    }
+  },
+  "1": {
+    "aberration_correction": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "ae_compensation": {
+      "ev_step": 0.1,
+      "max": 20,
+      "min": -20,
+      "step": 1,
+      "supported": true
+    },
+    "ae_fps_range": {
+      "ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "supported": true
+    },
+    "ae_lock": {
+      "supported": true
+    },
+    "ae_mode": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "ae_precapture": {
+      "supported": true
+    },
+    "ae_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "af_mode": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "anti_banding": {
+      "modes": [
+        0,
+        3
+      ],
+      "supported": true
+    },
+    "audio": {
+      "structural": true,
+      "supported": true
+    },
+    "available_characteristics_keys": [
+      {
+        "name": "android.colorCorrection.availableAberrationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableAntibandingModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableTargetFpsRanges",
+        "type": "android.util.Range<java.lang.Integer>[]"
+      },
+      {
+        "name": "android.control.aeCompensationRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.aeCompensationStep",
+        "type": "android.util.Rational"
+      },
+      {
+        "name": "android.control.aeLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.afAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableEffects",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableSceneModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableVideoStabilizationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.maxRegionsAe",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAf",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAwb",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoostRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.zoomRatioRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.flash.info.available",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.info.supportedHardwareLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.availableThumbnailSizes",
+        "type": "android.util.Size[]"
+      },
+      {
+        "name": "android.lens.facing",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.availableApertures",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFilterDensities",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFocalLengths",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableOpticalStabilization",
+        "type": "int[]"
+      },
+      {
+        "name": "android.lens.info.focusDistanceCalibration",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.hyperfocalDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.info.minimumFocusDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.noiseReduction.availableNoiseReductionModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.availableCapabilities",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.maxNumInputStreams",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProc",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProcStalling",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputRaw",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.partialResultCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.pipelineMaxDepth",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.scaler.availableMaxDigitalZoom",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.scaler.croppingType",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.mandatoryStreamCombinations",
+        "type": "android.hardware.camera2.params.MandatoryStreamCombination[]"
+      },
+      {
+        "name": "android.scaler.streamConfigurationMap",
+        "type": "android.hardware.camera2.params.StreamConfigurationMap"
+      },
+      {
+        "name": "android.sensor.availableTestPatternModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.sensor.blackLevelPattern",
+        "type": "android.hardware.camera2.params.BlackLevelPattern"
+      },
+      {
+        "name": "android.sensor.calibrationTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.calibrationTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.info.activeArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.colorFilterArrangement",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.exposureTimeRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.maxFrameDuration",
+        "type": "java.lang.Long"
+      },
+      {
+        "name": "android.sensor.info.physicalSize",
+        "type": "android.util.SizeF"
+      },
+      {
+        "name": "android.sensor.info.pixelArraySize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.sensor.info.preCorrectionActiveArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.sensitivityRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.timestampSource",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.whiteLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.maxAnalogSensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant1",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant2",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.shading.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableFaceDetectModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableLensShadingMapModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.maxFaceCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sync.maxLatency",
+        "type": "java.lang.Integer"
+      }
+    ],
+    "available_request_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "available_result_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afSceneChange",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.awbState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.flash.state",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.sensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faces",
+        "type": "android.hardware.camera2.params.Face[]"
+      },
+      {
+        "name": "android.statistics.oisSamples",
+        "type": "android.hardware.camera2.params.OisSample[]"
+      },
+      {
+        "name": "android.statistics.sceneFlicker",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "awb_lock": {
+      "supported": true
+    },
+    "awb_mode": {
+      "modes": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6
+      ],
+      "supported": true
+    },
+    "awb_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "camera_id": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "capabilities": [
+      "BACKWARD_COMPATIBLE",
+      "BURST_CAPTURE",
+      "CONSTRAINED_HIGH_SPEED_VIDEO"
+    ],
+    "control_mode": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "edge_enhancement": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "effect": {
+      "modes": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        8
+      ],
+      "supported": true
+    },
+    "exposure_time_ns": {
+      "max": 125000000,
+      "min": 100000,
+      "step": 1,
+      "supported": true
+    },
+    "face_detect": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "flash_mode": {
+      "supported": false
+    },
+    "frame_duration_ns": {
+      "max": 142857142,
+      "min": 0,
+      "step": 1,
+      "supported": true
+    },
+    "hardware_level": "LIMITED",
+    "hot_pixel": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "iso": {
+      "max": 4000,
+      "min": 40,
+      "step": 1,
+      "supported": true
+    },
+    "jpeg_quality": {
+      "max": 100,
+      "min": 1,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "lens": {
+      "apertures": [
+        2.200000047683716
+      ],
+      "filter_densities": [
+        0
+      ],
+      "focal_lengths": [
+        3.7200000286102295
+      ],
+      "focus_distance_calibration": "uncalibrated",
+      "hyperfocal_distance": 0,
+      "minimum_focus_distance": 0,
+      "optical_zoom": {
+        "max": 1,
+        "min": 1
+      }
+    },
+    "lens_facing": "front",
+    "lens_shading": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "noise_reduction": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "optical_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "physical_camera_id": {
+      "supported": false
+    },
+    "physical_ids": [],
+    "scene_mode": {
+      "modes": [
+        1
+      ],
+      "supported": true
+    },
+    "sensor_orientation": 270,
+    "still_format": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "JPEG"
+      ]
+    },
+    "still_size": {
+      "sizes_by_format": {
+        "JPEG": [
+          {
+            "height": 2448,
+            "width": 3264
+          },
+          {
+            "height": 1836,
+            "width": 3264
+          },
+          {
+            "height": 2448,
+            "width": 2448
+          },
+          {
+            "height": 1472,
+            "width": 3264
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ]
+      },
+      "structural": true,
+      "supported": true
+    },
+    "stream_rotation": {
+      "modes": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "stream_size": {
+      "sizes": [
+        {
+          "height": 2448,
+          "min_frame_duration_ns": 33331760,
+          "width": 3264
+        },
+        {
+          "height": 1836,
+          "min_frame_duration_ns": 33331760,
+          "width": 3264
+        },
+        {
+          "height": 2448,
+          "min_frame_duration_ns": 33331760,
+          "width": 2448
+        },
+        {
+          "height": 1472,
+          "min_frame_duration_ns": 50000000,
+          "width": 3264
+        },
+        {
+          "height": 1440,
+          "min_frame_duration_ns": 33331760,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "min_frame_duration_ns": 16665880,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "min_frame_duration_ns": 16665880,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "min_frame_duration_ns": 16665880,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "streams": {
+      "available": true,
+      "formats": {
+        "JPEG": [
+          {
+            "height": 2448,
+            "width": 3264
+          },
+          {
+            "height": 1836,
+            "width": 3264
+          },
+          {
+            "height": 2448,
+            "width": 2448
+          },
+          {
+            "height": 1472,
+            "width": 3264
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ],
+        "PRIVATE": [
+          {
+            "height": 2448,
+            "width": 3264
+          },
+          {
+            "height": 1836,
+            "width": 3264
+          },
+          {
+            "height": 2448,
+            "width": 2448
+          },
+          {
+            "height": 1472,
+            "width": 3264
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ],
+        "YUV_420_888": [
+          {
+            "height": 2448,
+            "width": 3264
+          },
+          {
+            "height": 1836,
+            "width": 3264
+          },
+          {
+            "height": 2448,
+            "width": 2448
+          },
+          {
+            "height": 1472,
+            "width": 3264
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ]
+      },
+      "fps_ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "high_speed_video": {
+        "fps_ranges": [
+          {
+            "fps_ranges": [
+              [
+                30,
+                120
+              ],
+              [
+                120,
+                120
+              ]
+            ],
+            "height": 720,
+            "width": 1280
+          }
+        ],
+        "sizes": [
+          {
+            "height": 720,
+            "width": 1280
+          }
+        ]
+      }
+    },
+    "test_pattern": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "tonemap": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "tonemap_curve": {
+      "max_points": 128,
+      "supported": true
+    },
+    "torch": {
+      "supported": false
+    },
+    "unsupported": [
+      {
+        "control": "flash_mode",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "torch",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "af_regions",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_trigger",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_lock",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "focus_distance",
+        "reason": "fixed-focus lens"
+      },
+      {
+        "control": "awb_gains",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "color_transform",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "filter_density",
+        "reason": "no adjustable neutral-density filter"
+      },
+      {
+        "control": "distortion_correction",
+        "reason": "no distortion correction"
+      },
+      {
+        "control": "tonemap_gamma",
+        "reason": "gamma value is not available"
+      },
+      {
+        "control": "tonemap_preset_curve",
+        "reason": "preset curve is not available"
+      },
+      {
+        "control": "physical_camera_id",
+        "reason": "not a logical multi-camera"
+      }
+    ],
+    "video_bitrate": {
+      "max": 100000000,
+      "min": 100000,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "video_codec": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "h264",
+        "h265"
+      ]
+    },
+    "video_container": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "mp4"
+      ]
+    },
+    "video_size": {
+      "sizes": [
+        {
+          "height": 2448,
+          "width": 3264
+        },
+        {
+          "height": 1836,
+          "width": 3264
+        },
+        {
+          "height": 2448,
+          "width": 2448
+        },
+        {
+          "height": 1472,
+          "width": 3264
+        },
+        {
+          "height": 1440,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "video_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "zoom_ratio": {
+      "legacy_crop_region": false,
+      "max": 4,
+      "min": 1,
+      "step": 0,
+      "supported": true
+    }
+  },
+  "2": {
+    "aberration_correction": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "ae_compensation": {
+      "ev_step": 0.1,
+      "max": 20,
+      "min": -20,
+      "step": 1,
+      "supported": true
+    },
+    "ae_fps_range": {
+      "ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "supported": true
+    },
+    "ae_lock": {
+      "supported": true
+    },
+    "ae_mode": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "ae_precapture": {
+      "supported": true
+    },
+    "ae_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "af_mode": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "anti_banding": {
+      "modes": [
+        0,
+        3
+      ],
+      "supported": true
+    },
+    "audio": {
+      "structural": true,
+      "supported": true
+    },
+    "available_characteristics_keys": [
+      {
+        "name": "android.colorCorrection.availableAberrationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableAntibandingModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableTargetFpsRanges",
+        "type": "android.util.Range<java.lang.Integer>[]"
+      },
+      {
+        "name": "android.control.aeCompensationRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.aeCompensationStep",
+        "type": "android.util.Rational"
+      },
+      {
+        "name": "android.control.aeLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.afAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableEffects",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableSceneModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableVideoStabilizationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.maxRegionsAe",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAf",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAwb",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoostRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.zoomRatioRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.flash.info.available",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.info.supportedHardwareLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.availableThumbnailSizes",
+        "type": "android.util.Size[]"
+      },
+      {
+        "name": "android.lens.facing",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.availableApertures",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFilterDensities",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFocalLengths",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableOpticalStabilization",
+        "type": "int[]"
+      },
+      {
+        "name": "android.lens.info.focusDistanceCalibration",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.hyperfocalDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.info.minimumFocusDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.noiseReduction.availableNoiseReductionModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.availableCapabilities",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.maxNumInputStreams",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProc",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProcStalling",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputRaw",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.partialResultCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.pipelineMaxDepth",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.scaler.availableMaxDigitalZoom",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.scaler.croppingType",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.mandatoryStreamCombinations",
+        "type": "android.hardware.camera2.params.MandatoryStreamCombination[]"
+      },
+      {
+        "name": "android.scaler.streamConfigurationMap",
+        "type": "android.hardware.camera2.params.StreamConfigurationMap"
+      },
+      {
+        "name": "android.sensor.availableTestPatternModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.sensor.blackLevelPattern",
+        "type": "android.hardware.camera2.params.BlackLevelPattern"
+      },
+      {
+        "name": "android.sensor.calibrationTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.calibrationTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.info.activeArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.colorFilterArrangement",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.exposureTimeRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.maxFrameDuration",
+        "type": "java.lang.Long"
+      },
+      {
+        "name": "android.sensor.info.physicalSize",
+        "type": "android.util.SizeF"
+      },
+      {
+        "name": "android.sensor.info.pixelArraySize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.sensor.info.preCorrectionActiveArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.sensitivityRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.timestampSource",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.whiteLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.maxAnalogSensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant1",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant2",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.shading.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableFaceDetectModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableLensShadingMapModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.maxFaceCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sync.maxLatency",
+        "type": "java.lang.Integer"
+      }
+    ],
+    "available_request_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "available_result_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afSceneChange",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.awbState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.flash.state",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.sensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faces",
+        "type": "android.hardware.camera2.params.Face[]"
+      },
+      {
+        "name": "android.statistics.oisSamples",
+        "type": "android.hardware.camera2.params.OisSample[]"
+      },
+      {
+        "name": "android.statistics.sceneFlicker",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "awb_lock": {
+      "supported": true
+    },
+    "awb_mode": {
+      "modes": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6
+      ],
+      "supported": true
+    },
+    "awb_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "camera_id": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "capabilities": [
+      "BACKWARD_COMPATIBLE",
+      "BURST_CAPTURE"
+    ],
+    "control_mode": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "edge_enhancement": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "effect": {
+      "modes": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        8
+      ],
+      "supported": true
+    },
+    "exposure_time_ns": {
+      "max": 125000000,
+      "min": 40000,
+      "step": 1,
+      "supported": true
+    },
+    "face_detect": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "flash_mode": {
+      "supported": false
+    },
+    "frame_duration_ns": {
+      "max": 142857142,
+      "min": 0,
+      "step": 1,
+      "supported": true
+    },
+    "hardware_level": "LIMITED",
+    "hot_pixel": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "iso": {
+      "max": 2500,
+      "min": 40,
+      "step": 1,
+      "supported": true
+    },
+    "jpeg_quality": {
+      "max": 100,
+      "min": 1,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "lens": {
+      "apertures": [
+        2.200000047683716
+      ],
+      "filter_densities": [
+        0
+      ],
+      "focal_lengths": [
+        1.7400000095367432
+      ],
+      "focus_distance_calibration": "uncalibrated",
+      "hyperfocal_distance": 0,
+      "minimum_focus_distance": 0,
+      "optical_zoom": {
+        "max": 1,
+        "min": 1
+      }
+    },
+    "lens_facing": "back",
+    "lens_shading": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "noise_reduction": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "optical_stabilization": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "physical_camera_id": {
+      "supported": false
+    },
+    "physical_ids": [],
+    "scene_mode": {
+      "modes": [
+        1
+      ],
+      "supported": true
+    },
+    "sensor_orientation": 90,
+    "still_format": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "JPEG"
+      ]
+    },
+    "still_size": {
+      "sizes_by_format": {
+        "JPEG": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ]
+      },
+      "structural": true,
+      "supported": true
+    },
+    "stream_rotation": {
+      "modes": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "stream_size": {
+      "sizes": [
+        {
+          "height": 3000,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 2250,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 2992,
+          "min_frame_duration_ns": 33331760,
+          "width": 2992
+        },
+        {
+          "height": 2160,
+          "min_frame_duration_ns": 33331760,
+          "width": 3840
+        },
+        {
+          "height": 2160,
+          "min_frame_duration_ns": 33331760,
+          "width": 3840
+        },
+        {
+          "height": 1800,
+          "min_frame_duration_ns": 33331760,
+          "width": 4000
+        },
+        {
+          "height": 1440,
+          "min_frame_duration_ns": 33331760,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "min_frame_duration_ns": 16665880,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "min_frame_duration_ns": 16665880,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "min_frame_duration_ns": 16665880,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "streams": {
+      "available": true,
+      "formats": {
+        "JPEG": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ],
+        "PRIVATE": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ],
+        "YUV_420_888": [
+          {
+            "height": 3000,
+            "width": 4000
+          },
+          {
+            "height": 2250,
+            "width": 4000
+          },
+          {
+            "height": 2992,
+            "width": 2992
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 2160,
+            "width": 3840
+          },
+          {
+            "height": 1800,
+            "width": 4000
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ]
+      },
+      "fps_ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "high_speed_video": {
+        "fps_ranges": [],
+        "sizes": []
+      }
+    },
+    "test_pattern": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "tonemap": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "tonemap_curve": {
+      "max_points": 128,
+      "supported": true
+    },
+    "torch": {
+      "supported": false
+    },
+    "unsupported": [
+      {
+        "control": "flash_mode",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "torch",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "af_regions",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_trigger",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_lock",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "focus_distance",
+        "reason": "fixed-focus lens"
+      },
+      {
+        "control": "awb_gains",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "color_transform",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "filter_density",
+        "reason": "no adjustable neutral-density filter"
+      },
+      {
+        "control": "distortion_correction",
+        "reason": "no distortion correction"
+      },
+      {
+        "control": "tonemap_gamma",
+        "reason": "gamma value is not available"
+      },
+      {
+        "control": "tonemap_preset_curve",
+        "reason": "preset curve is not available"
+      },
+      {
+        "control": "physical_camera_id",
+        "reason": "not a logical multi-camera"
+      }
+    ],
+    "video_bitrate": {
+      "max": 100000000,
+      "min": 100000,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "video_codec": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "h264",
+        "h265"
+      ]
+    },
+    "video_container": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "mp4"
+      ]
+    },
+    "video_size": {
+      "sizes": [
+        {
+          "height": 3000,
+          "width": 4000
+        },
+        {
+          "height": 2250,
+          "width": 4000
+        },
+        {
+          "height": 2992,
+          "width": 2992
+        },
+        {
+          "height": 2160,
+          "width": 3840
+        },
+        {
+          "height": 2160,
+          "width": 3840
+        },
+        {
+          "height": 1800,
+          "width": 4000
+        },
+        {
+          "height": 1440,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "video_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "zoom_ratio": {
+      "legacy_crop_region": false,
+      "max": 8,
+      "min": 1,
+      "step": 0,
+      "supported": true
+    }
+  },
+  "3": {
+    "aberration_correction": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "ae_compensation": {
+      "ev_step": 0.1,
+      "max": 20,
+      "min": -20,
+      "step": 1,
+      "supported": true
+    },
+    "ae_fps_range": {
+      "ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "supported": true
+    },
+    "ae_lock": {
+      "supported": true
+    },
+    "ae_mode": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "ae_precapture": {
+      "supported": true
+    },
+    "ae_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "af_mode": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "anti_banding": {
+      "modes": [
+        0,
+        3
+      ],
+      "supported": true
+    },
+    "audio": {
+      "structural": true,
+      "supported": true
+    },
+    "available_characteristics_keys": [
+      {
+        "name": "android.colorCorrection.availableAberrationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableAntibandingModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.aeAvailableTargetFpsRanges",
+        "type": "android.util.Range<java.lang.Integer>[]"
+      },
+      {
+        "name": "android.control.aeCompensationRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.aeCompensationStep",
+        "type": "android.util.Rational"
+      },
+      {
+        "name": "android.control.aeLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.afAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableEffects",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableSceneModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.availableVideoStabilizationModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbAvailableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.control.awbLockAvailable",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.maxRegionsAe",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAf",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.maxRegionsAwb",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoostRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.zoomRatioRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.flash.info.available",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.info.supportedHardwareLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.availableThumbnailSizes",
+        "type": "android.util.Size[]"
+      },
+      {
+        "name": "android.lens.facing",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.availableApertures",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFilterDensities",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableFocalLengths",
+        "type": "float[]"
+      },
+      {
+        "name": "android.lens.info.availableOpticalStabilization",
+        "type": "int[]"
+      },
+      {
+        "name": "android.lens.info.focusDistanceCalibration",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.lens.info.hyperfocalDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.info.minimumFocusDistance",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.noiseReduction.availableNoiseReductionModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.availableCapabilities",
+        "type": "int[]"
+      },
+      {
+        "name": "android.request.maxNumInputStreams",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProc",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputProcStalling",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.maxNumOutputRaw",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.partialResultCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.request.pipelineMaxDepth",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.scaler.availableMaxDigitalZoom",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.scaler.croppingType",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.mandatoryStreamCombinations",
+        "type": "android.hardware.camera2.params.MandatoryStreamCombination[]"
+      },
+      {
+        "name": "android.scaler.streamConfigurationMap",
+        "type": "android.hardware.camera2.params.StreamConfigurationMap"
+      },
+      {
+        "name": "android.sensor.availableTestPatternModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.sensor.blackLevelPattern",
+        "type": "android.hardware.camera2.params.BlackLevelPattern"
+      },
+      {
+        "name": "android.sensor.calibrationTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.calibrationTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.colorTransform2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix1",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.forwardMatrix2",
+        "type": "android.hardware.camera2.params.ColorSpaceTransform"
+      },
+      {
+        "name": "android.sensor.info.activeArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.colorFilterArrangement",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.exposureTimeRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.maxFrameDuration",
+        "type": "java.lang.Long"
+      },
+      {
+        "name": "android.sensor.info.physicalSize",
+        "type": "android.util.SizeF"
+      },
+      {
+        "name": "android.sensor.info.pixelArraySize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.sensor.info.preCorrectionActiveArraySize",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.info.sensitivityRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.sensor.info.timestampSource",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.info.whiteLevel",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.maxAnalogSensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant1",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.referenceIlluminant2",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.shading.availableModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableFaceDetectModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.availableLensShadingMapModes",
+        "type": "int[]"
+      },
+      {
+        "name": "android.statistics.info.maxFaceCount",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sync.maxLatency",
+        "type": "java.lang.Integer"
+      }
+    ],
+    "available_request_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "available_result_keys": [
+      {
+        "name": "android.colorCorrection.aberrationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeAntibandingMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeExposureCompensation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.aeMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aePrecaptureTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.aeState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.aeTargetFpsRange",
+        "type": "android.util.Range"
+      },
+      {
+        "name": "android.control.afMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afSceneChange",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.afTrigger",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbLock",
+        "type": "java.lang.Boolean"
+      },
+      {
+        "name": "android.control.awbMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.awbRegions",
+        "type": "android.hardware.camera2.params.MeteringRectangle[]"
+      },
+      {
+        "name": "android.control.awbState",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.captureIntent",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.effectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.postRawSensitivityBoost",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.sceneMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.videoStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.control.zoomRatio",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.flash.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.flash.state",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.gpsLocation",
+        "type": "android.location.Location"
+      },
+      {
+        "name": "android.jpeg.orientation",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.jpeg.quality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailQuality",
+        "type": "java.lang.Byte"
+      },
+      {
+        "name": "android.jpeg.thumbnailSize",
+        "type": "android.util.Size"
+      },
+      {
+        "name": "android.lens.aperture",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.filterDensity",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.focalLength",
+        "type": "java.lang.Float"
+      },
+      {
+        "name": "android.lens.opticalStabilizationMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.noiseReduction.mode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.scaler.cropRegion",
+        "type": "android.graphics.Rect"
+      },
+      {
+        "name": "android.sensor.sensitivity",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.sensor.testPatternMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faceDetectMode",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.statistics.faces",
+        "type": "android.hardware.camera2.params.Face[]"
+      },
+      {
+        "name": "android.statistics.oisSamples",
+        "type": "android.hardware.camera2.params.OisSample[]"
+      },
+      {
+        "name": "android.statistics.sceneFlicker",
+        "type": "java.lang.Integer"
+      },
+      {
+        "name": "android.tonemap.curve",
+        "type": "android.hardware.camera2.params.TonemapCurve"
+      }
+    ],
+    "awb_lock": {
+      "supported": true
+    },
+    "awb_mode": {
+      "modes": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6
+      ],
+      "supported": true
+    },
+    "awb_regions": {
+      "max_regions": 1,
+      "supported": true
+    },
+    "camera_id": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "capabilities": [
+      "BACKWARD_COMPATIBLE",
+      "BURST_CAPTURE",
+      "CONSTRAINED_HIGH_SPEED_VIDEO"
+    ],
+    "control_mode": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "edge_enhancement": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "effect": {
+      "modes": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        8
+      ],
+      "supported": true
+    },
+    "exposure_time_ns": {
+      "max": 125000000,
+      "min": 100000,
+      "step": 1,
+      "supported": true
+    },
+    "face_detect": {
+      "modes": [
+        0,
+        1
+      ],
+      "supported": true
+    },
+    "flash_mode": {
+      "supported": false
+    },
+    "frame_duration_ns": {
+      "max": 142857142,
+      "min": 0,
+      "step": 1,
+      "supported": true
+    },
+    "hardware_level": "LIMITED",
+    "hot_pixel": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "iso": {
+      "max": 4000,
+      "min": 40,
+      "step": 1,
+      "supported": true
+    },
+    "jpeg_quality": {
+      "max": 100,
+      "min": 1,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "lens": {
+      "apertures": [
+        2.200000047683716
+      ],
+      "filter_densities": [
+        0
+      ],
+      "focal_lengths": [
+        3.7200000286102295
+      ],
+      "focus_distance_calibration": "uncalibrated",
+      "hyperfocal_distance": 0,
+      "minimum_focus_distance": 0,
+      "optical_zoom": {
+        "max": 1,
+        "min": 1
+      }
+    },
+    "lens_facing": "front",
+    "lens_shading": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "noise_reduction": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "optical_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "physical_camera_id": {
+      "supported": false
+    },
+    "physical_ids": [],
+    "scene_mode": {
+      "modes": [
+        1
+      ],
+      "supported": true
+    },
+    "sensor_orientation": 270,
+    "still_format": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "JPEG"
+      ]
+    },
+    "still_size": {
+      "sizes_by_format": {
+        "JPEG": [
+          {
+            "height": 1980,
+            "width": 2640
+          },
+          {
+            "height": 1488,
+            "width": 2640
+          },
+          {
+            "height": 1968,
+            "width": 1968
+          },
+          {
+            "height": 1188,
+            "width": 2640
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ]
+      },
+      "structural": true,
+      "supported": true
+    },
+    "stream_rotation": {
+      "modes": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "stream_size": {
+      "sizes": [
+        {
+          "height": 1980,
+          "min_frame_duration_ns": 33331760,
+          "width": 2640
+        },
+        {
+          "height": 1488,
+          "min_frame_duration_ns": 33331760,
+          "width": 2640
+        },
+        {
+          "height": 1968,
+          "min_frame_duration_ns": 33331760,
+          "width": 1968
+        },
+        {
+          "height": 1188,
+          "min_frame_duration_ns": 33331760,
+          "width": 2640
+        },
+        {
+          "height": 1440,
+          "min_frame_duration_ns": 33331760,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "min_frame_duration_ns": 16665880,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "min_frame_duration_ns": 16665880,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "min_frame_duration_ns": 16665880,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "min_frame_duration_ns": 16665880,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "min_frame_duration_ns": 16665880,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "min_frame_duration_ns": 16665880,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "min_frame_duration_ns": 16665880,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "min_frame_duration_ns": 16665880,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "streams": {
+      "available": true,
+      "formats": {
+        "JPEG": [
+          {
+            "height": 1980,
+            "width": 2640
+          },
+          {
+            "height": 1488,
+            "width": 2640
+          },
+          {
+            "height": 1968,
+            "width": 1968
+          },
+          {
+            "height": 1188,
+            "width": 2640
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          }
+        ],
+        "PRIVATE": [
+          {
+            "height": 1980,
+            "width": 2640
+          },
+          {
+            "height": 1488,
+            "width": 2640
+          },
+          {
+            "height": 1968,
+            "width": 1968
+          },
+          {
+            "height": 1188,
+            "width": 2640
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ],
+        "YUV_420_888": [
+          {
+            "height": 1980,
+            "width": 2640
+          },
+          {
+            "height": 1488,
+            "width": 2640
+          },
+          {
+            "height": 1968,
+            "width": 1968
+          },
+          {
+            "height": 1188,
+            "width": 2640
+          },
+          {
+            "height": 1440,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 2400
+          },
+          {
+            "height": 1080,
+            "width": 1920
+          },
+          {
+            "height": 864,
+            "width": 1920
+          },
+          {
+            "height": 1080,
+            "width": 1440
+          },
+          {
+            "height": 1088,
+            "width": 1088
+          },
+          {
+            "height": 720,
+            "width": 1280
+          },
+          {
+            "height": 720,
+            "width": 960
+          },
+          {
+            "height": 480,
+            "width": 720
+          },
+          {
+            "height": 480,
+            "width": 640
+          },
+          {
+            "height": 360,
+            "width": 640
+          },
+          {
+            "height": 288,
+            "width": 352
+          },
+          {
+            "height": 240,
+            "width": 320
+          },
+          {
+            "height": 144,
+            "width": 256
+          },
+          {
+            "height": 144,
+            "width": 176
+          }
+        ]
+      },
+      "fps_ranges": [
+        [
+          15,
+          15
+        ],
+        [
+          15,
+          20
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          8,
+          30
+        ],
+        [
+          10,
+          30
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "high_speed_video": {
+        "fps_ranges": [
+          {
+            "fps_ranges": [
+              [
+                30,
+                120
+              ],
+              [
+                120,
+                120
+              ]
+            ],
+            "height": 720,
+            "width": 1280
+          }
+        ],
+        "sizes": [
+          {
+            "height": 720,
+            "width": 1280
+          }
+        ]
+      }
+    },
+    "test_pattern": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "tonemap": {
+      "modes": [
+        0,
+        1,
+        2
+      ],
+      "supported": true
+    },
+    "tonemap_curve": {
+      "max_points": 128,
+      "supported": true
+    },
+    "torch": {
+      "supported": false
+    },
+    "unsupported": [
+      {
+        "control": "flash_mode",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "torch",
+        "reason": "no flash unit"
+      },
+      {
+        "control": "af_regions",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_trigger",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "af_lock",
+        "reason": "AF is not available"
+      },
+      {
+        "control": "focus_distance",
+        "reason": "fixed-focus lens"
+      },
+      {
+        "control": "awb_gains",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "color_transform",
+        "reason": "manual color correction is not available"
+      },
+      {
+        "control": "filter_density",
+        "reason": "no adjustable neutral-density filter"
+      },
+      {
+        "control": "distortion_correction",
+        "reason": "no distortion correction"
+      },
+      {
+        "control": "tonemap_gamma",
+        "reason": "gamma value is not available"
+      },
+      {
+        "control": "tonemap_preset_curve",
+        "reason": "preset curve is not available"
+      },
+      {
+        "control": "physical_camera_id",
+        "reason": "not a logical multi-camera"
+      }
+    ],
+    "video_bitrate": {
+      "max": 100000000,
+      "min": 100000,
+      "step": 1,
+      "structural": true,
+      "supported": true
+    },
+    "video_codec": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "h264",
+        "h265"
+      ]
+    },
+    "video_container": {
+      "structural": true,
+      "supported": true,
+      "values": [
+        "mp4"
+      ]
+    },
+    "video_size": {
+      "sizes": [
+        {
+          "height": 1980,
+          "width": 2640
+        },
+        {
+          "height": 1488,
+          "width": 2640
+        },
+        {
+          "height": 1968,
+          "width": 1968
+        },
+        {
+          "height": 1188,
+          "width": 2640
+        },
+        {
+          "height": 1440,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 2400
+        },
+        {
+          "height": 1080,
+          "width": 1920
+        },
+        {
+          "height": 864,
+          "width": 1920
+        },
+        {
+          "height": 1080,
+          "width": 1440
+        },
+        {
+          "height": 1088,
+          "width": 1088
+        },
+        {
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "height": 720,
+          "width": 960
+        },
+        {
+          "height": 480,
+          "width": 720
+        },
+        {
+          "height": 480,
+          "width": 640
+        },
+        {
+          "height": 360,
+          "width": 640
+        },
+        {
+          "height": 288,
+          "width": 352
+        },
+        {
+          "height": 240,
+          "width": 320
+        },
+        {
+          "height": 144,
+          "width": 256
+        },
+        {
+          "height": 144,
+          "width": 176
+        }
+      ],
+      "structural": true,
+      "supported": true
+    },
+    "video_stabilization": {
+      "modes": [
+        0
+      ],
+      "supported": true
+    },
+    "zoom_ratio": {
+      "legacy_crop_region": false,
+      "max": 4,
+      "min": 1,
+      "step": 0,
+      "supported": true
+    }
+  }
+}
