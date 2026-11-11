@@ -338,10 +338,12 @@ private object ControlPanelModel {
     private fun display(control: ControlReadout): String? {
         val actual = control.actual
         val requested = control.requested
-        val base = actual ?: requested ?: return null
         if (!control.supported && actual == null) return null
+        val base = actual ?: requested ?: PLACEHOLDER
         val details = ArrayList<String>(2)
-        if (requested != null && requested != actual) {
+        if (requested != null && actual == null) {
+            details += "via ${control.source}"
+        } else if (requested != null && requested != actual) {
             details += "req $requested (${control.source})"
         }
         if (control.locked) {
