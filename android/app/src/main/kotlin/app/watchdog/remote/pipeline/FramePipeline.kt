@@ -55,13 +55,23 @@ class FramePipeline(initialConfig: PipelineConfig, private val sink: FrameSink) 
 
     fun stop() {
         running = false
-        reader?.setOnImageAvailableListener(null, null)
-        reader?.close()
+        val imageReader = reader
+        val pipelineThread = thread
         reader = null
+        thread = null
+        imageReader?.setOnImageAvailableListener(null, null)
+        if (pipelineThread == null) {
+            imageReader?.close()
+        } else {
+            // Close on the pipeline thread so a frame that is being copied is
+            // not invalidated mid-read. Closing from the camera thread during a
+            // structural rebuild can make the buffer inaccessible and crash the
+            // pipeline (M4-T09).
+            Handler(pipelineThread.looper).post { imageReader?.close() }
+            pipelineThread.quitSafely()
+        }
         sender?.interrupt()
         sender = null
-        thread?.quitSafely()
-        thread = null
     }
 
     fun stats(): QueueStats = queue.stats()
@@ -76,7 +86,15 @@ class FramePipeline(initialConfig: PipelineConfig, private val sink: FrameSink) 
     }
 
     private fun onImageAvailable(source: ImageReader) {
-        val image = source.acquireLatestImage() ?: return
+        val image =
+            try {
+                source.acquireLatestImage()
+            } catch (e: IllegalStateException) {
+                // A structural rebuild may close the reader while this callback
+                // is queued; there is no frame to process in that case.
+                DeviceLog.d(TAG, "reader closed before a frame could be acquired: ${e.message}")
+                return
+            } ?: return
         try {
             val jpeg = encode(image)
             if (jpeg != null) {
@@ -91,8 +109,16 @@ class FramePipeline(initialConfig: PipelineConfig, private val sink: FrameSink) 
                     ),
                 )
             }
+        } catch (e: IllegalStateException) {
+            // The reader can also close between acquisition and the plane copy;
+            // drop the frame instead of killing the pipeline thread.
+            DeviceLog.d(TAG, "dropping frame from a closed reader: ${e.message}")
         } finally {
-            image.close()
+            try {
+                image.close()
+            } catch (e: IllegalStateException) {
+                DeviceLog.d(TAG, "frame was already released: ${e.message}")
+            }
         }
     }
 
