@@ -11,6 +11,16 @@
 
     <string name="panel_connection">Connection</string>
     <string name="panel_camera">Camera</string>
+    <string name="panel_controls">Camera controls</string>
+    <string name="group_exposure">Exposure</string>
+    <string name="group_focus">Focus</string>
+    <string name="group_white_balance">White balance</string>
+    <string name="group_lens">Lens</string>
+    <string name="group_flash_scene">Flash / scene / processing</string>
+    <string name="group_output">Output</string>
+    <string name="group_recording">Recording</string>
+    <string name="group_other">Other</string>
+    <string name="control_readout_label">%1$s (readout)</string>
     <string name="label_status">Status</string>
     <string name="label_host">Host</string>
     <string name="label_session">Session</string>
@@ -39,6 +49,8 @@
     <string name="value_quality_format">%1$d</string>
     <string name="value_storage_format">%1$d MB</string>
     <string name="value_battery_format">%1$d%%</string>
+    <string name="value_camera_format">%1$s · %2$s</string>
+    <string name="value_temperature_format">%1$.1f °C</string>
     <string name="permission_title">Permissions needed</string>
     <string name="permission_message">Provisioning did not grant: %1$s.\n\nGrant them in system settings, then return to this screen.</string>
     <string name="permission_open_settings">Open app settings</string>

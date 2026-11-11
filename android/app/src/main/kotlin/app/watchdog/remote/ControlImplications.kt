@@ -75,7 +75,7 @@ class ControlImplications {
         results: MutableList<JSONObject>,
         mode: Int,
     ) {
-        if ("tonemap" in toApply || !store.isSupported("tonemap")) {
+        if ("tonemap" in toApply || "tonemap" !in store.supportedIds) {
             return
         }
         val validation = store.setRequested("tonemap", mode, ControlSource.HOST)
@@ -94,7 +94,7 @@ class ControlImplications {
         toApply: MutableMap<String, Any>,
         results: MutableList<JSONObject>,
     ) {
-        if ("ae_mode" in toApply || !store.isSupported("ae_mode")) {
+        if ("ae_mode" in toApply || "ae_mode" !in store.supportedIds) {
             return
         }
         val validation = store.setRequested("ae_mode", CaptureRequest.CONTROL_AE_MODE_OFF, ControlSource.HOST)
@@ -110,7 +110,7 @@ class ControlImplications {
         toApply: MutableMap<String, Any>,
         results: MutableList<JSONObject>,
     ) {
-        if (!store.isSupported("af_mode")) {
+        if ("af_mode" !in store.supportedIds) {
             return
         }
         setAfMode(store, toApply, results, CaptureRequest.CONTROL_AF_MODE_OFF)
@@ -135,7 +135,7 @@ class ControlImplications {
         results: MutableList<JSONObject>,
         triggers: MutableMap<String, Any>,
     ) {
-        if ("focus_distance" in toApply || !store.isSupported("af_mode")) {
+        if ("focus_distance" in toApply || "af_mode" !in store.supportedIds) {
             return
         }
         if (toApply["af_lock"] == true) {
@@ -166,7 +166,7 @@ class ControlImplications {
         toApply: MutableMap<String, Any>,
         results: MutableList<JSONObject>,
     ) {
-        if ("awb_mode" !in toApply && store.isSupported("awb_mode")) {
+        if ("awb_mode" !in toApply && "awb_mode" in store.supportedIds) {
             val validation = store.setRequested("awb_mode", CaptureRequest.CONTROL_AWB_MODE_OFF, ControlSource.HOST)
             if (validation.ok) {
                 validation.applied?.let { toApply["awb_mode"] = it }

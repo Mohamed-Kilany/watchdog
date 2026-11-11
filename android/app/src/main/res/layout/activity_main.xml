@@ -107,6 +107,17 @@
                     android:text="@string/value_placeholder" />
 
                 <TextView
+                    style="@style/PanelTitle"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/panel_controls" />
+
+                <LinearLayout
+                    android:id="@+id/leftControls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
                     android:id="@+id/version"
                     style="@style/PanelValue"
                     android:layout_marginTop="16dp"
@@ -124,7 +135,8 @@
             <SurfaceView
                 android:id="@+id/preview"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_height="match_parent"
+                android:layout_gravity="center" />
         </FrameLayout>
 
         <ScrollView
@@ -201,6 +213,12 @@
                     android:id="@+id/temperature"
                     style="@style/PanelValue"
                     android:text="@string/value_placeholder" />
+
+                <LinearLayout
+                    android:id="@+id/rightControls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
             </LinearLayout>
         </ScrollView>
     </LinearLayout>

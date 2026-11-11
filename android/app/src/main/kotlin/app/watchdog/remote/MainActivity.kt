@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.watchdog.remote.databinding.ActivityMainBinding
+import kotlin.math.roundToInt
 
 /**
  * On-device status UI (M3-T08): a live [SurfaceView] preview in the centre and
@@ -33,6 +34,7 @@ import app.watchdog.remote.databinding.ActivityMainBinding
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var controlPanel: UiControlPanel
     private var service: CaptureService? = null
     private var bound = false
     private var previewSurface: Surface? = null
@@ -80,9 +82,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        controlPanel = UiControlPanel(this, binding.leftControls, binding.rightControls)
         binding.version.text = getString(R.string.version_format, BuildConfig.VERSION_NAME)
         binding.permissionSettings.setOnClickListener { openAppSettings() }
         binding.preview.holder.addCallback(surfaceCallback)
+        binding.previewContainer.addOnLayoutChangeListener {
+            _,
+            left,
+            top,
+            right,
+            bottom,
+            oldLeft,
+            oldTop,
+            oldRight,
+            oldBottom,
+            ->
+            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                fitPreview()
+            }
+        }
         applyInsets()
     }
 
@@ -119,14 +137,18 @@ class MainActivity : AppCompatActivity() {
     private fun refreshStatus() {
         val status = service?.uiStatus() ?: UiStatus()
         val placeholder = getString(R.string.value_placeholder)
+        refreshConnection(status, placeholder)
+        refreshCamera(status, placeholder)
+        controlPanel.render(status.controls)
+    }
+
+    private fun refreshConnection(status: UiStatus, placeholder: String) {
         binding.connectionStatus.text =
             getString(if (status.hostConnected) R.string.value_connected else R.string.value_waiting)
         binding.hostName.text = status.hostName ?: getString(R.string.value_none)
         binding.sessionState.text =
             getString(if (status.hostConnected) R.string.value_active else R.string.value_idle)
-        binding.fps.text =
-            status.fps?.let { getString(R.string.value_fps_format, it) }
-                ?: placeholder
+        binding.fps.text = status.fps?.let { getString(R.string.value_fps_format, it) } ?: placeholder
         binding.resolution.text =
             if (status.width > 0 && status.height > 0) {
                 getString(R.string.value_resolution_format, status.width, status.height)
@@ -140,7 +162,13 @@ class MainActivity : AppCompatActivity() {
                 placeholder
             }
         binding.droppedFrames.text = status.droppedFrames.toString()
-        binding.cameraId.text = status.cameraId ?: placeholder
+    }
+
+    private fun refreshCamera(status: UiStatus, placeholder: String) {
+        binding.cameraId.text =
+            status.cameraId?.let { id ->
+                status.cameraFacing?.let { facing -> getString(R.string.value_camera_format, id, facing) } ?: id
+            } ?: placeholder
         binding.cameraState.text = status.cameraStatus.name.lowercase()
         binding.storage.text =
             if (status.storageFreeMb > 0) {
@@ -154,6 +182,38 @@ class MainActivity : AppCompatActivity() {
             } else {
                 placeholder
             }
+        binding.temperature.text =
+            status.temperatureC?.let { getString(R.string.value_temperature_format, it) } ?: placeholder
+    }
+
+    /**
+     * Letterbox the preview to the 16:9 camera buffer instead of stretching
+     * the buffer over the whole panel (which squashes the viewfinder).
+     */
+    private fun fitPreview() {
+        val containerWidth = binding.previewContainer.width
+        val containerHeight = binding.previewContainer.height
+        if (containerWidth <= 0 || containerHeight <= 0) {
+            return
+        }
+        val aspect = PREVIEW_WIDTH.toFloat() / PREVIEW_HEIGHT
+        val containerAspect = containerWidth.toFloat() / containerHeight
+        val width: Int
+        val height: Int
+        if (containerAspect > aspect) {
+            height = containerHeight
+            width = (height * aspect).roundToInt()
+        } else {
+            width = containerWidth
+            height = (width / aspect).roundToInt()
+        }
+        val params = binding.preview.layoutParams
+        if (params.width == width && params.height == height) {
+            return
+        }
+        params.width = width
+        params.height = height
+        binding.preview.layoutParams = params
     }
 
     private fun applyInsets() {
