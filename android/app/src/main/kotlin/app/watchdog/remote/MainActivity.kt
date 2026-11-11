@@ -34,6 +34,7 @@ import kotlin.math.roundToInt
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var controlPanel: UiControlPanel
     private var service: CaptureService? = null
     private var bound = false
     private var previewSurface: Surface? = null
@@ -81,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        controlPanel = UiControlPanel(this, binding.leftControls, binding.rightControls)
         binding.version.text = getString(R.string.version_format, BuildConfig.VERSION_NAME)
         binding.permissionSettings.setOnClickListener { openAppSettings() }
         binding.preview.holder.addCallback(surfaceCallback)
@@ -137,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         val placeholder = getString(R.string.value_placeholder)
         refreshConnection(status, placeholder)
         refreshCamera(status, placeholder)
+        controlPanel.render(status.controls)
     }
 
     private fun refreshConnection(status: UiStatus, placeholder: String) {

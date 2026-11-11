@@ -82,9 +82,16 @@ class ControlStateStore(private val descriptor: JSONObject) {
         }
     }
 
-    /** Whether the camera descriptor exposes [id] as supported. */
+    /**
+     * Read-only snapshot for the on-device UI. Unlike [fullState] and
+     * [deltaState] it does not touch the per-session delta baseline.
+     */
     @Synchronized
-    fun isSupported(id: String): Boolean = entries[id]?.supported == true
+    fun uiState(): JSONObject {
+        val state = JSONObject()
+        entries.forEach { (id, entry) -> state.put(id, entryJson(entry)) }
+        return state
+    }
 
     /**
      * Validate and record a host/device request. Returns a per-control error

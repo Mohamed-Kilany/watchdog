@@ -162,6 +162,7 @@ class CaptureService : Service() {
             batteryPercent = readouts.batteryPercent(),
             storageFreeMb = readouts.storageFreeMb(),
             temperatureC = readouts.temperatureC(),
+            controls = controlState?.uiState()?.let(::controlSnapshot) ?: emptyMap(),
         )
     }
 
