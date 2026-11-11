@@ -48,6 +48,9 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.round
 
+/** Outcome of applying the structural part of a control batch. */
+private data class StructuralOutcome(val changed: Boolean, val cameraSwitched: Boolean)
+
 /**
  * Foreground service that owns the camera, the frame pipeline and the host
  * transport. It outlives [MainActivity] and keeps streaming with the screen
@@ -637,9 +640,6 @@ class CaptureService : Service() {
         fun reset() {
             config = null
         }
-
-        /** Outcome of applying the structural part of a batch. */
-        data class StructuralOutcome(val changed: Boolean, val cameraSwitched: Boolean)
 
         /**
          * Validate the output-configuration assignments as one atomic batch and

@@ -470,10 +470,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun requestBuilder(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest.Builder {
         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        val physical = physicalId
-        if (physical != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            builder.setPhysicalCameraId(physical)
-        }
         targets.forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }

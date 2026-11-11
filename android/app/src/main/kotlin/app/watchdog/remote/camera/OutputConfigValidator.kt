@@ -75,16 +75,20 @@ object OutputConfigValidator {
         if (id.isEmpty()) return invalid(OutputConfigs.CAMERA_ID, "camera_id expects a camera id")
         val descriptor =
             descriptors.optJSONObject(id)
-                ?: return error(
-                    OutputConfigs.CAMERA_ID,
-                    "UNKNOWN_CAMERA",
-                    "camera '$id' is not available",
+                ?: return Step(
+                    null,
+                    null,
+                    error(OutputConfigs.CAMERA_ID, "UNKNOWN_CAMERA", "camera '$id' is not available"),
                 )
         if (descriptor.has("error")) {
-            return error(
-                OutputConfigs.CAMERA_ID,
-                "CAMERA_UNAVAILABLE",
-                "camera '$id' is unavailable: ${descriptor.optString("error")}",
+            return Step(
+                null,
+                null,
+                error(
+                    OutputConfigs.CAMERA_ID,
+                    "CAMERA_UNAVAILABLE",
+                    "camera '$id' is unavailable: ${descriptor.optString("error")}",
+                ),
             )
         }
         val next = if (id == current.cameraId) current else OutputConfigs.defaults(id, descriptor)
@@ -100,10 +104,14 @@ object OutputConfigValidator {
         val id = if (text.isEmpty() || text.equals(OutputConfigs.LOGICAL, ignoreCase = true)) null else text
         val allowed = OutputConfigs.values(spec)
         if (id != null && id !in allowed) {
-            return error(
-                OutputConfigs.PHYSICAL,
-                "OUT_OF_RANGE",
-                "physical camera '$id' is not available; choose one of ${allowed.joinToString()}",
+            return Step(
+                null,
+                null,
+                error(
+                    OutputConfigs.PHYSICAL,
+                    "OUT_OF_RANGE",
+                    "physical camera '$id' is not available; choose one of ${allowed.joinToString()}",
+                ),
             )
         }
         return Step(current.copy(physicalId = id), id ?: OutputConfigs.LOGICAL)

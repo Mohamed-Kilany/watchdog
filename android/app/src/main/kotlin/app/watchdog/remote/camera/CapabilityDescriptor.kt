@@ -104,7 +104,7 @@ object CapabilityDescriptor {
             }
         for (id in ids) {
             try {
-                out.put(id, describe(manager.getCameraCharacteristics(id), ids))
+                out.put(id, describe(manager.getCameraCharacteristics(id), ids.toList()))
             } catch (e: CameraAccessException) {
                 DeviceLog.w(TAG, "camera $id characteristics unavailable: ${e.message}")
                 out.put(id, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
