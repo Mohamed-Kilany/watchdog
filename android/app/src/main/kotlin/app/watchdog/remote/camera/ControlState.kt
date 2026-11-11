@@ -54,6 +54,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
     private val entries = TreeMap<String, Entry>()
     private val lastSent = HashMap<String, String>()
     private var lastCameraId: String? = null
+    private val supportedSet = HashSet<String>()
 
     init {
         val keys = descriptor.keys()
@@ -61,11 +62,15 @@ class ControlStateStore(private val descriptor: JSONObject) {
             val id = keys.next()
             val spec = descriptor.optJSONObject(id)
             if (spec != null && spec.has("supported")) {
+                val enabled = spec.optBoolean("supported")
                 entries[id] =
                     Entry(
-                        supported = spec.optBoolean("supported"),
+                        supported = enabled,
                         structural = spec.optBoolean("structural"),
                     )
+                if (enabled) {
+                    supportedSet += id
+                }
             }
         }
         // Unsupported controls are listed separately; remembering them as
@@ -84,8 +89,13 @@ class ControlStateStore(private val descriptor: JSONObject) {
             if (id !in entries) {
                 entries[id] = Entry(supported = true, source = ControlSource.DEVICE)
             }
+            supportedSet += id
         }
     }
+
+    /** Ids the descriptor reports as supported; implication gating uses this. */
+    val supportedIds: Set<String>
+        get() = supportedSet
 
     /**
      * Read-only snapshot for the on-device UI. Unlike [fullState] and
