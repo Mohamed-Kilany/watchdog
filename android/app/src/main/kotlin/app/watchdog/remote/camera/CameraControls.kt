@@ -244,6 +244,9 @@ object CameraControls {
     }
 
     private fun extractReadouts(result: TotalCaptureResult, out: MutableMap<String, Any>) {
+        result.get(CaptureResult.CONTROL_AE_TARGET_FPS_RANGE)?.let {
+            out["ae_fps_range"] = JSONArray().put(it.lower).put(it.upper)
+        }
         result.get(CaptureResult.CONTROL_AE_STATE)?.let { out["ae_state"] = aeState(it) }
         result.get(CaptureResult.CONTROL_AF_STATE)?.let { out["af_state"] = afState(it) }
         result.get(CaptureResult.CONTROL_AWB_STATE)?.let { out["awb_state"] = awbState(it) }

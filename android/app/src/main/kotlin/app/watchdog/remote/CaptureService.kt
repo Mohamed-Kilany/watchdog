@@ -26,6 +26,9 @@ import app.watchdog.remote.camera.CameraStatus
 import app.watchdog.remote.camera.CapabilityDescriptor
 import app.watchdog.remote.camera.ControlSource
 import app.watchdog.remote.camera.ControlStateStore
+import app.watchdog.remote.camera.OutputConfig
+import app.watchdog.remote.camera.OutputConfigValidator
+import app.watchdog.remote.camera.OutputConfigs
 import app.watchdog.remote.log.DeviceLog
 import app.watchdog.remote.pipeline.Frame
 import app.watchdog.remote.pipeline.FramePipeline
@@ -45,6 +48,9 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.round
+
+/** Outcome of applying the structural part of a control batch. */
+private data class StructuralOutcome(val changed: Boolean, val cameraSwitched: Boolean)
 
 /**
  * Foreground service that owns the camera, the frame pipeline and the host
@@ -113,7 +119,11 @@ class CaptureService : Service() {
     @Volatile
     private var previewSurface: Surface? = null
 
-    private val pipelineConfig = PipelineConfig()
+    @Volatile
+    private var pipelineConfig = PipelineConfig()
+
+    private val outputs = OutputCoordinator()
+
     private val binder = LocalBinder()
 
     /** Local binding for the on-device UI; the host never uses this path. */
@@ -332,22 +342,13 @@ class CaptureService : Service() {
             sendEvent("error", JSONObject().put("message", "no camera available"))
             return
         }
-        controlState = ControlStateStore(capabilities?.optJSONObject(cameraId) ?: JSONObject())
-        val framePipeline = FramePipeline(pipelineConfig) { frame -> sendFrame(frame) }
-        framePipeline.start()
-        val surface = framePipeline.surface
-        if (surface == null) {
-            DeviceLog.e(TAG, "frame pipeline produced no capture surface")
-            framePipeline.stop()
-            return
+        val descriptor = capabilities?.optJSONObject(cameraId) ?: JSONObject()
+        val store = ControlStateStore(descriptor)
+        controlState = store
+        val output = outputs.start(cameraId, store)
+        if (output != null) {
+            DeviceLog.i(TAG, "camera $cameraId opening (${output.streamSize})")
         }
-        val controller = Camera2Controller(this, cameraListener)
-        camera = controller
-        pipeline = framePipeline
-        controller.open(cameraId, listOf(surface))
-        controller.setPreviewSurface(previewSurface)
-        controller.startStreaming()
-        DeviceLog.i(TAG, "camera $cameraId opening")
     }
 
     private fun stopCamera() {
@@ -356,6 +357,8 @@ class CaptureService : Service() {
         pipeline?.stop()
         pipeline = null
         controlState = null
+        outputs.reset()
+        pipelineConfig = PipelineConfig()
         implications.reset()
         lastSensorTimestampNs = null
         fpsEstimate = ZERO_FPS
@@ -489,19 +492,8 @@ class CaptureService : Service() {
     }
 
     private fun handleSetControls(command: CommandMessage) {
-        val store = controlState
-        if (store == null) {
-            reply(
-                command.id,
-                listOf(
-                    JsonMessages.controlResult(
-                        null,
-                        false,
-                        errorCode = "CAMERA_NOT_READY",
-                        message = "camera is not open",
-                    ),
-                ),
-            )
+        if (controlState == null) {
+            replyNotReady(command.id)
             return
         }
         val assignments =
@@ -521,11 +513,62 @@ class CaptureService : Service() {
                 )
                 return
             }
-        val results = mutableListOf<JSONObject>()
+        val structuralIndices = assignments.indices.filter { assignments[it].id in OutputConfigs.CONTROL_IDS }
+        val structuralResults = HashMap<Int, JSONObject>()
+        var cameraSwitched = false
+        var structuralChanged = false
+        if (structuralIndices.isNotEmpty()) {
+            val applied = outputs.applyStructural(assignments, structuralIndices, structuralResults)
+            structuralChanged = applied.changed
+            cameraSwitched = applied.cameraSwitched
+        }
+        val store = controlState
+        if (store == null) {
+            replyNotReady(command.id)
+            return
+        }
+        val outcome = applyBatch(store, assignments, structuralIndices, structuralResults, structuralChanged)
+        reply(command.id, outcome.results, outcome.error)
+        sendState(full = cameraSwitched)
+    }
+
+    private fun replyNotReady(id: String) {
+        reply(
+            id,
+            listOf(
+                JsonMessages.controlResult(
+                    null,
+                    false,
+                    errorCode = "CAMERA_NOT_READY",
+                    message = "camera is not open",
+                ),
+            ),
+        )
+    }
+
+    /** Result of applying the non-structural part of a batch. */
+    private data class BatchOutcome(val results: List<JSONObject>, val error: String?)
+
+    private fun applyBatch(
+        store: ControlStateStore,
+        assignments: List<ControlAssignment>,
+        structuralIndices: List<Int>,
+        structuralResults: Map<Int, JSONObject>,
+        structuralChanged: Boolean,
+    ): BatchOutcome {
+        val structuralSet = structuralIndices.toHashSet()
+        val regular = assignments.filterIndexed { index, _ -> index !in structuralSet }
+        val regularResults = mutableListOf<JSONObject>()
         val toApply = LinkedHashMap<String, Any>()
         val triggers = LinkedHashMap<String, Any>()
-        val manualSensor = validateAssignments(store, assignments, results, toApply, triggers)
-        implications.apply(store, toApply, results, triggers, manualSensor)
+        val manualSensor = validateAssignments(store, regular, regularResults, toApply, triggers)
+        val autoControls =
+            if (structuralChanged) {
+                outputs.reconcileFps(store, regular, regularResults, toApply)
+            } else {
+                emptyMap()
+            }
+        implications.apply(store, toApply, regularResults, triggers, manualSensor)
         val controller = camera
         var outcome = controller?.applyControls(toApply) ?: ApplyOutcome(false, error = "camera is not open")
         if (outcome.ok) {
@@ -537,8 +580,291 @@ class CaptureService : Service() {
                 }
             }
         }
-        reply(command.id, results, if (outcome.ok) null else outcome.error)
-        sendState(full = false)
+        val results = mergeResults(assignments, structuralResults, regular, regularResults, autoControls)
+        return BatchOutcome(results, if (outcome.ok) null else outcome.error)
+    }
+
+    private fun mergeResults(
+        assignments: List<ControlAssignment>,
+        structuralResults: Map<Int, JSONObject>,
+        regular: List<ControlAssignment>,
+        regularResults: List<JSONObject>,
+        autoControls: Map<String, Any>,
+    ): List<JSONObject> {
+        val results = ArrayList<JSONObject>(assignments.size + regularResults.size + autoControls.size)
+        var regularIndex = 0
+        assignments.indices.forEach { index ->
+            val structural = structuralResults[index]
+            if (structural != null) {
+                results += structural
+            } else if (regularIndex < regular.size) {
+                results += regularResults[regularIndex++]
+            }
+        }
+        results += regularResults.drop(regularIndex)
+        autoControls.forEach { (id, value) ->
+            results += JsonMessages.controlResult(id, true, applied = value)
+        }
+        return results
+    }
+
+    /**
+     * M4-T09 output configuration: owns the structural controls, the live
+     * pipeline and the capture-session reconfiguration they trigger. It stays
+     * inside the service because applying a configuration spans the pipeline,
+     * controller and canonical state, whose ordering the service coordinates.
+     */
+    private inner class OutputCoordinator {
+        @Volatile
+        var config: OutputConfig? = null
+            private set
+
+        fun start(cameraId: String, store: ControlStateStore): OutputConfig? {
+            val descriptor = capabilities?.optJSONObject(cameraId) ?: JSONObject()
+            val output = OutputConfigs.defaults(cameraId, descriptor)
+            config = output
+            val pipelineSettings = pipelineConfigFor(output)
+            pipelineConfig = pipelineSettings
+            val framePipeline = FramePipeline(pipelineSettings) { frame -> sendFrame(frame) }
+            framePipeline.start()
+            val surface = framePipeline.surface
+            if (surface == null) {
+                DeviceLog.e(TAG, "frame pipeline produced no capture surface")
+                framePipeline.stop()
+                return null
+            }
+            val controller = Camera2Controller(this@CaptureService, cameraListener)
+            camera = controller
+            pipeline = framePipeline
+            recordState(store, output, emptySet(), OutputConfigs.CONTROL_IDS)
+            controller.open(cameraId, listOf(surface))
+            controller.setPreviewSurface(previewSurface)
+            applyDefaultFps(store, output, controller)
+            controller.startStreaming()
+            return output
+        }
+
+        fun reset() {
+            config = null
+        }
+
+        /**
+         * Validate the output-configuration assignments as one atomic batch and
+         * rebuild the pipeline/session when needed. Every structural assignment
+         * gets a result, whether the batch applied or not.
+         */
+        fun applyStructural(
+            assignments: List<ControlAssignment>,
+            indices: List<Int>,
+            results: MutableMap<Int, JSONObject>,
+        ): StructuralOutcome {
+            val current = config
+            if (current == null) {
+                indices.forEach { index ->
+                    results[index] =
+                        controlError(assignments[index].id, "CAMERA_NOT_READY", "camera is not open")
+                }
+                return StructuralOutcome(false, false)
+            }
+            val validation =
+                OutputConfigValidator.validate(
+                    current,
+                    indices.map { assignments[it].id to assignments[it].value },
+                    capabilities ?: JSONObject(),
+                )
+            if (!validation.ok) {
+                indices.forEach { index ->
+                    val id = assignments[index].id
+                    val error = validation.errors[id]
+                    results[index] =
+                        if (error != null) {
+                            controlError(id, error.code, error.message)
+                        } else {
+                            controlError(id, "ROLLED_BACK", "output configuration rolled back")
+                        }
+                }
+                return StructuralOutcome(false, false)
+            }
+            val outcome = applyOutputConfig(current, validation.config, validation.applied.keys)
+            if (!outcome.ok) {
+                indices.forEach { index ->
+                    results[index] =
+                        controlError(
+                            assignments[index].id,
+                            "APPLY_FAILED",
+                            outcome.error ?: "output configuration failed",
+                        )
+                }
+                return StructuralOutcome(false, false)
+            }
+            indices.forEach { index ->
+                val id = assignments[index].id
+                results[index] = JsonMessages.controlResult(id, true, applied = validation.applied[id])
+            }
+            val changed =
+                current.cameraId != validation.config.cameraId ||
+                    current.streamSize != validation.config.streamSize
+            return StructuralOutcome(changed, current.cameraId != validation.config.cameraId)
+        }
+
+        /**
+         * Rebuild the frame pipeline and capture session for a new output
+         * configuration. Quality/rotation only need the pipeline's per-frame
+         * config; video and still settings are recorded for M5.
+         */
+        private fun applyOutputConfig(previous: OutputConfig, next: OutputConfig, applied: Set<String>): ApplyOutcome {
+            val controller = camera ?: return ApplyOutcome(false, error = "camera is not open")
+            val cameraChanged = previous.cameraId != next.cameraId
+            val sizeChanged = previous.streamSize != next.streamSize
+            val physicalChanged = previous.physicalId != next.physicalId
+            val qualityChanged = previous.jpegQuality != next.jpegQuality
+            val rotationChanged = previous.rotation != next.rotation
+            if (cameraChanged) {
+                val descriptor = capabilities?.optJSONObject(next.cameraId) ?: JSONObject()
+                controlState = ControlStateStore(descriptor)
+                implications.reset()
+                lastSensorTimestampNs = null
+                fpsEstimate = ZERO_FPS
+            }
+            val store = controlState ?: return ApplyOutcome(false, error = "camera is not open")
+            if (cameraChanged || sizeChanged) {
+                val pipelineSettings = pipelineConfigFor(next)
+                val framePipeline = FramePipeline(pipelineSettings) { frame -> sendFrame(frame) }
+                framePipeline.start()
+                val surface = framePipeline.surface
+                if (surface == null) {
+                    framePipeline.stop()
+                    return ApplyOutcome(false, error = "frame pipeline produced no capture surface")
+                }
+                val previousPipeline = pipeline
+                pipeline = framePipeline
+                pipelineConfig = pipelineSettings
+                controller.reconfigure(next.cameraId, listOf(surface), next.physicalId) {
+                    previousPipeline?.stop()
+                }
+            } else if (physicalChanged) {
+                val surfaces = pipeline?.surface?.let { listOf(it) } ?: emptyList()
+                controller.reconfigure(next.cameraId, surfaces, next.physicalId)
+            } else if (qualityChanged || rotationChanged) {
+                pipelineConfig = pipelineConfig.copy(jpegQuality = next.jpegQuality, rotation = next.rotation)
+                pipeline?.updateConfig(pipelineConfig)
+            }
+            config = next
+            val auto =
+                OutputConfigs.CONTROL_IDS
+                    .filter { id ->
+                        id !in applied && outputValue(previous, id)?.toString() != outputValue(next, id)?.toString()
+                    }.toSet()
+            recordState(store, next, applied, auto)
+            return ApplyOutcome(true)
+        }
+
+        private fun pipelineConfigFor(output: OutputConfig): PipelineConfig =
+            PipelineConfig(
+                width = output.streamSize.width,
+                height = output.streamSize.height,
+                jpegQuality = output.jpegQuality,
+                rotation = output.rotation,
+                targetFps = OutputConfigs.PREFERRED_MAX_FPS,
+            )
+
+        /**
+         * Write the output configuration into the control state. Explicitly
+         * requested values are sourced `host`; dependent values that changed as
+         * a consequence are sourced `auto`, so the host can tell them apart.
+         */
+        private fun recordState(
+            store: ControlStateStore,
+            output: OutputConfig,
+            applied: Set<String>,
+            auto: Set<String>,
+        ) {
+            OutputConfigs.CONTROL_IDS.forEach { id ->
+                val value = outputValue(output, id) ?: return@forEach
+                when (id) {
+                    in applied -> store.setStructural(id, value, ControlSource.HOST)
+                    in auto -> store.setStructural(id, value, ControlSource.AUTO)
+                    else -> store.setStructural(id, value)
+                }
+            }
+        }
+
+        private fun outputValue(output: OutputConfig, id: String): Any? =
+            cameraOutputValue(output, id) ?: mediaOutputValue(output, id)
+
+        private fun cameraOutputValue(output: OutputConfig, id: String): Any? =
+            when (id) {
+                OutputConfigs.CAMERA_ID -> output.cameraId
+                OutputConfigs.PHYSICAL -> output.physicalId ?: OutputConfigs.LOGICAL
+                OutputConfigs.STREAM_SIZE -> output.streamSize.toJson()
+                OutputConfigs.JPEG_QUALITY -> output.jpegQuality
+                OutputConfigs.STREAM_ROTATION -> output.rotation
+                OutputConfigs.STILL_FORMAT -> output.stillFormat
+                OutputConfigs.STILL_SIZE -> output.stillSize.toJson()
+                else -> null
+            }
+
+        private fun mediaOutputValue(output: OutputConfig, id: String): Any? =
+            when (id) {
+                OutputConfigs.VIDEO_SIZE -> output.videoSize.toJson()
+                OutputConfigs.VIDEO_BITRATE -> output.videoBitrate
+                OutputConfigs.VIDEO_CODEC -> output.videoCodec
+                OutputConfigs.VIDEO_CONTAINER -> output.videoContainer
+                OutputConfigs.AUDIO -> output.audio
+                else -> null
+            }
+
+        private fun applyDefaultFps(store: ControlStateStore, output: OutputConfig, controller: CameraController) {
+            val descriptor = capabilities?.optJSONObject(output.cameraId) ?: return
+            val range = OutputConfigs.defaultFpsRange(descriptor, output.streamSize) ?: return
+            val validation = store.setRequested(FPS_CONTROL, range, ControlSource.AUTO)
+            if (!validation.ok) {
+                return
+            }
+            validation.applied?.let { controller.applyControls(mapOf(FPS_CONTROL to it)) }
+        }
+
+        /**
+         * Keep the FPS range valid after a stream-size or camera change. An
+         * explicitly requested FPS range is re-checked by [validateAssignments];
+         * here the previous range is kept when it still fits, otherwise the best
+         * supported range is applied and sourced `auto`.
+         */
+        fun reconcileFps(
+            store: ControlStateStore,
+            regular: List<ControlAssignment>,
+            results: MutableList<JSONObject>,
+            toApply: MutableMap<String, Any>,
+        ): Map<String, Any> {
+            val output = config ?: return emptyMap()
+            val descriptor = capabilities?.optJSONObject(output.cameraId) ?: return emptyMap()
+            val current = store.requestedValues()[FPS_CONTROL]
+            if (current != null && OutputConfigs.isFpsSupported(descriptor, output.streamSize, current)) {
+                return emptyMap()
+            }
+            val explicit = regular.any { it.id == FPS_CONTROL }
+            val rejected = results.any { it.optString("control") == FPS_CONTROL && !it.optBoolean("ok") }
+            if (explicit && !rejected) {
+                return emptyMap()
+            }
+            val range = OutputConfigs.defaultFpsRange(descriptor, output.streamSize) ?: return emptyMap()
+            val validation = store.setRequested(FPS_CONTROL, range, ControlSource.AUTO)
+            if (!validation.ok) {
+                return emptyMap()
+            }
+            val applied = validation.applied ?: return emptyMap()
+            toApply[FPS_CONTROL] = applied
+            return mapOf(FPS_CONTROL to applied)
+        }
+
+        fun fpsFitsCurrent(value: Any?): Boolean {
+            val output = config ?: return true
+            val descriptor = capabilities?.optJSONObject(output.cameraId) ?: return true
+            return OutputConfigs.isFpsSupported(descriptor, output.streamSize, value)
+        }
+
+        private fun controlError(id: String, code: String?, message: String?): JSONObject =
+            JsonMessages.controlResult(id, false, errorCode = code, message = message)
     }
 
     /**
@@ -560,7 +886,7 @@ class CaptureService : Service() {
                 validateTrigger(store, assignment, results, triggers)
                 return@forEach
             }
-            val validation = store.setRequested(assignment.id, assignment.value, ControlSource.HOST)
+            val validation = store.validateControl(assignment.id, assignment.value)
             if (!validation.ok) {
                 results +=
                     JsonMessages.controlResult(
@@ -569,12 +895,36 @@ class CaptureService : Service() {
                         errorCode = validation.errorCode,
                         message = validation.message,
                     )
-            } else {
-                results += JsonMessages.controlResult(assignment.id, true, applied = validation.applied)
-                validation.applied?.let { toApply[assignment.id] = it }
-                if (assignment.id in MANUAL_SENSOR_CONTROLS) {
-                    manualSensor = true
-                }
+                return@forEach
+            }
+            if (assignment.id == FPS_CONTROL && !outputs.fpsFitsCurrent(validation.applied)) {
+                val size = outputs.config?.streamSize
+                results +=
+                    JsonMessages.controlResult(
+                        assignment.id,
+                        false,
+                        errorCode = "UNSUPPORTED_COMBINATION",
+                        message =
+                            "FPS range ${validation.applied} cannot sustain the current " +
+                                "stream size $size; lower the FPS or choose a smaller stream_size",
+                    )
+                return@forEach
+            }
+            val recorded = store.setRequested(assignment.id, validation.applied, ControlSource.HOST)
+            if (!recorded.ok) {
+                results +=
+                    JsonMessages.controlResult(
+                        assignment.id,
+                        false,
+                        errorCode = recorded.errorCode,
+                        message = recorded.message,
+                    )
+                return@forEach
+            }
+            results += JsonMessages.controlResult(assignment.id, true, applied = recorded.applied)
+            recorded.applied?.let { toApply[assignment.id] = it }
+            if (assignment.id in MANUAL_SENSOR_CONTROLS) {
+                manualSensor = true
             }
         }
         return manualSensor
@@ -754,6 +1104,7 @@ class CaptureService : Service() {
         private const val MILLIS_PER_SECOND = 1000.0
         private const val NANOS_PER_SECOND = 1_000_000_000.0
         private const val HOST_STATUS_GRACE_MS = 5_000L
+        private const val FPS_CONTROL = "ae_fps_range"
         private val MANUAL_SENSOR_CONTROLS = setOf("iso", "exposure_time_ns", "frame_duration_ns")
         private val TRIGGERS = setOf("ae_precapture", "af_trigger")
 

@@ -39,6 +39,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
         var actual: Any? = null,
         var locked: Boolean? = null,
         val supported: Boolean,
+        val structural: Boolean = false,
         var source: ControlSource = ControlSource.DEVICE,
     )
 
@@ -60,7 +61,11 @@ class ControlStateStore(private val descriptor: JSONObject) {
             val id = keys.next()
             val spec = descriptor.optJSONObject(id)
             if (spec != null && spec.has("supported")) {
-                entries[id] = Entry(supported = spec.optBoolean("supported"))
+                entries[id] =
+                    Entry(
+                        supported = spec.optBoolean("supported"),
+                        structural = spec.optBoolean("structural"),
+                    )
             }
         }
         // Unsupported controls are listed separately; remembering them as
@@ -133,6 +138,13 @@ class ControlStateStore(private val descriptor: JSONObject) {
                 message = "control '$id' is not supported by this camera",
             )
         }
+        if (entry.structural) {
+            return ControlValidation(
+                false,
+                errorCode = "STRUCTURAL_CONTROL",
+                message = "control '$id' is applied through output configuration",
+            )
+        }
         if (value == null || value == JSONObject.NULL) {
             return ControlValidation(false, errorCode = "NULL_VALUE", message = "control '$id' needs a value")
         }
@@ -159,9 +171,23 @@ class ControlStateStore(private val descriptor: JSONObject) {
     fun requestedValues(): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
         entries.forEach { (id, entry) ->
-            entry.requested?.let { out[id] = it }
+            if (!entry.structural) {
+                entry.requested?.let { out[id] = it }
+            }
         }
         return out
+    }
+
+    /** Record an output-configuration value; a source also records it as requested. */
+    @Synchronized
+    fun setStructural(id: String, value: Any?, source: ControlSource? = null) {
+        val entry = entries[id] ?: return
+        val normalized = ControlValues.normalize(value)
+        entry.actual = normalized
+        if (source != null) {
+            entry.requested = normalized
+            entry.source = source
+        }
     }
 
     /** Forget the delta baseline; the next frame is a full snapshot. */
@@ -343,7 +369,7 @@ class ControlStateStore(private val descriptor: JSONObject) {
 
     private fun validateFpsRange(id: String, ranges: JSONArray, value: Any?): ControlValidation {
         val pair =
-            fpsPair(value)
+            OutputConfigs.fpsPair(value)
                 ?: return ControlValidation(
                     false,
                     errorCode = "INVALID_VALUE",
@@ -363,24 +389,6 @@ class ControlStateStore(private val descriptor: JSONObject) {
             errorCode = "OUT_OF_RANGE",
             message = "FPS range [${pair.first}, ${pair.second}] is not available for '$id'",
         )
-    }
-
-    private fun fpsPair(value: Any?): Pair<Int, Int>? {
-        val first =
-            when (value) {
-                is JSONArray -> value.opt(0)
-                is JSONObject -> value.opt("min")
-                else -> null
-            }
-        val second =
-            when (value) {
-                is JSONArray -> value.opt(1)
-                is JSONObject -> value.opt("max")
-                else -> null
-            }
-        val min = ControlValues.asInt(first) ?: return null
-        val max = ControlValues.asInt(second) ?: return null
-        return if (max >= min) min to max else null
     }
 
     private fun validateRegions(id: String, maxRegions: Int, value: Any?): ControlValidation {

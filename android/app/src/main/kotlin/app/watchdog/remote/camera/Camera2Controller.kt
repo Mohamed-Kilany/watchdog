@@ -9,12 +9,16 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.TotalCaptureResult
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
 import androidx.core.content.ContextCompat
 import app.watchdog.remote.log.DeviceLog
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 
 /** Result of applying a control batch to the active repeating request. */
@@ -28,6 +32,14 @@ interface CameraController {
     val cameraCharacteristics: CameraCharacteristics?
 
     fun open(cameraId: String, surfaces: List<Surface>)
+
+    /**
+     * Replace the capture outputs, the physical camera and/or the camera id
+     * without stopping the service. [onReleased] runs on the camera thread
+     * after the previous session is closed, which is the first safe moment to
+     * release the surfaces that session used.
+     */
+    fun reconfigure(cameraId: String, surfaces: List<Surface>, physicalId: String?, onReleased: (() -> Unit)? = null)
 
     /**
      * Attach or detach the on-device preview target. The camera session is
@@ -87,6 +99,13 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private var surfaces: List<Surface> = emptyList()
     private var previewSurface: Surface? = null
     private var requestedCameraId: String? = null
+    private var physicalId: String? = null
+    private var pendingReconfigure: PendingReconfigure? = null
+    private var pendingOpen: String? = null
+
+    private val executor = Executor { command -> handler.post(command) }
+
+    private data class PendingReconfigure(val switchDevice: Boolean, val released: (() -> Unit)?)
 
     @Volatile
     private var characteristics: CameraCharacteristics? = null
@@ -102,23 +121,79 @@ class Camera2Controller(context: Context, private val listener: CameraController
         get() = characteristics
 
     override fun open(cameraId: String, surfaces: List<Surface>) {
-        val chars =
-            try {
-                manager.getCameraCharacteristics(cameraId)
-            } catch (e: CameraAccessException) {
-                DeviceLog.w(TAG, "characteristics unavailable for $cameraId: ${e.message}")
-                null
-            }
+        val chars = cameraCharacteristics(manager, cameraId)
         handler.post {
             closedByUser = false
             if (requestedCameraId != cameraId) {
                 requested.clear()
             }
             requestedCameraId = cameraId
+            physicalId = null
             characteristics = chars
             this.surfaces = surfaces.toList()
             machine.onEvent(CameraEvent.Open(cameraId))
             publish()
+            openDevice(cameraId)
+        }
+    }
+
+    override fun reconfigure(
+        cameraId: String,
+        surfaces: List<Surface>,
+        physicalId: String?,
+        onReleased: (() -> Unit)?,
+    ) {
+        handler.post {
+            closedByUser = false
+            val cameraChanged = requestedCameraId != cameraId
+            val surfacesChanged = surfaces != this.surfaces
+            val physicalChanged = physicalId != this.physicalId
+            if (!cameraChanged && !surfacesChanged && !physicalChanged) {
+                onReleased?.invoke()
+                return@post
+            }
+            if (cameraChanged) {
+                // Controls are camera-specific; the service rebuilds its state
+                // store for the new descriptor and re-applies what it needs.
+                requested.clear()
+                characteristics = cameraCharacteristics(manager, cameraId)
+            }
+            requestedCameraId = cameraId
+            this.surfaces = surfaces.toList()
+            this.physicalId = physicalId
+            val active = session
+            session = null
+            if (active != null) {
+                machine.onEvent(CameraEvent.StreamStopped)
+                publish()
+                pendingReconfigure = PendingReconfigure(cameraChanged, onReleased)
+                active.close()
+            } else {
+                onReleased?.invoke()
+                if (cameraChanged) {
+                    switchDevice(cameraId)
+                } else {
+                    val camera = device
+                    if (camera != null) {
+                        createSession(camera)
+                    } else {
+                        openDevice(cameraId)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Close the current device and open [cameraId] after `onClosed`. */
+    private fun switchDevice(cameraId: String) {
+        machine.onEvent(CameraEvent.Switch(cameraId))
+        publish()
+        val old = device
+        device = null
+        if (old != null) {
+            pendingOpen = cameraId
+            old.close()
+        } else {
             openDevice(cameraId)
         }
     }
@@ -177,7 +252,32 @@ class Camera2Controller(context: Context, private val listener: CameraController
         if (controls.isEmpty()) {
             return ApplyOutcome(true)
         }
-        return runOnCameraThread("control") { applyOnHandler(controls) }
+        return runOnCameraThread("control") {
+            val previous = HashMap(requested)
+            requested.putAll(controls)
+            val camera = device
+            val active = session
+            val chars = characteristics
+            // Before the session exists the batch is remembered and becomes part of
+            // the first repeating request; there is nothing to apply yet.
+            if (camera == null || active == null || chars == null) {
+                return@runOnCameraThread ApplyOutcome(true, applied = controls)
+            }
+            // Only replace the repeating request while streaming; a change made
+            // between configure and start is picked up by `startRepeating`.
+            if (machine.snapshot.status == CameraStatus.STREAMING) {
+                try {
+                    active.setRepeatingRequest(requestBuilder(camera, chars).build(), captureCallback, handler)
+                } catch (e: IllegalArgumentException) {
+                    // Never keep a value the HAL rejected: the next request would
+                    // fail again and the batch would silently poison the session.
+                    requested.clear()
+                    requested.putAll(previous)
+                    return@runOnCameraThread ApplyOutcome(false, error = "invalid control: ${e.message}")
+                }
+            }
+            ApplyOutcome(true, applied = controls)
+        }
     }
 
     private fun runOnCameraThread(label: String, action: () -> ApplyOutcome): ApplyOutcome {
@@ -213,33 +313,6 @@ class Camera2Controller(context: Context, private val listener: CameraController
         } else {
             ApplyOutcome(false, error = "camera did not acknowledge the $label")
         }
-    }
-
-    private fun applyOnHandler(controls: Map<String, Any>): ApplyOutcome {
-        val previous = HashMap(requested)
-        requested.putAll(controls)
-        val camera = device
-        val active = session
-        val chars = characteristics
-        // Before the session exists the batch is remembered and becomes part of
-        // the first repeating request; there is nothing to apply yet.
-        if (camera == null || active == null || chars == null) {
-            return ApplyOutcome(true, applied = controls)
-        }
-        // Only replace the repeating request while streaming; a change made
-        // between configure and start is picked up by `startRepeating`.
-        if (machine.snapshot.status == CameraStatus.STREAMING) {
-            try {
-                active.setRepeatingRequest(requestBuilder(camera, chars).build(), captureCallback, handler)
-            } catch (e: IllegalArgumentException) {
-                // Never keep a value the HAL rejected: the next request would
-                // fail again and the batch would silently poison the session.
-                requested.clear()
-                requested.putAll(previous)
-                return ApplyOutcome(false, error = "invalid control: ${e.message}")
-            }
-        }
-        return ApplyOutcome(true, applied = controls)
     }
 
     override fun trigger(id: String, value: Any): ApplyOutcome =
@@ -285,6 +358,8 @@ class Camera2Controller(context: Context, private val listener: CameraController
         handler.post {
             closedByUser = true
             desiredStreaming = false
+            pendingOpen = null
+            pendingReconfigure = null
             handler.removeCallbacks(recoveryRunnable)
             recoveryScheduled = false
             session?.close()
@@ -292,6 +367,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
             device?.close()
             device = null
             requested.clear()
+            physicalId = null
             characteristics = null
             machine.onEvent(CameraEvent.Close)
             publish()
@@ -323,31 +399,56 @@ class Camera2Controller(context: Context, private val listener: CameraController
     }
 
     private fun createSession(camera: CameraDevice) {
-        val targets = targets()
-        if (targets.isEmpty()) {
+        val activeTargets = targets
+        if (activeTargets.isEmpty()) {
             machine.onEvent(CameraEvent.Configured)
             publish()
-        } else {
+            return
+        }
+        val physical = physicalId
+        if (physical != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
-                camera.createCaptureSession(targets, sessionCallback, handler)
+                val outputs =
+                    activeTargets.map { surface ->
+                        OutputConfiguration(surface).apply { setPhysicalCameraId(physical) }
+                    }
+                val configuration =
+                    SessionConfiguration(
+                        SessionConfiguration.SESSION_REGULAR,
+                        outputs,
+                        executor,
+                        sessionCallback,
+                    )
+                camera.createCaptureSession(configuration)
             } catch (e: CameraAccessException) {
-                fail("createCaptureSession failed: ${e.message}")
+                fail("createCaptureSession($physical) failed: ${e.message}")
             } catch (e: IllegalStateException) {
-                fail("createCaptureSession invalid state: ${e.message}")
+                fail("createCaptureSession($physical) invalid state: ${e.message}")
+            } catch (e: IllegalArgumentException) {
+                fail("physical camera $physical is not available: ${e.message}")
             }
+            return
+        }
+        try {
+            camera.createCaptureSession(activeTargets, sessionCallback, handler)
+        } catch (e: CameraAccessException) {
+            fail("createCaptureSession failed: ${e.message}")
+        } catch (e: IllegalStateException) {
+            fail("createCaptureSession invalid state: ${e.message}")
         }
     }
 
     /** Analysis surfaces plus the optional on-device preview surface. */
-    private fun targets(): List<Surface> {
-        val preview = previewSurface
-        return if (preview != null && preview.isValid) surfaces + preview else surfaces
-    }
+    private val targets: List<Surface>
+        get() {
+            val preview = previewSurface
+            return if (preview != null && preview.isValid) surfaces + preview else surfaces
+        }
 
     private fun startRepeating(session: CameraCaptureSession) {
         val camera = device
         val chars = characteristics
-        if (camera == null || chars == null || targets().isEmpty()) {
+        if (camera == null || chars == null || targets.isEmpty()) {
             fail("cannot start streaming: camera or surfaces unavailable")
             return
         }
@@ -369,7 +470,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun requestBuilder(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest.Builder {
         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        targets().forEach { builder.addTarget(it) }
+        targets.forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
         CameraControls.applyTonemap(builder, requested)
@@ -445,6 +546,11 @@ class Camera2Controller(context: Context, private val listener: CameraController
                     machine.onEvent(CameraEvent.Closed)
                 }
                 publish()
+                val next = pendingOpen
+                if (next != null) {
+                    pendingOpen = null
+                    openDevice(next)
+                }
             }
         }
 
@@ -461,6 +567,18 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
             override fun onConfigureFailed(session: CameraCaptureSession) {
                 fail("capture session configuration failed")
+            }
+
+            override fun onClosed(session: CameraCaptureSession) {
+                val pending = pendingReconfigure ?: return
+                pendingReconfigure = null
+                pending.released?.invoke()
+                if (pending.switchDevice) {
+                    val cameraId = requestedCameraId ?: return
+                    switchDevice(cameraId)
+                } else {
+                    device?.let(::createSession)
+                }
             }
         }
 
@@ -493,3 +611,12 @@ class Camera2Controller(context: Context, private val listener: CameraController
         private const val APPLY_TIMEOUT_MS = 2_000L
     }
 }
+
+/** Characteristics for [cameraId], or null when the camera disappeared. */
+private fun cameraCharacteristics(manager: CameraManager, cameraId: String): CameraCharacteristics? =
+    try {
+        manager.getCameraCharacteristics(cameraId)
+    } catch (e: CameraAccessException) {
+        DeviceLog.w("WatchdogCamera2", "characteristics unavailable for $cameraId: ${e.message}")
+        null
+    }
