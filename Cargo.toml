@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/core",
     "crates/protocol",
+    "crates/presets",
     "crates/adb",
     "crates/adb-mock",
     "crates/device",
@@ -27,6 +28,7 @@ rust-version = "1.85"
 [workspace.dependencies]
 watchdog-core = { path = "crates/core", version = "0.1.0" }
 watchdog-protocol = { path = "crates/protocol", version = "0.1.0" }
+watchdog-presets = { path = "crates/presets", version = "0.1.0" }
 watchdog-adb = { path = "crates/adb", version = "0.1.0" }
 watchdog-device = { path = "crates/device", version = "0.1.0" }
 watchdog-media = { path = "crates/media", version = "0.1.0" }

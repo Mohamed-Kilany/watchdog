@@ -29,7 +29,7 @@ release builds; dev builds print `not embedded`).
 
 ### `watchdog doctor`
 Print OS/arch, host/protocol versions, resolved config path, per-directory
-create+write probes (config, keys, media, db, logs, cache, tools, tmp), port availability
+create+write probes (config, keys, presets, media, db, logs, cache, tools, tmp), port availability
 probe (ui/mcp/api), ffmpeg status and the LAN-exposure/token warnings. Exits non-zero if
 any required path is unusable.
 
@@ -71,6 +71,13 @@ and the integration API (:7702) land with M6/M9.
 | `controls [--serial] [--json]` | print the live control state (`get_state` round trip) | M4 |
 | `set-control <id=value>… [--serial] [--json]` | apply a control batch atomically; prints per-control results, actual values and round-trip ms | M4 |
 | `probe [--serial] [--camera ID] [--key KEY] [--json] [--output FILE]` | probe every advertised request key and print/write the per-device compatibility matrix | M4-T10 |
+| `preset list [--json]` | list host-stored control presets | M4-T11 |
+| `preset show <name> [--json]` | show one preset (raw JSON with `--json`) | M4-T11 |
+| `preset save <name> [--serial] [--controls IDS] [--include-structural] [--description TEXT]` | capture the device's current state as a preset | M4-T11 |
+| `preset apply <name> [--serial] [--dry-run] [--json]` | apply a preset as one `set_controls` batch | M4-T11 |
+| `preset export <name> <FILE>` | write a preset to a shareable JSON file | M4-T11 |
+| `preset import <FILE> [--name NAME]` | import a preset JSON file | M4-T11 |
+| `preset rm <name>` | delete a saved preset | M4-T11 |
 | `watch-state [--serial] [--count N] [--json]` | stream STATE full/delta messages (one JSON object per line with `--json`) | M4 |
 | `udev-rules [--write]` | print/install Linux udev rules | **done (this release)** |
 | `usb-doctor` | diagnose USB permission problems | M2 |

@@ -15,10 +15,11 @@ One **data root** per OS (`directories::BaseDirs::data_local_dir()/watchdog`), o
 with `data_dir` / `WATCHDOG_DATA_DIR` / `--data-dir`:
 
 ```
-<data_dir>/config keys media db logs cache tools tmp
+<data_dir>/config keys presets media db logs cache tools tmp
 ```
 
 - `keys/` holds `adbkey`/`adbkey.pub` (RSA-2048, created 0700 dir / 0600 files on Unix).
+- `presets/` holds named camera-control presets as one JSON file per preset (M4-T11).
 - `tools/` holds extracted bundled tools (ffmpeg) verified by SHA-256 before first use.
 - The **platform config file** (`watchdog.toml`) lives in the OS config dir
   (`directories::ProjectDirs::config_dir()/watchdog.toml`), not under the data root, so it

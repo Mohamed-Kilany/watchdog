@@ -17,6 +17,7 @@ path = "src/main.rs"
 watchdog-adb.workspace = true
 watchdog-core.workspace = true
 watchdog-device.workspace = true
+watchdog-presets.workspace = true
 watchdog-protocol.workspace = true
 watchdog-ui-server.workspace = true
 clap.workspace = true
