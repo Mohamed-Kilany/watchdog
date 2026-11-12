@@ -3,7 +3,8 @@
 > Status: descriptor live (M4-T01); state sync and the command pipeline live
 > (M4-T02/T03); exposure controls live (M4-T04); focus controls live (M4-T05);
 > white balance live (M4-T06); zoom and lens live (M4-T07); flash, scene and
-> image processing live (M4-T08); output configuration live (M4-T09).
+> image processing live (M4-T08); output configuration live (M4-T09); on-device state
+> panels live (M4-T13); filming guide reviewed against real captures (M4-T14).
 > The authoritative machine-readable source is the **capability descriptor** published by
 > the app at handshake and on demand (`watchdog device capabilities --json`). This page
 > documents semantics and device differences; entries are filled in during M4 as each
@@ -169,14 +170,67 @@ Validation rules:
 
 ## Filming screens — best practice
 
-1. **Anti-banding 50/60 Hz** matching mains — eliminates rolling-scan flicker.
-2. Manual exposure (AE off) with ISO pinned low and exposure time near the panel's frame
-   period, or a multiple of it — kills beat-frequency flicker.
+1. **Anti-banding matching mains** (50/60 Hz) — eliminates rolling-scan flicker. Check
+   `anti_banding.modes` first: some cameras (the A51 is one) expose only OFF and AUTO, so
+   AUTO is the correct setting there.
+2. Manual exposure (AE off) with ISO pinned low and an exposure time equal to the panel's
+   refresh period or a multiple of it — for a 60 Hz panel that is 16.7 ms, or 33.3 ms at
+   30 fps. This kills beat-frequency flicker. Keep the exposure at or below one frame
+   period so the stream does not lose frames.
 3. **AWB lock** (and fixed white point) — prevents colour pumping from content changes.
-4. Fixed manual focus; avoid continuous AF hunting.
+   Let AWB converge first, then lock; the reported gains freeze.
+4. Fixed manual focus (`af_mode = 0` plus `focus_distance`); avoid continuous AF hunting.
+   Check the actual distance with `watchdog device controls --json`.
 5. Slight moiré is unavoidable at some angles — angle the phone a few degrees instead of
    dead-on when possible.
 6. Grid overlay (host-drawn) to align with bezel corners.
+
+### Reviewed against real captures (2026-11-12)
+
+The guide above was exercised end-to-end on a Samsung SM-A515F (Android 13) with the CI
+artifact from run 43189751860 (`e259f7c`, APK `0.1.0-dev+be6bfd7`). The phone was pointed at
+an LCD TV playing a film; 1280x720 frames were pulled from `watchdog serve`'s
+`/stream.mjpg` (JPEG quality 80), eight in auto mode and eight with the filming preset
+below. Five `device controls --json` snapshots were taken one second apart.
+
+| Control | Requested | Actual (identical in all five samples) |
+|---|---|---|
+| `anti_banding` | 3 (auto) | 3 — the A51 advertises only OFF (0) and AUTO (3) |
+| `ae_mode` | 0 (off) | 0 |
+| `iso` | 100 | 100 |
+| `exposure_time_ns` | 33,333,333 | 33,333,000 (one sensor step) |
+| `frame_duration_ns` | 33,333,000 | 33,333,000 |
+| `awb_lock` | true | true, `awb_state=locked` |
+| `awb_gains` | — | r 2.2568359375, g 1.0, b 1.6357421875 |
+| `af_mode` | 0 (off) | 0 |
+| `focus_distance` | 2.5 dioptres | 2.508 |
+| `zoom_ratio` | 1.0 | 1.0 |
+
+What the captures confirmed:
+
+- **Manual exposure is stable and exact.** The reported ISO, exposure time and frame
+  duration did not drift across five samples. The preset frame is darker than the auto
+  baseline because the TV content changed between the two captures, so absolute luma is not
+  comparable; stability is the relevant result. The row-banding index stayed low in both
+  modes (2.36 auto vs 2.00 preset) and consecutive-frame luma deltas were dominated by the
+  playing video (5.83 vs 5.35 mean absolute difference).
+- **AWB lock freezes the gains exactly.** All five samples reported the same r/g/b gains
+  while `awb_state=locked`.
+- **Fixed focus is repeatable.** `focus_distance=2.5` read back as 2.508 dioptres with
+  `af_mode=0` and `af_state=inactive` — no hunting.
+- **Anti-banding is hardware-dependent.** The fixed 50/60 Hz modes assumed by step 1 are
+  not available on the A51 (modes `[0, 3]`), which is why the preset uses AUTO. Always
+  choose from the descriptor rather than a hardcoded mains frequency.
+- **Moiré/pixel-grid interference is real at a dead-on angle.** The 2x crop
+  ([moire-crop-2x.jpg](verification/2026-11-12-m4-filming/moire-crop-2x.jpg)) shows the
+  TV's RGB subpixel grid across the frame. Angling the phone a few degrees is the
+  mitigation; a controlled angle A/B was not possible without physically moving the device.
+
+Evidence: [auto baseline](verification/2026-11-12-m4-filming/capture-auto-baseline.jpg),
+[filming preset](verification/2026-11-12-m4-filming/capture-filming-preset.jpg),
+[preset panel, Exposure group](verification/2026-11-12-m4-filming/panel-filming-preset-exposure.jpg),
+[preset panel, top](verification/2026-11-12-m4-filming/panel-filming-preset-top.jpg),
+[full frame analysis](verification/2026-11-12-m4-filming/frame-analysis.txt).
 
 ## Device compatibility matrices
 
