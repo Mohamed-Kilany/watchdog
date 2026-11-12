@@ -46,6 +46,8 @@ import app.watchdog.remote.transport.LogStreamer
 import app.watchdog.remote.transport.TransportServer
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.round
 
@@ -64,7 +66,7 @@ private data class StructuralOutcome(val changed: Boolean, val cameraSwitched: B
  * control state and the command pipeline; splitting it would hide the strict
  * ordering between those pieces.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var transport: TransportServer? = null
@@ -123,6 +125,9 @@ class CaptureService : Service() {
     private var pipelineConfig = PipelineConfig()
 
     private val outputs = OutputCoordinator()
+
+    private val probeExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "watchdog-probe") }
+    private val probeActive = AtomicBoolean(false)
 
     private val binder = LocalBinder()
 
@@ -474,6 +479,7 @@ class CaptureService : Service() {
                 reply(command.id, listOf(JsonMessages.controlResult(null, true)))
             }
             "set_state_rate" -> handleSetStateRate(command)
+            "probe_keys" -> handleProbe(command)
             "ping" -> reply(command.id, listOf(JsonMessages.controlResult(null, true)))
             "bye" -> reply(command.id, listOf(JsonMessages.controlResult(null, true)))
             else ->
@@ -544,6 +550,47 @@ class CaptureService : Service() {
                 ),
             ),
         )
+    }
+
+    /**
+     * M4-T10: run the generic request-key probe on the worker thread so the
+     * command channel and the state stream keep flowing while the camera is
+     * busy capturing probe frames.
+     */
+    private fun handleProbe(command: CommandMessage) {
+        val controller = camera
+        val store = controlState
+        if (controller == null || store == null) {
+            replyNotReady(command.id)
+            return
+        }
+        if (!probeActive.compareAndSet(false, true)) {
+            reply(
+                command.id,
+                listOf(
+                    JsonMessages.controlResult(
+                        null,
+                        false,
+                        errorCode = "BUSY",
+                        message = "a probe is already running",
+                    ),
+                ),
+            )
+            return
+        }
+        val cameraId = controller.snapshot.cameraId ?: "0"
+        val onlyKey = command.params.optString("key").takeIf { it.isNotBlank() }
+        DeviceLog.i(TAG, "probe starting camera=$cameraId key=${onlyKey ?: "all"}")
+        probeExecutor.execute {
+            val report =
+                runCatching { controller.probe(cameraId, onlyKey) }
+                    .getOrElse {
+                        JSONObject().put("camera_id", cameraId).put("error", "probe failed: ${it.message}")
+                    }
+            probeActive.set(false)
+            DeviceLog.i(TAG, "probe finished camera=$cameraId")
+            reply(command.id, listOf(JsonMessages.controlResult(null, true, applied = report)))
+        }
     }
 
     /** Result of applying the non-structural part of a batch. */
@@ -1076,6 +1123,7 @@ class CaptureService : Service() {
 
     override fun onDestroy() {
         running = false
+        probeExecutor.shutdownNow()
         stopCamera()
         stopTransport()
         releaseWakeLock()

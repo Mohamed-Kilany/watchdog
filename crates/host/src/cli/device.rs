@@ -199,6 +199,24 @@ pub enum DeviceCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Probe every advertised CaptureRequest key and build a compatibility matrix.
+    Probe {
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Camera id to probe (switches the live camera first).
+        #[arg(long, value_name = "ID")]
+        camera: Option<String>,
+        /// Probe only this key (canonical `android.*` name or CaptureRequest field).
+        #[arg(long, value_name = "KEY")]
+        key: Option<String>,
+        /// Emit the raw JSON report instead of the Markdown matrix.
+        #[arg(long)]
+        json: bool,
+        /// Write the report to a file instead of stdout.
+        #[arg(long, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
     /// Stream STATE messages (full snapshot + deltas) from the app.
     WatchState {
         /// Target device; omit when only one is connected.
@@ -354,6 +372,20 @@ pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
             assignments,
             json,
         } => cli_set_control(serial.as_deref(), assignments, *json, cfg),
+        DeviceCommand::Probe {
+            serial,
+            camera,
+            key,
+            json,
+            output,
+        } => cli_probe(
+            serial.as_deref(),
+            camera.as_deref(),
+            key.as_deref(),
+            *json,
+            output.as_deref(),
+            cfg,
+        ),
         DeviceCommand::WatchState {
             serial,
             count,
@@ -921,6 +953,10 @@ fn session_token(paths: &DataPaths, id: &str, command: &str) -> watchdog_core::R
 
 /// Timeout for one control command round trip.
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+/// A full key probe can take a few minutes on a slow HAL.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(240);
+/// Camera switches rebuild the capture session; allow the app to settle.
+const CAMERA_SWITCH_TIMEOUT: Duration = Duration::from_secs(20);
 /// How long to wait for the STATE delta carrying actual values after a change.
 const SETTLE_TIMEOUT: Duration = Duration::from_millis(750);
 /// Idle timeout between STATE messages while watching.
@@ -1014,6 +1050,320 @@ fn cli_set_control(
         }
         Ok(())
     })
+}
+
+/// Probe every advertised request key (M4-T10) and render a matrix.
+fn cli_probe(
+    serial: Option<&str>,
+    camera: Option<&str>,
+    key: Option<&str>,
+    json: bool,
+    output: Option<&Path>,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "probe")?;
+        let (mut live, _ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        if let Some(camera) = camera {
+            let command_id = next_command_id("probe-camera");
+            live.session()
+                .send(&Message::Command(CommandMessage {
+                    id: command_id.clone(),
+                    command: "set_controls".to_string(),
+                    params: json!({ "controls": [{ "id": "camera_id", "value": camera }] }),
+                }))
+                .await?;
+            let result = await_command_result(&mut live, &command_id, COMMAND_TIMEOUT).await?;
+            if result.error.is_some() || result.results.iter().any(|item| !item.ok) {
+                let detail = result
+                    .results
+                    .iter()
+                    .find(|item| !item.ok)
+                    .and_then(|item| item.message.clone())
+                    .or(result.error.clone())
+                    .unwrap_or_else(|| "camera switch was rejected".to_string());
+                return Err(WatchdogError::new(ErrorCode::InvalidRequest, detail));
+            }
+            let state = request_state(&mut live, CAMERA_SWITCH_TIMEOUT).await?;
+            if state.camera_id != camera {
+                return Err(WatchdogError::new(
+                    ErrorCode::InvalidRequest,
+                    format!(
+                        "camera switch did not take effect (device reports {})",
+                        state.camera_id
+                    ),
+                ));
+            }
+        }
+        let command_id = next_command_id("probe");
+        let started = Instant::now();
+        let params = key.map_or_else(|| json!({}), |key| json!({ "key": key }));
+        live.session()
+            .send(&Message::Command(CommandMessage {
+                id: command_id.clone(),
+                command: "probe_keys".to_string(),
+                params,
+            }))
+            .await?;
+        let result = await_command_result(&mut live, &command_id, PROBE_TIMEOUT).await?;
+        if let Some(error) = result.error.as_deref() {
+            return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
+        }
+        let item = result
+            .results
+            .first()
+            .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no result"))?;
+        if !item.ok {
+            return Err(WatchdogError::new(
+                ErrorCode::InvalidRequest,
+                item.message
+                    .clone()
+                    .unwrap_or_else(|| "probe was rejected".to_string()),
+            ));
+        }
+        let report = item
+            .applied
+            .as_ref()
+            .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no report"))?;
+        if let Some(error) = report.get("error").and_then(Value::as_str) {
+            return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
+        }
+        let text = if json {
+            serde_json::to_string_pretty(report)?
+        } else {
+            render_probe_matrix(&id, report)
+        };
+        match output {
+            Some(path) => {
+                std::fs::write(path, &text)?;
+                println!(
+                    "wrote {} ({} bytes, {} ms)",
+                    path.display(),
+                    text.len(),
+                    started.elapsed().as_millis()
+                );
+            }
+            None => println!("{text}"),
+        }
+        Ok(())
+    })
+}
+
+/// Render the raw probe report as the per-device compatibility matrix.
+fn render_probe_matrix(serial: &str, report: &Value) -> String {
+    use std::fmt::Write as _;
+
+    let empty = json!({});
+    let device = report.get("device").unwrap_or(&empty);
+    let model = device
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown device");
+    let android = device
+        .get("android")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let sdk = device.get("sdk").and_then(Value::as_i64).unwrap_or(0);
+    let app = device
+        .get("app_version")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let camera_id = report
+        .get("camera_id")
+        .and_then(Value::as_str)
+        .unwrap_or("?");
+    let facing = report
+        .get("facing")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let level = report
+        .get("hardware_level")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let entries = report
+        .get("entries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut accepted = 0;
+    let mut ignored = 0;
+    let mut errors = 0;
+    let mut skipped = 0;
+    let mut unprobed = 0;
+    for entry in &entries {
+        match entry.get("status").and_then(Value::as_str) {
+            Some("skipped") => skipped += 1,
+            Some("unprobed") => unprobed += 1,
+            Some("probed") => {
+                for value in entry
+                    .get("values")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    match value.get("outcome").and_then(Value::as_str) {
+                        Some("accepted") => accepted += 1,
+                        Some("ignored") => ignored += 1,
+                        Some("error") => errors += 1,
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "# Control compatibility matrix — {model} (Android {android}, SDK {sdk})\n"
+    );
+    let _ = writeln!(out, "- Serial: `{serial}`");
+    let _ = writeln!(
+        out,
+        "- Camera: `{camera_id}` ({facing}), hardware level {level}"
+    );
+    let _ = writeln!(out, "- App: `{app}`");
+    let _ = writeln!(
+        out,
+        "- Request keys: {} available, {} probed; result keys: {} available",
+        report
+            .get("available_request_keys")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        report
+            .get("probed_keys")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        report
+            .get("available_result_keys")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+    );
+    let _ = writeln!(
+        out,
+        "- Values: {accepted} accepted, {ignored} ignored, {errors} error"
+    );
+    let _ = writeln!(out, "- Keys: {skipped} skipped, {unprobed} unprobed");
+    let _ = writeln!(
+        out,
+        "- Aborted: {}\n",
+        match report.get("aborted").and_then(Value::as_bool) {
+            Some(true) => report
+                .get("abort_reason")
+                .and_then(Value::as_str)
+                .unwrap_or("yes"),
+            _ => "no",
+        }
+    );
+    let _ = writeln!(
+        out,
+        "`accepted` = the request was submitted and the capture result reflected the value; \
+         `ignored` = the request was submitted but the result did not reflect it; \
+         `error` = the HAL rejected the request or no result arrived.\n"
+    );
+
+    let mut sorted = entries;
+    sorted.sort_by(|left, right| {
+        left.get("key")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .cmp(right.get("key").and_then(Value::as_str).unwrap_or(""))
+    });
+    let _ = writeln!(
+        out,
+        "| Key | Requested | Label | Outcome | Reflected | Result | ms |"
+    );
+    let _ = writeln!(out, "|---|---|---|---|---|---|---|");
+    for entry in &sorted {
+        if entry.get("status").and_then(Value::as_str) != Some("probed") {
+            continue;
+        }
+        let key = entry.get("key").and_then(Value::as_str).unwrap_or("?");
+        for value in entry
+            .get("values")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let requested = value
+                .get("requested")
+                .map_or_else(|| "null".to_string(), Value::to_string);
+            let label = value.get("label").and_then(Value::as_str).unwrap_or("");
+            let outcome = value
+                .get("outcome")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let reflected = value
+                .get("reflected")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let result = if outcome == "error" {
+                value
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .map_or_else(|| "—".to_string(), |error| format!("error: {error}"))
+            } else {
+                value
+                    .get("result")
+                    .map_or_else(|| "—".to_string(), Value::to_string)
+            };
+            let elapsed = value.get("elapsed_ms").and_then(Value::as_u64).unwrap_or(0);
+            let _ = writeln!(
+                out,
+                "| `{}` | `{}` | {} | {} | {} | `{}` | {} |",
+                md(key),
+                md(&requested),
+                md(label),
+                outcome,
+                if reflected { "yes" } else { "no" },
+                md(&result),
+                elapsed
+            );
+        }
+    }
+
+    let _ = writeln!(out, "\n## Keys not probed\n");
+    let _ = writeln!(out, "| Key | Status | Reason |");
+    let _ = writeln!(out, "|---|---|---|");
+    for entry in &sorted {
+        let status = entry.get("status").and_then(Value::as_str).unwrap_or("");
+        if status == "probed" {
+            continue;
+        }
+        let key = entry.get("key").and_then(Value::as_str).unwrap_or("?");
+        let reason = entry.get("reason").and_then(Value::as_str).unwrap_or("");
+        let _ = writeln!(out, "| `{}` | {} | {} |", md(key), status, md(reason));
+    }
+
+    if let Some(missing) = report
+        .get("not_advertised")
+        .and_then(Value::as_array)
+        .filter(|missing| !missing.is_empty())
+    {
+        let _ = writeln!(out, "\n## Known keys not advertised by this camera\n");
+        for entry in missing {
+            let field = entry.get("field").and_then(Value::as_str).unwrap_or("?");
+            let key = entry.get("key").and_then(Value::as_str).unwrap_or("");
+            let _ = writeln!(out, "- `{field}` (`{key}`)");
+        }
+    }
+    out
+}
+
+fn md(text: &str) -> String {
+    text.replace('|', "\\|").replace('\n', " ")
 }
 
 fn cli_watch_state(
@@ -1862,5 +2212,86 @@ mod tests {
         assert_eq!(value["delta"], json!(true));
         assert_eq!(value["state"]["iso"]["actual"], json!(398));
         assert_eq!(value["state"]["iso"]["source"], json!("host"));
+    }
+
+    #[test]
+    fn renders_probe_matrix_with_outcomes() {
+        let report = json!({
+            "camera_id": "0",
+            "facing": "back",
+            "hardware_level": "LIMITED",
+            "device": {
+                "model": "SM-A515F",
+                "android": "13",
+                "sdk": 33,
+                "app_version": "0.1.0-dev+abc"
+            },
+            "available_request_keys": 4,
+            "available_result_keys": 5,
+            "probed_keys": 2,
+            "probed_values": 3,
+            "aborted": false,
+            "entries": [
+                {
+                    "key": "android.control.aeMode",
+                    "status": "probed",
+                    "values": [
+                        {
+                            "label": "mode 1 (ON)",
+                            "requested": 1,
+                            "outcome": "accepted",
+                            "reflected": true,
+                            "result": 1,
+                            "elapsed_ms": 12
+                        },
+                        {
+                            "label": "mode 0 (OFF)",
+                            "requested": 0,
+                            "outcome": "ignored",
+                            "reflected": false,
+                            "result": 1,
+                            "elapsed_ms": 9
+                        },
+                        {
+                            "label": "mode 9",
+                            "requested": 9,
+                            "outcome": "error",
+                            "reflected": false,
+                            "error": "IllegalArgumentException: bad mode",
+                            "elapsed_ms": 3
+                        }
+                    ]
+                },
+                {
+                    "key": "android.control.afTrigger",
+                    "status": "skipped",
+                    "reason": "one-shot 3A trigger"
+                },
+                {
+                    "key": "vendor.key",
+                    "status": "unprobed",
+                    "reason": "vendor key"
+                }
+            ],
+            "not_advertised": [
+                {"field": "CONTROL_ZOOM_RATIO", "key": "android.control.zoomRatio"}
+            ]
+        });
+
+        let text = render_probe_matrix("serial", &report);
+        assert!(text.contains("# Control compatibility matrix — SM-A515F (Android 13, SDK 33)"));
+        assert!(text.contains("- Camera: `0` (back), hardware level LIMITED"));
+        assert!(text.contains("1 accepted, 1 ignored, 1 error"));
+        assert!(text.contains(
+            "| `android.control.aeMode` | `1` | mode 1 (ON) | accepted | yes | `1` | 12 |"
+        ));
+        assert!(text.contains(
+            "| `android.control.aeMode` | `0` | mode 0 (OFF) | ignored | no | `1` | 9 |"
+        ));
+        assert!(text.contains(
+            "| `android.control.aeMode` | `9` | mode 9 | error | no | `error: IllegalArgumentException: bad mode` | 3 |"
+        ));
+        assert!(text.contains("| `android.control.afTrigger` | skipped | one-shot 3A trigger |"));
+        assert!(text.contains("- `CONTROL_ZOOM_RATIO` (`android.control.zoomRatio`)"));
     }
 }

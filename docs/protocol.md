@@ -270,9 +270,22 @@ impossible FPS/size pair returns `error_code = "UNSUPPORTED_COMBINATION"`.
 Commands in v1: `set_controls`, `get_state`, `get_capabilities`,
 `capture_still`, `capture_burst` (`{count, interval_ms, from_stream}`),
 `record_start` (`{max_duration_secs?, segment_secs?, bitrate_bps?, codec?, size?}`),
-`record_stop`, `set_state_rate` (`{hz}`), `ping`, `bye`.
+`record_stop`, `set_state_rate` (`{hz}`), `probe_keys` (`{key?}`), `ping`, `bye`.
 Unknown command → `COMMAND_RESULT` with per-command error (or `ERROR` with
 `code = "INVALID_REQUEST"` if the frame itself is malformed).
+
+`probe_keys` is the M4-T10 key explorer. It enumerates every advertised
+`CaptureRequest` key and submits each documented value as a single capture on
+the live session, then reads the same key back from the `CaptureResult`. Values
+are built from the current requested controls plus any companion key needed for
+the value to take effect (for example `CONTROL_AE_MODE = OFF` for
+`SENSOR_SENSITIVITY`). One key is probed at a time; the repeating request is
+never changed, and keys that would reconfigure the session or fire a trigger are
+skipped with a reason. The report is carried in the `COMMAND_RESULT` entry's
+`applied`: per key and value it records `accepted` (the result reflected the
+value), `ignored` (submitted but not reflected) or `error` (the HAL rejected it
+or no result arrived), plus the reflected value. `key` limits the probe to one
+canonical `android.*` name or `CaptureRequest` field name.
 
 ### 5.6 COMMAND_RESULT — app → host
 
