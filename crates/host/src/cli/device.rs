@@ -961,6 +961,11 @@ const CAMERA_SWITCH_TIMEOUT: Duration = Duration::from_secs(20);
 const SETTLE_TIMEOUT: Duration = Duration::from_millis(750);
 /// Idle timeout between STATE messages while watching.
 const STATE_TIMEOUT: Duration = Duration::from_secs(5);
+/// The app closes sessions that go 15 s without host traffic; ping while
+/// waiting for a long command such as a full key probe.
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(5);
+/// Cap each poll so keepalives stay on schedule even when no messages arrive.
+const POLL_SLICE: Duration = Duration::from_secs(1);
 
 fn cli_controls(serial: Option<&str>, json: bool, cfg: &Config) -> watchdog_core::Result<()> {
     let paths = DataPaths::resolve(&cfg.data_dir);
@@ -1444,19 +1449,37 @@ async fn request_state(
     await_full_state(live, timeout).await
 }
 
+/// Send a ping so the app's heartbeat timeout does not close a long command.
+async fn send_keepalive(live: &mut LiveSession) -> watchdog_core::Result<()> {
+    live.session()
+        .send(&Message::Command(CommandMessage {
+            id: next_command_id("ping"),
+            command: "ping".to_string(),
+            params: json!({}),
+        }))
+        .await?;
+    Ok(())
+}
+
 /// Wait for a full STATE snapshot, folding any deltas that arrive first.
 async fn await_full_state(
     live: &mut LiveSession,
     timeout: Duration,
 ) -> watchdog_core::Result<StateMessage> {
     let deadline = Instant::now() + timeout;
+    let mut next_keepalive = Instant::now() + KEEPALIVE_INTERVAL;
     let mut merged = empty_state();
     loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        if now >= next_keepalive {
+            send_keepalive(live).await?;
+            next_keepalive = now + KEEPALIVE_INTERVAL;
+        }
+        let remaining = deadline.saturating_duration_since(now);
         if remaining.is_zero() {
             return Err(state_timeout());
         }
-        match live.session().poll(remaining).await? {
+        match live.session().poll(remaining.min(POLL_SLICE)).await? {
             Polled::Message(message) => match *message {
                 Message::State(state) => {
                     if !state.delta {
@@ -1485,8 +1508,14 @@ async fn await_command_result(
     timeout: Duration,
 ) -> watchdog_core::Result<CommandResultMessage> {
     let deadline = Instant::now() + timeout;
+    let mut next_keepalive = Instant::now() + KEEPALIVE_INTERVAL;
     loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        if now >= next_keepalive {
+            send_keepalive(live).await?;
+            next_keepalive = now + KEEPALIVE_INTERVAL;
+        }
+        let remaining = deadline.saturating_duration_since(now);
         if remaining.is_zero() {
             return Err(WatchdogError::new(
                 ErrorCode::ConnectionLost,
@@ -1494,7 +1523,7 @@ async fn await_command_result(
             )
             .with_hint("check that the app is still streaming and the camera is open"));
         }
-        match live.session().poll(remaining).await? {
+        match live.session().poll(remaining.min(POLL_SLICE)).await? {
             Polled::Message(message) => match *message {
                 Message::CommandResult(result) if result.id == command_id => return Ok(result),
                 Message::Error(error) => return Err(app_session_error(&error)),
