@@ -1,0 +1,48 @@
+Capture review — M4-T14 — 2026-11-12
+Artifact: CI run 43189751860, commit e259f7c, APK 0.1.0-dev+be6bfd7
+Device: Samsung SM-A515F, Android 13 (SDK 33), rear camera 0, 1280x720 stream
+Scene: LCD TV playing a film, phone at roughly 60 cm, dead-on angle
+
+Method
+- `watchdog serve --serial 192.168.93.76:41573`, frames pulled from
+  http://127.0.0.1:7700/stream.mjpg (JPEG quality 80).
+- Eight consecutive frames in auto mode, then the filming preset was applied with
+  `watchdog device set-control`, five `device controls --json` snapshots were taken over
+  five seconds, and eight preset frames were pulled from a fresh serve session.
+
+Filming preset (requested -> actual)
+  anti_banding        3 (auto)    -> 3
+  ae_mode             0 (off)     -> 0
+  iso                 100         -> 100
+  exposure_time_ns    33333333    -> 33333000
+  frame_duration_ns   33333000    -> 33333000
+  awb_lock            true        -> true, awb_state=locked
+  awb_gains           -           -> r 2.2568359375, g 1.0, b 1.6357421875
+  af_mode             0 (off)     -> 0
+  focus_distance      2.5         -> 2.508
+  zoom_ratio          1.0         -> 1.0
+
+Five state snapshots (1 s apart): every value above was identical in all five samples.
+
+Frame analysis (PIL 12.3.0)
+  auto baseline:  luma mean 88.05  std 0.116  consecutive diff mean 5.83  banding index 2.36
+  filming preset: luma mean 58.33  std 0.088  consecutive diff mean 5.35  banding index 2.00
+
+The absolute luma differs because the TV content changed between the two captures; the
+comparison that matters is stability. Consecutive-frame differences are dominated by the
+playing video, and the row-banding index stayed low in both modes on this LCD panel.
+The A51 descriptor advertises anti-banding modes [0, 3] only (OFF and AUTO), so fixed
+50/60 Hz operation is not available on this device.
+
+Moiré
+The 2x centre crop (moire-crop-2x.jpg) shows the TV's RGB subpixel grid across the frame at
+this distance and angle. A controlled angle A/B was not possible without physically moving
+the phone; the guide's recommendation to angle the phone a few degrees remains the
+mitigation.
+
+Evidence files
+  capture-auto-baseline.jpg          first auto-mode frame
+  capture-filming-preset.jpg         first preset frame
+  moire-crop-2x.jpg                  2x centre crop of the preset frame
+  panel-filming-preset-top.jpg       phone panel after the preset (Camera/Lens groups)
+  panel-filming-preset-exposure.jpg  phone panel after the preset (AE MODE 0, 33.33 ms, ISO 100)

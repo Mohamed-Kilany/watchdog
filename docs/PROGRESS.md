@@ -86,7 +86,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 - [ ] M4-T11 Control presets/profiles
 - [ ] M4-T12 Host control UI components
 - [x] M4-T13 On-device state panels **[DEVICE]** — left/right side panels around the letterboxed 16:9 preview render every control-state entry grouped into Connection, Exposure, Focus, White balance, Lens, Flash/scene, Output and Recording and refresh from the 500 ms status loop; high-contrast mode is a persisted checkbox backed by theme attributes, a mirrored palette and JVM AA/AAA contrast tests; `PanelScreenshotTest` covers both palettes and is compiled by CI (not run; the emulator job is manual-only). Device: repeated high-contrast toggles survive activity recreation with the camera staying in `STREAMING`, and a 30 fps screen recording shows a host `zoom_ratio` change in the preview at frame 62→63 and in the panel at 71→72 (~300 ms, inside the 500 ms refresh; host round-trip 91 ms); a camera switch was reflected in the panel at 2.13 s and in the preview at 2.87 s — see `docs/verification/2026-11-12-m4-panels.md`. **[DEVICE]**
-- [ ] M4-T14 Docs:
+- [x] M4-T14 Docs — `docs/camera-controls.md` documents every control, the output configuration and structural validation, links the four per-device probe matrices, and includes a filming-screens guide (anti-banding, manual exposure, AWB lock, fixed focus, moiré, grid). The guide was reviewed against real 1280x720 captures from the A51 with the filming preset applied and five state samples (ISO/exposure/frame-duration stable, AWB gains frozen, focus 2.5→2.508, anti-banding limited to OFF/AUTO on this camera) — see `docs/verification/2026-11-12-m4-filming/frame-analysis.txt`.
 
 ## M5. Capture and media pipeline
 
