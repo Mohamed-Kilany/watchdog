@@ -447,7 +447,9 @@ fn read_preset(path: &Path) -> Result<Preset> {
         )
         .with_source(error)
     })?;
-    let preset: Preset = serde_json::from_slice(&bytes).map_err(|error| {
+    // Accept files saved by Windows editors that prepend a UTF-8 BOM.
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
+    let preset: Preset = serde_json::from_slice(bytes).map_err(|error| {
         invalid(format!("cannot parse preset {}: {error}", path.display())).with_source(error)
     })?;
     preset.validate()?;
@@ -582,6 +584,22 @@ mod tests {
         assert_eq!(
             store.load("imported preset").unwrap().controls,
             preset.controls
+        );
+    }
+
+    #[test]
+    fn import_accepts_a_utf8_bom() {
+        let store = temp_store("bom");
+        let path = store.root().join("bom.json");
+        fs::create_dir_all(store.root()).unwrap();
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend(serde_json::to_vec(&sample()).unwrap());
+        fs::write(&path, bytes).unwrap();
+        let imported = store.import(&path, Some("BOM preset")).unwrap();
+        assert_eq!(imported.name, "BOM preset");
+        assert_eq!(
+            store.load("BOM preset").unwrap().controls,
+            sample().controls
         );
     }
 
