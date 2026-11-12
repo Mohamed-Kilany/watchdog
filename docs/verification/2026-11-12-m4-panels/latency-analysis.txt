@@ -1,0 +1,53 @@
+Latency analysis — M4-T13 — 2026-11-12
+Artifact: CI run 43189751860, commit e259f7c, APK 0.1.0-dev+be6bfd7
+Device: Samsung SM-A515F, Android 13 (SDK 33), 2400x1080, 30 fps screen recording
+
+Method
+- adb shell screenrecord --time-limit 7 --bit-rate 4000000
+- decoded to 30 fps PNG frames (ffmpeg 7.1.1, offline analysis only)
+- mean absolute luma difference between consecutive frames in fixed rectangles:
+    preview       (584,236)-(1776,907)
+    zoom readout  (1808,189)-(2186,243)
+    camera id     (1808,258)-(2186,312)
+
+Run 1 — host command camera_id=0 -> 1
+  top panel diffs:
+    frame  64 t= 2.13s panel= 13.39 preview=  3.24
+  top preview diffs:
+    frame  86 t= 2.87s panel=  0.25 preview= 80.55
+    frame  87 t= 2.90s panel=  0.00 preview= 18.10
+  => panel reflects the requested camera at 2.13 s; preview switches at 2.87 s
+     (session rebuild), 0.74 s later.
+
+Run 2 — host command zoom_ratio=1.0 -> 2.0
+  host round_trip_ms: 91
+  top zoom-text diffs:
+    frame  71 t= 2.37s text=  2.42 preview= 10.96
+  top preview diffs:
+    frame  62 t= 2.07s text=  0.13 preview= 65.23
+  => preview changes between frames 62 and 63 (2.07 -> 2.10 s);
+     panel zoom_actual changes between frames 71 and 72 (2.37 -> 2.40 s);
+     panel lag = 9 frames at 30 fps = 300 ms, inside STATUS_INTERVAL_MS = 500 ms.
+
+Consecutive preview diffs around the zoom change (frames 58-75):
+  58 59 2.05
+  59 60 0.0
+  60 61 0.0
+  61 62 0.0
+  62 63 65.23
+  63 64 10.98
+  64 65 1.98
+  65 66 1.54
+  66 67 4.22
+  67 68 5.43
+  68 69 2.24
+  69 70 5.84
+  70 71 9.71
+  71 72 10.96
+  72 73 8.87
+  73 74 5.85
+  74 75 6.49
+  75 76 10.98
+
+Note: the preview stream carries the camera frame pipeline; the panel is a UI refresh at
+500 ms, so the observed 300 ms is the expected worst-case half-interval plus scheduling.
