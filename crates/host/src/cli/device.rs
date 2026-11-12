@@ -957,6 +957,8 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(240);
 /// Camera switches rebuild the capture session; allow the app to settle.
 const CAMERA_SWITCH_TIMEOUT: Duration = Duration::from_secs(20);
+/// How often to re-check STATE while a camera switch is in flight.
+const CAMERA_SWITCH_POLL: Duration = Duration::from_millis(250);
 /// How long to wait for the STATE delta carrying actual values after a change.
 const SETTLE_TIMEOUT: Duration = Duration::from_millis(750);
 /// Idle timeout between STATE messages while watching.
@@ -1099,54 +1101,32 @@ fn cli_probe(
                     .unwrap_or_else(|| "camera switch was rejected".to_string());
                 return Err(WatchdogError::new(ErrorCode::InvalidRequest, detail));
             }
-            let state = request_state(&mut live, CAMERA_SWITCH_TIMEOUT).await?;
-            if state.camera_id != camera {
+            await_camera_switch(&mut live, camera, CAMERA_SWITCH_TIMEOUT).await?;
+        }
+        let started = Instant::now();
+        let readiness_deadline = started + CAMERA_SWITCH_TIMEOUT;
+        let report = loop {
+            let remaining = PROBE_TIMEOUT.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
                 return Err(WatchdogError::new(
-                    ErrorCode::InvalidRequest,
-                    format!(
-                        "camera switch did not take effect (device reports {})",
-                        state.camera_id
-                    ),
+                    ErrorCode::ConnectionLost,
+                    "timed out waiting for the probe report",
                 ));
             }
-        }
-        let command_id = next_command_id("probe");
-        let started = Instant::now();
-        let params = key.map_or_else(|| json!({}), |key| json!({ "key": key }));
-        live.session()
-            .send(&Message::Command(CommandMessage {
-                id: command_id.clone(),
-                command: "probe_keys".to_string(),
-                params,
-            }))
-            .await?;
-        let result = await_command_result(&mut live, &command_id, PROBE_TIMEOUT).await?;
-        if let Some(error) = result.error.as_deref() {
-            return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
-        }
-        let item = result
-            .results
-            .first()
-            .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no result"))?;
-        if !item.ok {
-            return Err(WatchdogError::new(
-                ErrorCode::InvalidRequest,
-                item.message
-                    .clone()
-                    .unwrap_or_else(|| "probe was rejected".to_string()),
-            ));
-        }
-        let report = item
-            .applied
-            .as_ref()
-            .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no report"))?;
-        if let Some(error) = report.get("error").and_then(Value::as_str) {
-            return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
-        }
+            match probe_once(&mut live, key, remaining).await? {
+                ProbeAttempt::Report(report) => break report,
+                ProbeAttempt::NotReady(message) => {
+                    if Instant::now() >= readiness_deadline {
+                        return Err(WatchdogError::new(ErrorCode::InvalidRequest, message));
+                    }
+                    tokio::time::sleep(CAMERA_SWITCH_POLL).await;
+                }
+            }
+        };
         let text = if json {
-            serde_json::to_string_pretty(report)?
+            serde_json::to_string_pretty(&report)?
         } else {
-            render_probe_matrix(&id, report)
+            render_probe_matrix(&id, &report)
         };
         match output {
             Some(path) => {
@@ -1433,6 +1413,99 @@ fn cli_watch_state(
         }
         Ok(())
     })
+}
+
+/// Poll STATE until the app reports [camera] as the active camera.
+///
+/// `set_controls` acknowledges the switch before the camera thread has closed
+/// the old device and opened the new one, so the first snapshot after the
+/// command can still describe the previous camera.
+async fn await_camera_switch(
+    live: &mut LiveSession,
+    camera: &str,
+    timeout: Duration,
+) -> watchdog_core::Result<()> {
+    let deadline = Instant::now() + timeout;
+    let mut reported = String::new();
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(WatchdogError::new(
+                ErrorCode::InvalidRequest,
+                format!("camera switch did not take effect (device reports {reported})"),
+            ));
+        }
+        match request_state(live, remaining.min(STATE_TIMEOUT)).await {
+            Ok(state) => {
+                reported = state.camera_id;
+                if reported == camera {
+                    return Ok(());
+                }
+            }
+            // A snapshot can be lost while the pipeline is being rebuilt; keep
+            // polling until the switch deadline.
+            Err(error) if error.code == ErrorCode::ConnectionLost => {}
+            Err(error) => return Err(error),
+        }
+        tokio::time::sleep(CAMERA_SWITCH_POLL.min(remaining)).await;
+    }
+}
+
+/// One `probe_keys` attempt: either a report or a camera that is still opening.
+enum ProbeAttempt {
+    Report(Value),
+    NotReady(String),
+}
+
+/// Run a single `probe_keys` command.
+async fn probe_once(
+    live: &mut LiveSession,
+    key: Option<&str>,
+    timeout: Duration,
+) -> watchdog_core::Result<ProbeAttempt> {
+    let command_id = next_command_id("probe");
+    let params = key.map_or_else(|| json!({}), |key| json!({ "key": key }));
+    live.session()
+        .send(&Message::Command(CommandMessage {
+            id: command_id.clone(),
+            command: "probe_keys".to_string(),
+            params,
+        }))
+        .await?;
+    let result = await_command_result(live, &command_id, timeout).await?;
+    if let Some(error) = result.error.as_deref() {
+        return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
+    }
+    let item = result
+        .results
+        .first()
+        .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no result"))?;
+    if !item.ok {
+        let message = item
+            .message
+            .clone()
+            .unwrap_or_else(|| "probe was rejected".to_string());
+        if item.error_code.as_deref() == Some("CAMERA_NOT_READY") || camera_not_ready(&message) {
+            return Ok(ProbeAttempt::NotReady(message));
+        }
+        return Err(WatchdogError::new(ErrorCode::InvalidRequest, message));
+    }
+    let report = item
+        .applied
+        .clone()
+        .ok_or_else(|| WatchdogError::new(ErrorCode::Internal, "probe returned no report"))?;
+    if let Some(error) = report.get("error").and_then(Value::as_str) {
+        if camera_not_ready(error) {
+            return Ok(ProbeAttempt::NotReady(error.to_string()));
+        }
+        return Err(WatchdogError::new(ErrorCode::InvalidRequest, error));
+    }
+    Ok(ProbeAttempt::Report(report))
+}
+
+/// True while a switched camera is still opening.
+fn camera_not_ready(message: &str) -> bool {
+    message.contains("camera is not open") || message.contains("camera thread unavailable")
 }
 
 async fn request_state(

@@ -104,7 +104,7 @@ watchdog device restore --serial 1a2b3c4d
 watchdog device controls --serial 1a2b3c4d
 watchdog device set-control iso=400 exposure_time_ns=33333333 --serial 1a2b3c4d
 watchdog device probe --serial 1a2b3c4d --output docs/device-matrices/sm-a515f-android-13.md
-watchdog device probe --serial 1a2b3c4d --key CONTROL_AE_MODE --json
+watchdog device probe --serial 1a2b3c4d --key android.control.aeMode --json
 watchdog device watch-state --count 20 --json --serial 1a2b3c4d
 watchdog capture still --serial 1a2b3c4d --output frame.jpg
 watchdog schedule add --name "every 30 min" --preset every-30m --device 1a2b3c4d --record-secs 10

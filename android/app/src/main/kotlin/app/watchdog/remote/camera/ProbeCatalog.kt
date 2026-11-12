@@ -352,7 +352,7 @@ object ProbeCatalog {
         listOf("COLOR_CORRECTION_MODE" to CaptureRequest.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)
 
     private fun qualityCandidates(): List<ProbeCandidate> =
-        listOf(1, JPEG_QUALITY_MID, JPEG_QUALITY_MAX).map { ProbeCandidate("quality $it", it) }
+        listOf(1, JPEG_QUALITY_MID, JPEG_QUALITY_MAX).map { ProbeCandidate("quality $it", it.toByte()) }
 
     private fun modes(chars: CameraCharacteristics, key: CameraCharacteristics.Key<IntArray>): List<ProbeCandidate> =
         chars
