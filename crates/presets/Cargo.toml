@@ -1,0 +1,18 @@
+[package]
+name = "watchdog-presets"
+description = "Named camera-control presets stored on the host (M4-T11)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+watchdog-core.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

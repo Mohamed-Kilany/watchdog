@@ -7,6 +7,7 @@
 //! <data_dir>/
 //!   config/    watchdog.toml (platform default location maps here)
 //!   keys/      adbkey / adbkey.pub  (RSA-2048, never ~/.android)
+//!   presets/   named camera-control presets (JSON, M4-T11)
 //!   media/     received media items (see media/<shard>/…)
 //!   db/        watchdog.db (SQLite index: media, jobs, reports, devices)
 //!   logs/      watchdog-YYYY-MM-DD.log (daily rotation)
@@ -68,6 +69,8 @@ pub struct DataPaths {
     pub config: PathBuf,
     /// ADB key pair directory.
     pub keys: PathBuf,
+    /// Named camera-control presets (M4-T11).
+    pub presets: PathBuf,
     /// Media store root.
     pub media: PathBuf,
     /// SQLite index directory.
@@ -90,6 +93,7 @@ impl DataPaths {
             root: root.to_path_buf(),
             config: root.join("config"),
             keys: root.join("keys"),
+            presets: root.join("presets"),
             media: root.join("media"),
             db: root.join("db"),
             logs: root.join("logs"),
@@ -105,6 +109,7 @@ impl DataPaths {
         vec![
             ("config", self.config.clone()),
             ("keys", self.keys.clone()),
+            ("presets", self.presets.clone()),
             ("media", self.media.clone()),
             ("db", self.db.clone()),
             ("logs", self.logs.clone()),
