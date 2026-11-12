@@ -5,7 +5,8 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginBottom">12dp</item>
         <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
-        <item name="android:textColor">@color/watchdog_accent</item>
+        <item name="android:textColor">?attr/watchdogAccent</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -14,7 +15,8 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">10dp</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelSmall</item>
-        <item name="android:textColor">@color/watchdog_text_secondary</item>
+        <item name="android:textColor">?attr/watchdogTextSecondary</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textAllCaps">true</item>
     </style>
 
@@ -22,7 +24,8 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
-        <item name="android:textColor">@color/watchdog_text_primary</item>
+        <item name="android:textColor">?attr/watchdogTextPrimary</item>
+        <item name="android:textSize">14sp</item>
         <item name="android:maxLines">2</item>
         <item name="android:ellipsize">end</item>
     </style>

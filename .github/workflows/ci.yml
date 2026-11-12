@@ -229,6 +229,11 @@ jobs:
         # AGP 9 only creates unit-test components for the tested build type
         # (debug by default); the release variant is covered by assembleRelease.
         run: gradle --no-daemon testDebugUnitTest
+      - name: compile instrumented tests (not run)
+        working-directory: android
+        # The emulator suite is manual-only; compiling it here keeps the
+        # screenshot tests from rotting without starting an emulator.
+        run: gradle --no-daemon compileDebugAndroidTestKotlin
       - name: assembleRelease
         working-directory: android
         run: gradle --no-daemon --stacktrace assembleRelease

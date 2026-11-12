@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="watchdogBackground" format="color" />
+    <attr name="watchdogPanel" format="color" />
+    <attr name="watchdogTextPrimary" format="color" />
+    <attr name="watchdogTextSecondary" format="color" />
+    <attr name="watchdogAccent" format="color" />
+</resources>
