@@ -2,5 +2,18 @@
 <resources>
     <style name="Theme.WatchdogRemote" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
+        <item name="watchdogBackground">@color/watchdog_background</item>
+        <item name="watchdogPanel">@color/watchdog_panel</item>
+        <item name="watchdogTextPrimary">@color/watchdog_text_primary</item>
+        <item name="watchdogTextSecondary">@color/watchdog_text_secondary</item>
+        <item name="watchdogAccent">@color/watchdog_accent</item>
+    </style>
+
+    <style name="Theme.WatchdogRemote.HighContrast">
+        <item name="watchdogBackground">@color/watchdog_hc_background</item>
+        <item name="watchdogPanel">@color/watchdog_hc_panel</item>
+        <item name="watchdogTextPrimary">@color/watchdog_hc_text_primary</item>
+        <item name="watchdogTextSecondary">@color/watchdog_hc_text_secondary</item>
+        <item name="watchdogAccent">@color/watchdog_hc_accent</item>
     </style>
 </resources>

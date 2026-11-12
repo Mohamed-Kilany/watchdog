@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var controlPanel: UiControlPanel
     private var service: CaptureService? = null
     private var bound = false
+    private var highContrast = false
     private var previewSurface: Surface? = null
     private val statusHandler = Handler(Looper.getMainLooper())
 
@@ -79,11 +80,26 @@ class MainActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        highContrast =
+            getSharedPreferences(UiPreferences.FILE, MODE_PRIVATE)
+                .getBoolean(UiPreferences.HIGH_CONTRAST, false)
+        setTheme(if (highContrast) R.style.Theme_WatchdogRemote_HighContrast else R.style.Theme_WatchdogRemote)
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         controlPanel = UiControlPanel(this, binding.leftControls, binding.rightControls)
         binding.version.text = getString(R.string.version_format, BuildConfig.VERSION_NAME)
+        binding.highContrast.isChecked = highContrast
+        binding.highContrast.setOnCheckedChangeListener { _, checked ->
+            if (checked != highContrast) {
+                highContrast = checked
+                getSharedPreferences(UiPreferences.FILE, MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(UiPreferences.HIGH_CONTRAST, checked)
+                    .apply()
+                recreate()
+            }
+        }
         binding.permissionSettings.setOnClickListener { openAppSettings() }
         binding.preview.holder.addCallback(surfaceCallback)
         binding.previewContainer.addOnLayoutChangeListener {

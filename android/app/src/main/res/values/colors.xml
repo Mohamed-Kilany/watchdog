@@ -5,4 +5,11 @@
     <color name="watchdog_text_primary">#F2F5F7</color>
     <color name="watchdog_text_secondary">#9AA7B4</color>
     <color name="watchdog_accent">#4FC3F7</color>
+
+    <!-- High-contrast mode: pure black panel, maximum-luminance text. -->
+    <color name="watchdog_hc_background">#000000</color>
+    <color name="watchdog_hc_panel">#000000</color>
+    <color name="watchdog_hc_text_primary">#FFFFFF</color>
+    <color name="watchdog_hc_text_secondary">#FFFF00</color>
+    <color name="watchdog_hc_accent">#00FFFF</color>
 </resources>

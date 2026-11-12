@@ -9,6 +9,7 @@
     <string name="notification_capture_text">Camera session active — tap Stop to end it</string>
     <string name="notification_stop">Stop</string>
 
+    <string name="high_contrast">High contrast</string>
     <string name="panel_connection">Connection</string>
     <string name="panel_camera">Camera</string>
     <string name="panel_controls">Camera controls</string>
