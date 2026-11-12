@@ -54,7 +54,7 @@ class KeyProbeEngine(
         val entries = JSONArray()
         val keys =
             chars.availableCaptureRequestKeys.filter {
-                onlyKey == null || onlyKey == fieldNames[it] || onlyKey == it.toString()
+                onlyKey == null || onlyKey == fieldNames[it] || onlyKey == it.name
             }
         val abortReason = probeKeys(keys, entries)
         val (probedKeys, probedValues) = summarize(entries)
@@ -79,7 +79,7 @@ class KeyProbeEngine(
     private fun probeKeys(keys: List<CaptureRequest.Key<*>>, entries: JSONArray): String? {
         for (key in keys) {
             if (System.currentTimeMillis() > deadline) return "probe deadline reached"
-            entries.put(probeKey(key, fieldNames[key], key.toString()))
+            entries.put(probeKey(key, fieldNames[key], key.name))
             if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
                 return "$consecutiveFailures consecutive capture failures"
             }
@@ -105,7 +105,7 @@ class KeyProbeEngine(
         ProbeCatalog.allSpecs().forEach { spec ->
             val key = ProbeCatalog.requestKey(spec.field) ?: return@forEach
             if (!chars.availableCaptureRequestKeys.contains(key)) {
-                missing.put(JSONObject().put("field", spec.field).put("key", key.toString()))
+                missing.put(JSONObject().put("field", spec.field).put("key", key.name))
             }
         }
         return missing
@@ -147,7 +147,7 @@ class KeyProbeEngine(
         val label = if (name == null) candidate.label else "${candidate.label} ($name)"
         val outcome = capture(key, candidate)
         if (outcome.error != null) {
-            consecutiveFailures++
+            consecutiveFailures = if (outcome.fatal) consecutiveFailures + 1 else 0
             return JSONObject()
                 .put("label", label)
                 .put("requested", jsonValue(candidate.value))
@@ -168,13 +168,20 @@ class KeyProbeEngine(
             .put("elapsed_ms", outcome.elapsedMs)
     }
 
-    private data class CaptureOutcome(val result: TotalCaptureResult?, val error: String?, val elapsedMs: Long)
+    /** [fatal] is true when the capture itself failed rather than just the value. */
+    private data class CaptureOutcome(
+        val result: TotalCaptureResult?,
+        val error: String?,
+        val elapsedMs: Long,
+        val fatal: Boolean = false,
+    )
 
     private fun capture(key: CaptureRequest.Key<*>, candidate: ProbeCandidate): CaptureOutcome {
         val started = System.currentTimeMillis()
         val latch = CountDownLatch(1)
         var result: TotalCaptureResult? = null
         var failure: String? = null
+        var fatalFailure = false
         val posted =
             handler.post {
                 runCatching {
@@ -205,6 +212,7 @@ class KeyProbeEngine(
                                 captureFailure: CaptureFailure,
                             ) {
                                 failure = "capture failed (reason ${captureFailure.reason})"
+                                fatalFailure = true
                                 latch.countDown()
                             }
                         },
@@ -216,13 +224,14 @@ class KeyProbeEngine(
                 }
             }
         if (!posted) {
-            return CaptureOutcome(null, "camera handler is not available", 0)
+            return CaptureOutcome(null, "camera handler is not available", 0, fatal = true)
         }
         val completed = latch.await(CAPTURE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         val elapsed = System.currentTimeMillis() - started
         return when {
-            !completed -> CaptureOutcome(null, "no capture result within ${CAPTURE_TIMEOUT_MS}ms", elapsed)
-            failure != null -> CaptureOutcome(null, failure, elapsed)
+            !completed ->
+                CaptureOutcome(null, "no capture result within ${CAPTURE_TIMEOUT_MS}ms", elapsed, fatal = true)
+            failure != null -> CaptureOutcome(null, failure, elapsed, fatal = fatalFailure)
             else -> CaptureOutcome(result, null, elapsed)
         }
     }
