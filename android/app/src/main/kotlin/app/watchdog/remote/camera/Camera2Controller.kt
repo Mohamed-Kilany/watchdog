@@ -98,6 +98,9 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private var device: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var surfaces: List<Surface> = emptyList()
+
+    /** Surfaces the current (or currently configuring) capture session uses. */
+    private var configuredTargets: List<Surface> = emptyList()
     private var previewSurface: Surface? = null
     private var requestedCameraId: String? = null
     private var physicalId: String? = null
@@ -373,7 +376,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
                             activeSession,
                             activeChars,
                             handler,
-                            targets.toList(),
+                            configuredTargets.toList(),
                             HashMap(requested),
                         )
                 }
@@ -437,6 +440,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun createSession(camera: CameraDevice) {
         val activeTargets = targets
+        configuredTargets = activeTargets
         if (activeTargets.isEmpty()) {
             machine.onEvent(CameraEvent.Configured)
             publish()
@@ -485,7 +489,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private fun startRepeating(session: CameraCaptureSession) {
         val camera = device
         val chars = characteristics
-        if (camera == null || chars == null || targets.isEmpty()) {
+        if (camera == null || chars == null || configuredTargets.isEmpty()) {
             fail("cannot start streaming: camera or surfaces unavailable")
             return
         }
@@ -507,7 +511,7 @@ class Camera2Controller(context: Context, private val listener: CameraController
 
     private fun requestBuilder(camera: CameraDevice, chars: CameraCharacteristics): CaptureRequest.Builder {
         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        targets.forEach { builder.addTarget(it) }
+        configuredTargets.forEach { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         requested.forEach { (id, value) -> CameraControls.applyTo(builder, chars, id, value) }
         CameraControls.applyTonemap(builder, requested)
@@ -594,6 +598,15 @@ class Camera2Controller(context: Context, private val listener: CameraController
     private val sessionCallback =
         object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
+                val camera = device
+                if (camera == null || targets != configuredTargets) {
+                    // The preview surface changed while this session was being
+                    // configured. Streaming now would submit a request with an
+                    // unconfigured surface, so rebuild with the current targets.
+                    session.close()
+                    camera?.let(::createSession)
+                    return
+                }
                 this@Camera2Controller.session = session
                 machine.onEvent(CameraEvent.Configured)
                 publish()
