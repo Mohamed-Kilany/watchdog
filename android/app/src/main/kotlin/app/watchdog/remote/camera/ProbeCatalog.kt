@@ -27,8 +27,8 @@ data class ProbeCandidate(
  */
 data class ProbeSpec(
     val field: String,
-    val values: (CameraCharacteristics) -> List<ProbeCandidate>,
     val skipReason: String? = null,
+    val values: (CameraCharacteristics) -> List<ProbeCandidate> = { emptyList() },
 )
 
 /**
@@ -292,7 +292,7 @@ object ProbeCatalog {
                 }
             },
             ProbeSpec("TONEMAP_MODE") { chars ->
-                modes(chars, CameraCharacteristics.TONEMAP_AVAILABLE_TONEMAP_MODES)
+                modes(chars, CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES)
             },
             ProbeSpec("TONEMAP_PRESET_CURVE") {
                 listOf(
@@ -323,27 +323,27 @@ object ProbeCatalog {
             ProbeSpec(
                 "CONTROL_AE_PRECAPTURE_TRIGGER",
                 skipReason = "one-shot 3A trigger; probing it would disturb the live stream",
-            ) { emptyList() },
+            ),
             ProbeSpec(
                 "CONTROL_AF_TRIGGER",
                 skipReason = "one-shot 3A trigger; probing it would disturb the live stream",
-            ) { emptyList() },
+            ),
             ProbeSpec(
                 "JPEG_GPS_LOCATION",
                 skipReason = "GPS metadata is not a camera capability",
-            ) { emptyList() },
+            ),
             ProbeSpec(
                 "LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID",
                 skipReason = "switching physical cameras requires a new session configuration",
-            ) { emptyList() },
+            ),
             ProbeSpec(
                 "CONTROL_SETTINGS_OVERRIDE",
                 skipReason = "vendor-dependent override bitmask; not safely probeable",
-            ) { emptyList() },
+            ),
             ProbeSpec(
                 "REPROCESS_EFFECTIVE_EXPOSURE_FACTOR",
                 skipReason = "only meaningful for reprocess capture sessions",
-            ) { emptyList() },
+            ),
         )
 
     private fun booleans(): List<ProbeCandidate> = listOf(ProbeCandidate("true", true), ProbeCandidate("false", false))
@@ -451,7 +451,7 @@ object ProbeCatalog {
     }
 
     private fun tonemapCurves(chars: CameraCharacteristics): List<ProbeCandidate> {
-        val available = chars.get(CameraCharacteristics.TONEMAP_AVAILABLE_TONEMAP_MODES) ?: return emptyList()
+        val available = chars.get(CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES) ?: return emptyList()
         if (!available.contains(CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE)) return emptyList()
         val points = floatArrayOf(0f, 0f, CURVE_MIDPOINT, CURVE_MIDPOINT, 1f, 1f)
         val setup = listOf("TONEMAP_MODE" to CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE)

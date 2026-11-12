@@ -44,14 +44,18 @@ class KeyProbeEngine(
     private val targets: List<Surface>,
     private val baseline: Map<String, Any>,
 ) {
-    private val resultKeys = chars.availableCaptureResultKeys.toHashSet()
+    private val resultKeys = chars.availableCaptureResultKeys
+    private val resultKeyByName = resultKeys.associateBy { it.name }
     private val fieldNames = ProbeCatalog.fields
     private val deadline = System.currentTimeMillis() + PROBE_DEADLINE_MS
     private var consecutiveFailures = 0
 
     fun run(cameraId: String, onlyKey: String?): JSONObject {
         val entries = JSONArray()
-        val keys = chars.availableCaptureRequestKeys.filter { matches(it, onlyKey) }
+        val keys =
+            chars.availableCaptureRequestKeys.filter {
+                onlyKey == null || onlyKey == fieldNames[it] || onlyKey == it.toString()
+            }
         val abortReason = probeKeys(keys, entries)
         val (probedKeys, probedValues) = summarize(entries)
         return JSONObject()
@@ -70,9 +74,6 @@ class KeyProbeEngine(
             .put("entries", entries)
             .put("not_advertised", notAdvertised())
     }
-
-    private fun matches(key: CaptureRequest.Key<*>, onlyKey: String?): Boolean =
-        onlyKey == null || onlyKey == fieldNames[key] || onlyKey == key.toString()
 
     /** Probe [keys] in order; returns the abort reason when probing stopped early. */
     private fun probeKeys(keys: List<CaptureRequest.Key<*>>, entries: JSONArray): String? {
@@ -116,7 +117,7 @@ class KeyProbeEngine(
                 .put("key", name)
                 .put("field", field ?: JSONObject.NULL)
                 .put("request_available", true)
-                .put("result_available", resultKeys.contains(key))
+                .put("result_available", resultKeyByName.containsKey(key.name))
         val spec = field?.let(ProbeCatalog::specFor)
         if (field == null) {
             return entry.put("status", "unprobed").put("reason", "vendor key without a documented probe table")
@@ -156,7 +157,7 @@ class KeyProbeEngine(
                 .put("elapsed_ms", outcome.elapsedMs)
         }
         consecutiveFailures = 0
-        val reflected = outcome.result?.get(key)
+        val reflected = resultKeyByName[key.name]?.let { outcome.result?.get(it) }
         val matches = sameValue(candidate.value, reflected)
         return JSONObject()
             .put("label", label)
@@ -286,9 +287,9 @@ class KeyProbeEngine(
             is RggbChannelVector ->
                 JSONObject()
                     .put("red", value.red)
-                    .put("green", value.greenEven)
+                    .put("green_even", value.greenEven)
+                    .put("green_odd", value.greenOdd)
                     .put("blue", value.blue)
-                    .put("ir", value.ir)
             else -> value.toString()
         }
 
