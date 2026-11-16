@@ -1,0 +1,16 @@
+﻿[
+  {
+    "name": "M4 T11 Manual",
+    "file": "m4-t11-manual.json",
+    "description": "Manual 2x, ISO 200, 20 ms, AWB locked, focus 1.0",
+    "controls": 9,
+    "updated_at": "2026-11-12T12:15:23.308Z"
+  },
+  {
+    "name": "M4 T11 Verify",
+    "file": "m4-t11-verify.json",
+    "description": "M4-T11 device verification preset",
+    "controls": 29,
+    "updated_at": "2026-11-12T12:14:44.631Z"
+  }
+]

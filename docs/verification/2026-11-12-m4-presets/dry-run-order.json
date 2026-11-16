@@ -1,0 +1,21 @@
+﻿{
+  "controls": [
+    {
+      "id": "camera_id",
+      "value": "0"
+    },
+    {
+      "id": "physical_camera_id",
+      "value": "none"
+    },
+    {
+      "id": "iso",
+      "value": 100
+    },
+    {
+      "id": "zoom_ratio",
+      "value": 1.0
+    }
+  ],
+  "preset": "M4 T11 Order"
+}

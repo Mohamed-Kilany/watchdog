@@ -1,0 +1,18 @@
+﻿{
+  "schema_version": 1,
+  "name": "M4 T11 Manual",
+  "description": "Manual 2x, ISO 200, 20 ms, AWB locked, focus 1.0",
+  "controls": {
+    "ae_mode": 0,
+    "af_mode": 0,
+    "anti_banding": 3,
+    "awb_lock": true,
+    "exposure_time_ns": 20000000,
+    "focus_distance": 1,
+    "frame_duration_ns": 33333000,
+    "iso": 200,
+    "zoom_ratio": 2
+  },
+  "created_at": "2026-11-12T12:15:23.308Z",
+  "updated_at": "2026-11-12T12:15:23.308Z"
+}
