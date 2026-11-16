@@ -1,8 +1,7 @@
 //! `watchdog serve` — starts the web UI.
 //!
-//! M3-T15 serves the minimal live test page: the phone camera as MJPEG plus
-//! the rolling stats from the device frame hub. The full UI replaces it in M6;
-//! the MCP and integration API servers land in M6/M9.
+//! The host embeds the static UI build and serves it together with the live
+//! MJPEG stream and stats. The MCP and integration API servers land in M6/M9.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -17,7 +16,7 @@ use watchdog_device::connection::DeviceConnection;
 use watchdog_device::hub::{FrameHub, HubConfig};
 use watchdog_device::provision::{RestoreRecord, PACKAGE};
 use watchdog_device::session::LiveSession;
-use watchdog_ui_server::TestPageOptions;
+use watchdog_ui_server::UiOptions;
 
 /// Start the web UI on the configured UI port.
 #[derive(Debug, Args)]
@@ -45,7 +44,7 @@ pub fn run(args: &ServeArgs, cfg: &Config) -> watchdog_core::Result<()> {
                     format!("no session token recorded for {id}"),
                 )
                 .with_hint(format!(
-                    "run `watchdog device provision {target}` first; the test page reuses its session token"
+                    "run `watchdog device provision {target}` first; the web UI reuses its session token"
                 ))
             })?;
         let (live, ack) = LiveSession::open_authenticated(
@@ -67,7 +66,7 @@ pub fn run(args: &ServeArgs, cfg: &Config) -> watchdog_core::Result<()> {
         tracing::info!(
             device = %id,
             app = %ack.app.version_name,
-            "opened the app session for the test page"
+            "opened the app session for the web UI"
         );
         println!(
             "device {id}: {} {} (app {} versionCode {}, protocol {})",
@@ -79,15 +78,20 @@ pub fn run(args: &ServeArgs, cfg: &Config) -> watchdog_core::Result<()> {
         );
         let hub = Arc::new(FrameHub::spawn(live, HubConfig::default()));
         let bind = SocketAddr::new(cfg.ui_listen, cfg.ui_port);
-        println!("watchdog test page: http://{bind}/");
+        println!("watchdog web UI: http://{bind}/");
+        if watchdog_ui_server::embedded_asset_count() == 0 {
+            println!(
+                "this build has no embedded UI; serving the minimal live page (build ui/ and rebuild the host)"
+            );
+        }
         if cfg.token.is_some() {
             println!(
                 "bearer token enabled: append ?token=<token> or send Authorization: Bearer <token>"
             );
         }
         println!("press Ctrl-C to stop");
-        watchdog_ui_server::serve_test_page(
-            TestPageOptions {
+        watchdog_ui_server::serve_ui(
+            UiOptions {
                 bind,
                 token: cfg.token.clone(),
             },

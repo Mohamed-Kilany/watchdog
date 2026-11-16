@@ -14,7 +14,7 @@ noted; transitive closures are checked by cargo-deny including license *exceptio
 
 | Component | License | Notes |
 |---|---|---|
-| tokio, serde, clap, thiserror, tracing, bytes, crc32fast, directories, toml, rust-embed (M6) | MIT/Apache-2.0 | — |
+| tokio, serde, clap, thiserror, tracing, bytes, crc32fast, directories, toml, rust-embed, flate2 (M6) | MIT/Apache-2.0 | flate2 also uses zlib-rs (Zlib) |
 | rustls (M2: pairing/STLS) | Apache-2.0/ISC/MIT | per its NOTICE |
 | rusb / nusb (M2: USB) | MIT/Apache-2.0 | to be named when chosen (M2-ADR) |
 

@@ -42,7 +42,7 @@ rotated daily in `<data_dir>/logs/`.
 
 Full walkthrough with OEM quirks: [device-setup.md](device-setup.md).
 
-## 4. Live view (M3 test page)
+## 4. Live view (web UI)
 
 Provision first, then start the UI:
 
@@ -52,11 +52,12 @@ watchdog serve --serial <serial>
 # open http://127.0.0.1:7700/
 ```
 
-The M3 page shows the phone camera as a live MJPEG feed with FPS, bitrate, latency,
-RTT and drop counters. It reuses the session token stored by provisioning and works
-over USB or wireless debugging (`--serial host:port`). When a bearer token is
-configured, append `?token=…` to the page URL. The full UI (controls, capture,
-library) replaces this page in M6.
+The host embeds the static web UI (see [ui.md](ui.md)) and serves the live MJPEG feed at
+`/stream.mjpg` with frame-hub stats at `/api/stats`. Builds without an embedded UI serve
+the minimal M3 live page instead. The UI reuses the session token stored by provisioning
+and works over USB or wireless debugging (`--serial host:port`). When a bearer token is
+configured, append `?token=…` to the page URL. Controls, capture and the media library
+are wired up in the remaining M6 tasks.
 
 ## 9. Scheduler (summary)
 
