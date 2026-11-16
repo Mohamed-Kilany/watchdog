@@ -288,13 +288,14 @@ export class WdControlPanel extends HTMLElement {
     wrapper.dataset.kind = descriptor.kind;
 
     if (descriptor.kind === "slider") {
+      const scale = descriptor.scale ?? 1;
       const host = document.createElement("wd-slider") as WdSlider;
       host.controlId = descriptor.id;
       host.dataset.controlId = descriptor.id;
       host.label = descriptor.label;
-      host.min = descriptor.min;
-      host.max = descriptor.max;
-      host.step = descriptor.step;
+      host.min = descriptor.min / scale;
+      host.max = descriptor.max / scale;
+      host.step = descriptor.step / scale;
       host.unit = descriptor.unit ?? "";
       if (descriptor.precision !== undefined) host.precision = descriptor.precision;
 
@@ -386,7 +387,7 @@ export class WdControlPanel extends HTMLElement {
           row.desc.autoId !== undefined &&
           this.isAuto(row.desc.autoId);
 
-        row.host.value = requested ?? actual ?? row.desc.min;
+        row.host.value = requested ?? actual ?? row.desc.min / scale;
         row.host.actual = actual;
         row.host.disabled =
           this.disabled || !entry.supported || autoDisabled;
