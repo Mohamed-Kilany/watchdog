@@ -1,8 +1,8 @@
 # Host web UI
 
 The host UI lives in `ui/`. It is a static Vite/TypeScript build of standards-based Web
-Components, embedded by the host in M6. The stack decision and its trade-offs are in
-[ADR-0007](adr/0007-web-ui-components.md).
+Components, embedded by the host with `rust-embed`. The stack decision and its trade-offs
+are in [ADR-0007](adr/0007-web-ui-components.md).
 
 ## Build and test
 
@@ -37,6 +37,43 @@ any limit is exceeded:
 
 Source maps are rejected. There are no CDN imports, external stylesheets, web fonts or
 runtime network requests; the UI uses the platform UI font stack and works offline.
+
+## Embedding and serving
+
+`crates/ui-server` embeds `ui/dist` with `rust-embed`
+(`#[folder = "../../ui/dist/"]`, `allow_missing = true`). Release builds copy every file
+into the host binary, so the shipped host serves the UI with no files on disk and no
+network access. Debug builds read `ui/dist` from disk, so a `npm run build` is visible
+without rebuilding the host. Rust-only builds (fmt, clippy, test jobs) compile with no UI
+folder and serve the minimal live page described below instead.
+
+`watchdog serve` serves the build on the UI port with these HTTP semantics:
+
+| Path | Behaviour |
+|---|---|
+| `/` and extensionless routes | app shell (`index.html`) for client-side routing |
+| `assets/*` | fingerprinted Vite assets, `Cache-Control: public, max-age=31536000, immutable` |
+| other static files | `Cache-Control: no-cache` plus an ETag for cheap revalidation |
+| `/stream.mjpg`, `/api/stats`, `/healthz` | live MJPEG stream, hub stats and liveness probe |
+
+Every static response carries a weak content-hash ETag (`W/"<sha256>"`), answers
+`If-None-Match` with `304 Not Modified`, and is gzip-compressed when the client sends
+`Accept-Encoding: gzip` (text, JSON, SVG and Wasm responses of at least 512 bytes).
+Compressed bodies are cached by ETag, and compressible responses send
+`Vary: Accept-Encoding`. Bearer-token auth applies to static files, the stream and the
+API alike.
+
+When no UI was embedded, `/` and extensionless routes serve a self-contained live page
+(MJPEG view plus stats) with `X-Watchdog-UI: fallback`; `watchdog version` prints
+`embedded UI   not embedded`. `watchdog serve` also prints a hint when that happens.
+
+## CI flow
+
+The `web` job builds `ui/dist`, enforces the budget and uploads it as the `ui-dist`
+artifact. The `host-windows` release job downloads that artifact into `ui/dist` before
+`cargo build --release`, then fails unless `watchdog version` reports
+`embedded UI   <n> files from ui/dist`. Rust-only jobs do not download the artifact and
+keep compiling through `allow_missing`.
 
 ## Components
 

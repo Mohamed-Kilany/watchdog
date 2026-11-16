@@ -24,8 +24,8 @@ misuse (clap). Every command accepts the global flags below.
 ## Commands
 
 ### `watchdog version`
-Print host version, protocol version and embedded-APK version (APK is embedded in
-release builds; dev builds print `not embedded`).
+Print host version, protocol version, embedded-APK version and embedded-UI file count
+(APK and UI are embedded in release builds; dev builds print `not embedded`).
 
 ### `watchdog doctor`
 Print OS/arch, host/protocol versions, resolved config path, per-directory
@@ -39,14 +39,17 @@ any required path is unusable.
 - `validate` — parse/validate all layers; write-probe data dir; prints ok + ports.
 
 ### `watchdog serve [--serial S]`
-Start the web UI on `--ui-port` (default 7700). M3 serves the minimal test page:
-`/` is a live MJPEG view of the provisioned phone camera with FPS, bitrate, latency,
-RTT, sequence, drop and duplicate counters polled from `/api/stats`; `/stream.mjpg`
-is the multipart MJPEG stream and `/healthz` is a liveness probe. The page reuses the
-session token stored by `watchdog device provision` (run it first). `--serial` selects
-a USB serial or `host[:port]` (wireless debugging over LAN). When a bearer token is
-configured, every request needs `?token=…` or `Authorization: Bearer …`. MCP (:7701)
-and the integration API (:7702) land with M6/M9.
+Start the web UI on `--ui-port` (default 7700). The host serves the embedded static UI
+built from `ui/` (see [ui.md](ui.md)): `/` is the app shell, `assets/*` are the
+fingerprinted bundles, `/api/stats` exposes the frame-hub counters, `/stream.mjpg` is the
+live multipart MJPEG stream and `/healthz` is a liveness probe. Static responses use
+content-hash ETags, `304 Not Modified` and gzip compression. Builds without an embedded
+UI serve the minimal live page (MJPEG view plus stats) at `/` instead.
+
+The command reuses the session token stored by `watchdog device provision` (run it
+first). `--serial` selects a USB serial or `host[:port]` (wireless debugging over LAN).
+When a bearer token is configured, every request needs `?token=…` or
+`Authorization: Bearer …`. MCP (:7701) and the integration API (:7702) land with M6/M9.
 
 ### `watchdog device <subcommand>`
 | Command | Purpose | Status |
@@ -105,7 +108,7 @@ watchdog doctor
 watchdog config show
 sudo watchdog device udev-rules --write
 watchdog device provision --serial 1a2b3c4d
-watchdog serve --serial 1a2b3c4d          # live test page at http://127.0.0.1:7700/
+watchdog serve --serial 1a2b3c4d          # web UI at http://127.0.0.1:7700/
 watchdog device status --serial 1a2b3c4d
 watchdog device restore --serial 1a2b3c4d
 watchdog device controls --serial 1a2b3c4d

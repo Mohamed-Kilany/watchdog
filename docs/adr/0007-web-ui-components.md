@@ -23,8 +23,11 @@ embed or test.
    browser's own element lifecycle, events and accessibility primitives are enough for
    this component set.
 2. **TypeScript + Vite.** Strict TypeScript, ES2022 output, a static `ui/dist` build with
-   relative asset URLs (`base: "./"`). The build has no CDN imports, no remote fonts and
-   no runtime network dependency; the font stack is the platform UI font.
+   root-absolute asset URLs (`base: "/"`). M6-T01 amended the original `base: "./"`: the
+   host serves the embedded build from the origin root, and absolute URLs keep working
+   when the server returns the app shell for a client-side route. The build has no CDN
+   imports, no remote fonts and no runtime network dependency; the font stack is the
+   platform UI font.
 3. **Components and contracts.** `wd-slider` (range + numeric entry + actual marker),
    `wd-auto-toggle`, `wd-lock-button`, `wd-region-overlay`, `wd-actual`, `wd-select`,
    `wd-reset` and `wd-control-panel`. Components own presentation and emit composed

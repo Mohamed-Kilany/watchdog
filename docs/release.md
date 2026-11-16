@@ -36,6 +36,24 @@ Development builds without `WATCHDOG_APK` have no embedded APK; provisioning acc
 `--apk <path>` to install a local release/debug APK instead. Setting `WATCHDOG_APK`
 before `cargo build` is the supported way to test an embedded APK locally.
 
+## Embedded web UI (M6-T01)
+
+The host embeds the static `ui/dist` build with `rust-embed`. Release builds copy the
+files into the binary and serve them offline; debug builds read `ui/dist` from disk. If
+the folder is absent (Rust-only builds), the crate compiles through `allow_missing` and
+serves the minimal live page instead.
+
+CI order:
+
+1. `web` builds `ui/dist`, enforces the bundle budget and uploads the `ui-dist` artifact.
+2. `host-windows` downloads `ui-dist` into `ui/dist`, then runs
+   `cargo build --locked --release -p watchdog`.
+3. The job fails unless `watchdog version` reports
+   `embedded UI   <n> files from ui/dist` (and the embedded APK metadata still matches).
+
+The `android` job also builds a debug host without the UI artifact; that build reports
+`embedded UI   not embedded` and is not shipped.
+
 ## Cutting a release
 
 1. Ensure `master` is green (all CI jobs, all platforms).

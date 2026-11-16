@@ -101,7 +101,7 @@ Builds in CI: Gradle 9.6.0 + AGP 9.5.0 (built-in Kotlin), JDK 17, compile/target
 
 ## M6. Web UI
 
-- [ ] M6-T01 Stack and build
+- [x] M6-T01 Stack and build — `ui/` is a Vite/TypeScript static build of standards-based Web Components (ADR-0007), no CDN/external fonts, root-absolute asset URLs, offline, dark/light theme, keyboard accessible and responsive to 768 px. `crates/ui-server` embeds `ui/dist` with `rust-embed` (`allow_missing` for Rust-only jobs) and serves it with weak content-hash ETags, `If-None-Match`/304, gzip (>=512 bytes, cached by ETag, `Vary: Accept-Encoding`), immutable fingerprinted assets, `no-cache` app shell, SPA fallback and a self-contained live-page fallback when no UI is embedded. The gzip bundle budget (JS 64 KiB, CSS 16 KiB, HTML 8 KiB, total 96 KiB, single file 48 KiB) is enforced by `npm run check:bundle` in the `web` CI job, which uploads `ui-dist`; `host-windows` embeds it into the release host and verifies `watchdog version` reports the file count.
 - [ ] M6-T02 App shell and real-time channel
 - [ ] M6-T03 Devices page:
 - [ ] M6-T04 Live view page:

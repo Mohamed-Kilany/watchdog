@@ -84,7 +84,7 @@ impl Cli {
 /// Top-level subcommands. Every command has `--help`.
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Start the web UI (M3: minimal live test page; MCP/API land later).
+    /// Start the web UI (static UI plus live MJPEG/stats; MCP/API land later).
     Serve(serve::ServeArgs),
     /// Device management (list, connect, pair, provision, shell, logs, …).
     #[command(subcommand)]
@@ -142,6 +142,12 @@ fn run(cli: Cli) -> watchdog_core::Result<()> {
                 None => println!(
                     "embedded APK  not embedded (dev build; set WATCHDOG_APK when building or pass --apk to provisioning)"
                 ),
+            }
+            match watchdog_ui_server::embedded_asset_count() {
+                0 => println!(
+                    "embedded UI   not embedded (dev build; run `npm run build` in ui/ before building the host)"
+                ),
+                count => println!("embedded UI   {count} files from ui/dist"),
             }
             Ok(())
         }

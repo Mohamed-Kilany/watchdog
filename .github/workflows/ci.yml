@@ -386,8 +386,8 @@ jobs:
           if-no-files-found: ignore
 
   host-windows:
-    name: host (windows release, embedded APK)
-    needs: android
+    name: host (windows release, embedded APK + UI)
+    needs: [android, web]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -397,6 +397,11 @@ jobs:
           # The artifact root is `android/`, so restore the same relative paths
           # the android job used.
           path: android
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          # rust-embed embeds this folder at compile time in release builds.
+          path: ui/dist
       - name: rustup (pinned toolchain)
         run: rustup show
       - uses: Swatinem/rust-cache@v2
@@ -412,9 +417,13 @@ jobs:
             "WATCHDOG_APK_SHA256=$($info.sha256)"
             "WATCHDOG_APK_SIGNER_SHA256=$($info.signerSha256)"
           ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: build release host with the embedded APK
-        run: cargo build --locked --release -p watchdog
-      - name: verify embedded APK metadata
+      - name: build release host with the embedded APK and UI
+        run: |
+          # Force rust-embed to re-expand now that ui/dist exists; a cached
+          # ui-server built without the folder has no include_bytes! dep-info.
+          cargo clean -p watchdog-ui-server
+          cargo build --locked --release -p watchdog
+      - name: verify embedded APK and UI metadata
         shell: pwsh
         run: |
           $out = (& target/release/watchdog.exe version) -join "`n"
@@ -427,6 +436,12 @@ jobs:
           }
           if (-not $out.Contains($env:WATCHDOG_APK_SIGNER_SHA256)) {
             throw "embedded APK signer mismatch"
+          }
+          if ($out.Contains("embedded UI   not embedded")) {
+            throw "release host did not embed ui/dist"
+          }
+          if (-not ($out -match "embedded UI   \d+ files from ui/dist")) {
+            throw "embedded UI file count missing from version output"
           }
       - uses: actions/upload-artifact@v4
         with:
@@ -452,6 +467,11 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run check:bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          if-no-files-found: error
       - run: npx playwright install --with-deps chromium
       - run: npm run test
       - uses: actions/upload-artifact@v4

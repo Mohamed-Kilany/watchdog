@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 
 // The bundle is embedded in the host binary and served from the host's own
-// origin. Relative asset URLs keep it usable under a sub-path as well.
+// origin root (http://<host>:7700/), so absolute asset URLs also resolve
+// correctly when the server returns the app shell for a client-side route.
 export default defineConfig({
-  base: "./",
+  base: "/",
   build: {
     target: "es2022",
     outDir: "dist",
