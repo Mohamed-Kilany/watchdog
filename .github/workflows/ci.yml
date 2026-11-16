@@ -1,8 +1,11 @@
 name: ci
 
 on:
+  # Feature branches are validated by pull_request. Running push for every
+  # branch would start a second, identical run for each push to an open PR.
   push:
-    branches: ["**"]
+    branches:
+      - master
   pull_request:
     branches:
       - master
