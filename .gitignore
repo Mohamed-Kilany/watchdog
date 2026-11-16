@@ -5,6 +5,8 @@ Cargo.lock.bak
 # Node / web UI
 node_modules/
 ui/dist/
+ui/playwright-report/
+ui/test-results/
 
 # Android / Gradle
 android/.gradle/
