@@ -20,6 +20,9 @@ use watchdog_device::provision::{
     self, ProvisionOptions, ProvisionReport, RestoreRecord, StatusReport, StepStatus,
 };
 use watchdog_device::session::{LiveSession, Polled};
+use watchdog_presets::{
+    is_one_shot, is_read_only, is_structural, ControlAssignment, Preset, PresetStore,
+};
 use watchdog_protocol::{
     ByeMessage, CommandMessage, CommandResultMessage, ControlEntry, ControlSource, ErrorMessage,
     HelloAck, LogChunk, LogLevel, Message, StateMessage,
@@ -229,6 +232,84 @@ pub enum DeviceCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Manage host-stored camera-control presets.
+    Preset {
+        #[command(subcommand)]
+        command: PresetCommand,
+    },
+}
+
+/// `device preset` subcommands (M4-T11).
+#[derive(Debug, Subcommand)]
+pub enum PresetCommand {
+    /// List saved presets.
+    List {
+        /// Emit raw JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show one preset.
+    Show {
+        /// Preset display name or slug.
+        name: String,
+        /// Emit the raw preset JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Capture the device's current control state as a named preset.
+    Save {
+        /// Preset display name.
+        name: String,
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Optional description.
+        #[arg(long, value_name = "TEXT")]
+        description: Option<String>,
+        /// Comma-separated control ids to capture (default: every writable control).
+        #[arg(long, value_name = "IDS", value_delimiter = ',')]
+        controls: Vec<String>,
+        /// Include structural controls (camera/stream/output) in the default capture.
+        #[arg(long)]
+        include_structural: bool,
+        /// Emit the saved preset as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Apply a preset as one `set_controls` batch.
+    Apply {
+        /// Preset display name or slug.
+        name: String,
+        /// Target device; omit when only one is connected.
+        #[arg(long, value_name = "SERIAL")]
+        serial: Option<String>,
+        /// Print the control batch without connecting to a device.
+        #[arg(long)]
+        dry_run: bool,
+        /// Emit raw JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Export a preset to a shareable JSON file.
+    Export {
+        /// Preset display name or slug.
+        name: String,
+        /// Destination JSON file.
+        output: PathBuf,
+    },
+    /// Import a preset from a JSON file.
+    Import {
+        /// Source JSON file.
+        file: PathBuf,
+        /// Override the preset name on import.
+        #[arg(long, value_name = "NAME")]
+        name: Option<String>,
+    },
+    /// Delete a saved preset.
+    Rm {
+        /// Preset display name or slug.
+        name: String,
+    },
 }
 
 /// Arguments for `device list`.
@@ -391,6 +472,7 @@ pub fn run(cmd: &DeviceCommand, cfg: &Config) -> watchdog_core::Result<()> {
             count,
             json,
         } => cli_watch_state(serial.as_deref(), *count, *json, cfg),
+        DeviceCommand::Preset { command } => cli_preset(command, cfg),
         other => Err(match other {
             DeviceCommand::Disconnect { .. } | DeviceCommand::Info { .. } => not_implemented(
                 "device session management in this CLI process",
@@ -999,9 +1081,10 @@ fn cli_set_control(
     json: bool,
     cfg: &Config,
 ) -> watchdog_core::Result<()> {
-    let parsed = assignments
+    let assignments = assignments
         .iter()
         .map(|raw| parse_assignment(raw))
+        .map(|parsed| parsed.map(|(id, value)| ControlAssignment { id, value }))
         .collect::<watchdog_core::Result<Vec<_>>>()?;
     let paths = DataPaths::resolve(&cfg.data_dir);
     let keys = adbs_key(cfg)?;
@@ -1016,46 +1099,332 @@ fn cli_set_control(
             Duration::from_secs(5),
         )
         .await?;
-        let command_id = next_command_id("set");
-        let controls = parsed
-            .iter()
-            .map(|(control, value)| json!({ "id": control, "value": value }))
-            .collect::<Vec<_>>();
-        let started = Instant::now();
-        live.session()
-            .send(&Message::Command(CommandMessage {
-                id: command_id.clone(),
-                command: "set_controls".to_string(),
-                params: json!({ "controls": controls }),
-            }))
-            .await?;
-        let result = await_command_result(&mut live, &command_id, COMMAND_TIMEOUT).await?;
-        let elapsed = started.elapsed();
-        let ids = parsed
-            .iter()
-            .map(|(control, _)| control.clone())
-            .collect::<Vec<_>>();
-        let actuals = collect_actuals(&mut live, &ids, SETTLE_TIMEOUT).await;
+        let outcome = apply_batch(&mut live, &assignments, COMMAND_TIMEOUT, SETTLE_TIMEOUT).await?;
         if json {
             let value = json!({
-                "round_trip_ms": u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
-                "results": &result.results,
-                "error": &result.error,
-                "actual": actuals,
+                "round_trip_ms": u64::try_from(outcome.elapsed.as_millis()).unwrap_or(u64::MAX),
+                "results": &outcome.result.results,
+                "error": &outcome.result.error,
+                "actual": &outcome.actuals,
             });
             println!("{}", serde_json::to_string_pretty(&value)?);
         } else {
-            print!("{}", render_set_result(&id, elapsed, &result, &actuals));
+            print!(
+                "{}",
+                render_set_result(&id, outcome.elapsed, &outcome.result, &outcome.actuals)
+            );
         }
-        let failures = result.results.iter().filter(|item| !item.ok).count()
-            + if result.error.is_some() { 1 } else { 0 };
-        if failures > 0 {
-            return Err(WatchdogError::new(
-                ErrorCode::InvalidRequest,
-                format!("{failures} control assignment(s) were rejected"),
-            ));
+        report_batch_failures(&outcome.result)
+    })
+}
+
+/// Outcome of one `set_controls` round trip, including the settled actuals.
+struct BatchOutcome {
+    elapsed: Duration,
+    result: CommandResultMessage,
+    actuals: BTreeMap<String, Value>,
+}
+
+/// Send one `set_controls` batch and read back the actuals over the settle window.
+async fn apply_batch(
+    live: &mut LiveSession,
+    assignments: &[ControlAssignment],
+    timeout: Duration,
+    settle: Duration,
+) -> watchdog_core::Result<BatchOutcome> {
+    let command_id = next_command_id("set");
+    let controls = assignments
+        .iter()
+        .map(|assignment| json!({ "id": &assignment.id, "value": &assignment.value }))
+        .collect::<Vec<_>>();
+    let started = Instant::now();
+    live.session()
+        .send(&Message::Command(CommandMessage {
+            id: command_id.clone(),
+            command: "set_controls".to_string(),
+            params: json!({ "controls": controls }),
+        }))
+        .await?;
+    let result = await_command_result(live, &command_id, timeout).await?;
+    let elapsed = started.elapsed();
+    let ids = assignments
+        .iter()
+        .map(|assignment| assignment.id.clone())
+        .collect::<Vec<_>>();
+    let actuals = collect_actuals(live, &ids, settle).await;
+    Ok(BatchOutcome {
+        elapsed,
+        result,
+        actuals,
+    })
+}
+
+fn report_batch_failures(result: &CommandResultMessage) -> watchdog_core::Result<()> {
+    let failures =
+        result.results.iter().filter(|item| !item.ok).count() + usize::from(result.error.is_some());
+    if failures > 0 {
+        return Err(WatchdogError::new(
+            ErrorCode::InvalidRequest,
+            format!("{failures} control assignment(s) were rejected"),
+        ));
+    }
+    Ok(())
+}
+
+fn cli_preset(command: &PresetCommand, cfg: &Config) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let store = PresetStore::new(paths.presets.clone());
+    match command {
+        PresetCommand::List { json } => cli_preset_list(&store, *json),
+        PresetCommand::Show { name, json } => cli_preset_show(&store, name, *json),
+        PresetCommand::Save {
+            name,
+            serial,
+            description,
+            controls,
+            include_structural,
+            json,
+        } => cli_preset_save(
+            &store,
+            name,
+            serial.as_deref(),
+            description.as_deref(),
+            controls,
+            *include_structural,
+            *json,
+            cfg,
+        ),
+        PresetCommand::Apply {
+            name,
+            serial,
+            dry_run,
+            json,
+        } => cli_preset_apply(&store, name, serial.as_deref(), *dry_run, *json, cfg),
+        PresetCommand::Export { name, output } => {
+            store.export(name, output)?;
+            println!("exported '{name}' to {}", output.display());
+            Ok(())
+        }
+        PresetCommand::Import { file, name } => {
+            let preset = store.import(file, name.as_deref())?;
+            println!(
+                "imported '{}' ({} controls) from {}",
+                preset.name,
+                preset.controls.len(),
+                file.display()
+            );
+            Ok(())
+        }
+        PresetCommand::Rm { name } => {
+            store.delete(name)?;
+            println!("deleted preset '{name}'");
+            Ok(())
+        }
+    }
+}
+
+fn cli_preset_list(store: &PresetStore, json: bool) -> watchdog_core::Result<()> {
+    let presets = store.list()?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&presets)?);
+        return Ok(());
+    }
+    if presets.is_empty() {
+        println!("no presets in {}", store.root().display());
+        return Ok(());
+    }
+    for preset in presets {
+        let updated = preset.updated_at.unwrap_or_else(|| "-".to_string());
+        let description = preset.description.unwrap_or_default();
+        println!(
+            "{:<28} {:>3} controls  {updated}  {description}",
+            preset.name, preset.controls
+        );
+    }
+    Ok(())
+}
+
+fn cli_preset_show(store: &PresetStore, name: &str, json: bool) -> watchdog_core::Result<()> {
+    let preset = store.load(name)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&preset)?);
+        return Ok(());
+    }
+    println!("name:        {}", preset.name);
+    if let Some(description) = &preset.description {
+        println!("description: {description}");
+    }
+    println!("schema:      {}", preset.schema_version);
+    println!("controls:    {}", preset.controls.len());
+    if let Some(created) = &preset.created_at {
+        println!("created:     {created}");
+    }
+    if let Some(updated) = &preset.updated_at {
+        println!("updated:     {updated}");
+    }
+    for (id, value) in &preset.controls {
+        println!("  {id:<24} {}", compact(value));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cli_preset_save(
+    store: &PresetStore,
+    name: &str,
+    serial: Option<&str>,
+    description: Option<&str>,
+    requested: &[String],
+    include_structural: bool,
+    json: bool,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "preset-save")?;
+        let (mut live, _ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        let state = request_state(&mut live, COMMAND_TIMEOUT).await?;
+        let controls = preset_controls_from_state(&state, requested, include_structural)?;
+        let mut preset = Preset::new(name.to_string(), description.map(str::to_string), controls)?;
+        let path = store.save(&mut preset)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&preset)?);
+        } else {
+            println!(
+                "saved preset '{}' ({} controls) to {}",
+                preset.name,
+                preset.controls.len(),
+                path.display()
+            );
         }
         Ok(())
+    })
+}
+
+fn preset_controls_from_state(
+    state: &StateMessage,
+    requested: &[String],
+    include_structural: bool,
+) -> watchdog_core::Result<BTreeMap<String, Value>> {
+    let mut controls = BTreeMap::new();
+    if requested.is_empty() {
+        for (id, entry) in &state.state {
+            if !entry.supported || is_read_only(id) || is_one_shot(id) {
+                continue;
+            }
+            if !include_structural && is_structural(id) {
+                continue;
+            }
+            if let Some(value) = entry.requested.as_ref().or(entry.actual.as_ref()) {
+                if !value.is_null() {
+                    controls.insert(id.clone(), value.clone());
+                }
+            }
+        }
+    } else {
+        for id in requested {
+            let entry = state.state.get(id).ok_or_else(|| {
+                WatchdogError::new(
+                    ErrorCode::NotFound,
+                    format!("control '{id}' is not in the device state"),
+                )
+            })?;
+            if !entry.supported {
+                return Err(WatchdogError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("control '{id}' is not supported by this camera"),
+                ));
+            }
+            if is_read_only(id) || is_one_shot(id) {
+                return Err(WatchdogError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("control '{id}' cannot be stored in a preset"),
+                ));
+            }
+            let value = entry
+                .requested
+                .as_ref()
+                .or(entry.actual.as_ref())
+                .ok_or_else(|| {
+                    WatchdogError::new(
+                        ErrorCode::InvalidRequest,
+                        format!("control '{id}' has no value to capture"),
+                    )
+                })?;
+            if value.is_null() {
+                return Err(WatchdogError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("control '{id}' has a null value"),
+                ));
+            }
+            controls.insert(id.clone(), value.clone());
+        }
+    }
+    if controls.is_empty() {
+        return Err(WatchdogError::new(
+            ErrorCode::InvalidRequest,
+            "no writable controls were available to capture",
+        )
+        .with_hint("pass --controls id1,id2 or --include-structural"));
+    }
+    Ok(controls)
+}
+
+fn cli_preset_apply(
+    store: &PresetStore,
+    name: &str,
+    serial: Option<&str>,
+    dry_run: bool,
+    json: bool,
+    cfg: &Config,
+) -> watchdog_core::Result<()> {
+    let preset = store.load(name)?;
+    let assignments = preset.assignments();
+    if dry_run {
+        let value = json!({ "preset": preset.name, "controls": assignments });
+        println!("{}", serde_json::to_string_pretty(&value)?);
+        return Ok(());
+    }
+    let paths = DataPaths::resolve(&cfg.data_dir);
+    let keys = adbs_key(cfg)?;
+    let rt = device_runtime()?;
+    rt.block_on(async {
+        let (connection, id) = DeviceConnection::connect(&keys, serial).await?;
+        let token = session_token(&paths, &id, "preset-apply")?;
+        let (mut live, _ack) = LiveSession::open_authenticated(
+            &connection,
+            &token,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .await?;
+        let outcome = apply_batch(&mut live, &assignments, COMMAND_TIMEOUT, SETTLE_TIMEOUT).await?;
+        if json {
+            let value = json!({
+                "preset": preset.name,
+                "round_trip_ms": u64::try_from(outcome.elapsed.as_millis()).unwrap_or(u64::MAX),
+                "results": &outcome.result.results,
+                "error": &outcome.result.error,
+                "actual": &outcome.actuals,
+            });
+            println!("{}", serde_json::to_string_pretty(&value)?);
+        } else {
+            println!("preset:     {}", preset.name);
+            print!(
+                "{}",
+                render_set_result(&id, outcome.elapsed, &outcome.result, &outcome.actuals)
+            );
+        }
+        report_batch_failures(&outcome.result)
     })
 }
 

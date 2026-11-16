@@ -1,0 +1,395 @@
+﻿{
+  "camera_id": "0",
+  "delta": false,
+  "dropped_frames": 0,
+  "seq": 21,
+  "state": {
+    "aberration_correction": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "ae_compensation": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "ae_fps_range": {
+      "actual": [
+        30,
+        30
+      ],
+      "requested": [
+        30,
+        30
+      ],
+      "source": "auto",
+      "supported": true
+    },
+    "ae_lock": {
+      "actual": false,
+      "source": "device",
+      "supported": true
+    },
+    "ae_mode": {
+      "actual": 0,
+      "requested": 0,
+      "source": "host",
+      "supported": true
+    },
+    "ae_precapture": {
+      "source": "device",
+      "supported": true
+    },
+    "ae_regions": {
+      "source": "device",
+      "supported": true
+    },
+    "ae_state": {
+      "actual": "converged",
+      "source": "device",
+      "supported": true
+    },
+    "af_lock": {
+      "actual": false,
+      "source": "device",
+      "supported": true
+    },
+    "af_mode": {
+      "actual": 0,
+      "requested": 0,
+      "source": "host",
+      "supported": true
+    },
+    "af_regions": {
+      "source": "device",
+      "supported": true
+    },
+    "af_state": {
+      "actual": "inactive",
+      "source": "device",
+      "supported": true
+    },
+    "af_trigger": {
+      "source": "device",
+      "supported": true
+    },
+    "anti_banding": {
+      "actual": 3,
+      "requested": 3,
+      "source": "host",
+      "supported": true
+    },
+    "audio": {
+      "actual": false,
+      "requested": false,
+      "source": "auto",
+      "supported": true
+    },
+    "awb_gains": {
+      "actual": {
+        "b": 1.8212890625,
+        "g_even": 1,
+        "g_odd": 1,
+        "r": 1.876953125
+      },
+      "source": "device",
+      "supported": false
+    },
+    "awb_lock": {
+      "actual": true,
+      "locked": true,
+      "requested": true,
+      "source": "host",
+      "supported": true
+    },
+    "awb_mode": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "awb_regions": {
+      "source": "device",
+      "supported": true
+    },
+    "awb_state": {
+      "actual": "locked",
+      "source": "device",
+      "supported": true
+    },
+    "battery_percent": {
+      "actual": 100,
+      "source": "device",
+      "supported": true
+    },
+    "camera_id": {
+      "actual": "0",
+      "requested": "0",
+      "source": "auto",
+      "supported": true
+    },
+    "color_transform": {
+      "actual": [
+        1.703,
+        -0.684,
+        -0.008,
+        -0.199,
+        1.371,
+        -0.168,
+        0.012,
+        -0.59,
+        1.586
+      ],
+      "source": "device",
+      "supported": false
+    },
+    "control_mode": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "distortion_correction": {
+      "source": "device",
+      "supported": false
+    },
+    "edge_enhancement": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "effect": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "exposure_time_ns": {
+      "actual": 20000000,
+      "requested": 20000000,
+      "source": "host",
+      "supported": true
+    },
+    "face_count": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "face_detect": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "faces": {
+      "actual": [],
+      "source": "device",
+      "supported": true
+    },
+    "filter_density": {
+      "source": "device",
+      "supported": false
+    },
+    "flash_mode": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "focus_distance": {
+      "actual": 1,
+      "requested": 1,
+      "source": "host",
+      "supported": true
+    },
+    "focus_distance_diopters": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "fps_actual": {
+      "actual": 29.87,
+      "source": "device",
+      "supported": true
+    },
+    "frame_duration_ns": {
+      "actual": 33333000,
+      "requested": 33333000,
+      "source": "host",
+      "supported": true
+    },
+    "hot_pixel": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "iso": {
+      "actual": 200,
+      "requested": 200,
+      "source": "host",
+      "supported": true
+    },
+    "jpeg_quality": {
+      "actual": 80,
+      "requested": 80,
+      "source": "auto",
+      "supported": true
+    },
+    "lens_aperture": {
+      "actual": 2,
+      "source": "device",
+      "supported": true
+    },
+    "lens_filter_density": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "lens_focal_length": {
+      "actual": 4.6,
+      "source": "device",
+      "supported": true
+    },
+    "lens_shading": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "lens_state": {
+      "actual": "stationary",
+      "source": "device",
+      "supported": true
+    },
+    "noise_reduction": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "optical_stabilization": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "physical_camera_id": {
+      "actual": "none",
+      "requested": "none",
+      "source": "auto",
+      "supported": false
+    },
+    "recording": {
+      "source": "device",
+      "supported": true
+    },
+    "scene_mode": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "still_format": {
+      "actual": "JPEG",
+      "requested": "JPEG",
+      "source": "auto",
+      "supported": true
+    },
+    "still_size": {
+      "actual": {
+        "height": 3000,
+        "width": 4000
+      },
+      "requested": {
+        "height": 3000,
+        "width": 4000
+      },
+      "source": "auto",
+      "supported": true
+    },
+    "stream_rotation": {
+      "actual": 0,
+      "requested": 0,
+      "source": "auto",
+      "supported": true
+    },
+    "stream_size": {
+      "actual": {
+        "height": 720,
+        "width": 1280
+      },
+      "requested": {
+        "height": 720,
+        "width": 1280
+      },
+      "source": "auto",
+      "supported": true
+    },
+    "test_pattern": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "tonemap": {
+      "actual": 1,
+      "source": "device",
+      "supported": true
+    },
+    "tonemap_curve": {
+      "source": "device",
+      "supported": true
+    },
+    "tonemap_gamma": {
+      "source": "device",
+      "supported": false
+    },
+    "tonemap_preset_curve": {
+      "source": "device",
+      "supported": false
+    },
+    "torch": {
+      "actual": false,
+      "source": "device",
+      "supported": true
+    },
+    "video_bitrate": {
+      "actual": 8000000,
+      "requested": 8000000,
+      "source": "auto",
+      "supported": true
+    },
+    "video_codec": {
+      "actual": "h264",
+      "requested": "h264",
+      "source": "auto",
+      "supported": true
+    },
+    "video_container": {
+      "actual": "mp4",
+      "requested": "mp4",
+      "source": "auto",
+      "supported": true
+    },
+    "video_size": {
+      "actual": {
+        "height": 1080,
+        "width": 1920
+      },
+      "requested": {
+        "height": 1080,
+        "width": 1920
+      },
+      "source": "auto",
+      "supported": true
+    },
+    "video_stabilization": {
+      "actual": 0,
+      "source": "device",
+      "supported": true
+    },
+    "zoom_actual": {
+      "actual": 2,
+      "source": "device",
+      "supported": true
+    },
+    "zoom_ratio": {
+      "requested": 2,
+      "source": "host",
+      "supported": true
+    }
+  },
+  "storage_free_mb": 79759,
+  "timestamp_ms": 1794486478401
+}

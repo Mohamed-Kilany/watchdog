@@ -1,0 +1,67 @@
+﻿{
+  "actual": {
+    "ae_mode": 0,
+    "af_mode": 0,
+    "anti_banding": 3,
+    "awb_lock": true,
+    "exposure_time_ns": 20000000,
+    "focus_distance": 1,
+    "frame_duration_ns": 33333000,
+    "iso": 200
+  },
+  "error": null,
+  "preset": "M4 T11 BOM",
+  "results": [
+    {
+      "applied": 0,
+      "control": "ae_mode",
+      "ok": true
+    },
+    {
+      "applied": 0,
+      "control": "af_mode",
+      "ok": true
+    },
+    {
+      "applied": 3,
+      "control": "anti_banding",
+      "ok": true
+    },
+    {
+      "applied": true,
+      "control": "awb_lock",
+      "ok": true
+    },
+    {
+      "applied": 20000000,
+      "control": "exposure_time_ns",
+      "ok": true
+    },
+    {
+      "applied": 1,
+      "control": "focus_distance",
+      "ok": true
+    },
+    {
+      "applied": 33333000,
+      "control": "frame_duration_ns",
+      "ok": true
+    },
+    {
+      "applied": 200,
+      "control": "iso",
+      "ok": true
+    },
+    {
+      "applied": 2,
+      "control": "zoom_ratio",
+      "ok": true
+    },
+    {
+      "applied": 0,
+      "control": "af_mode",
+      "ok": true
+    }
+  ],
+  "round_trip_ms": 183
+}

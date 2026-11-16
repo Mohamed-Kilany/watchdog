@@ -1942,6 +1942,7 @@ dependencies = [
  "watchdog-adb",
  "watchdog-core",
  "watchdog-device",
+ "watchdog-presets",
  "watchdog-protocol",
  "watchdog-ui-server",
 ]
@@ -2065,6 +2066,16 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "watchdog-core",
+]
+
+[[package]]
+name = "watchdog-presets"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
  "watchdog-core",
 ]
 
