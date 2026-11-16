@@ -10,19 +10,19 @@ import type {
   ControlState,
 } from "./types";
 
+function mustQuery<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+  if (!element) throw new Error(`missing element: ${selector}`);
+  return element;
+}
+
 const device = new FakeDevice();
-const panel = document.querySelector("wd-control-panel") as WdControlPanel;
-const meteringOverlay = document.querySelector(
-  "#metering-overlay",
-) as WdRegionOverlay;
-const focusOverlay = document.querySelector("#focus-overlay") as WdRegionOverlay;
-const regionReadout = document.querySelector(
-  "#region-readout",
-) as HTMLParagraphElement;
-const commandLog = document.querySelector(
-  "#command-log",
-) as HTMLOListElement;
-const status = document.querySelector("#device-status") as HTMLSpanElement;
+const panel = mustQuery<WdControlPanel>("wd-control-panel");
+const meteringOverlay = mustQuery<WdRegionOverlay>("#metering-overlay");
+const focusOverlay = mustQuery<WdRegionOverlay>("#focus-overlay");
+const regionReadout = mustQuery<HTMLParagraphElement>("#region-readout");
+const commandLog = mustQuery<HTMLOListElement>("#command-log");
+const status = mustQuery<HTMLSpanElement>("#device-status");
 
 const commands: CommandLogEntry[] = [];
 
@@ -159,7 +159,7 @@ document.querySelector("#reset-all")?.addEventListener("click", () => {
   log([{ id: "reset_all", value: true }], results);
 });
 
-const themeButton = document.querySelector("#theme-toggle") as HTMLButtonElement;
+const themeButton = mustQuery<HTMLButtonElement>("#theme-toggle");
 const storedTheme = localStorage.getItem("watchdog.theme");
 const systemTheme = window.matchMedia("(prefers-color-scheme: light)").matches
   ? "light"

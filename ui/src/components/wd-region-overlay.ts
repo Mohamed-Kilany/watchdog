@@ -119,7 +119,7 @@ export class WdRegionOverlay extends HTMLElement {
 
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (!this.editable || this.disabled || event.button !== 0) return;
-    const point = this.normalize(event);
+    const point = this.normalizePoint(event);
     if (!point) return;
     this.focus({ preventScroll: true });
     this.pointerStart = point;
@@ -133,7 +133,7 @@ export class WdRegionOverlay extends HTMLElement {
 
   private readonly onPointerMove = (event: PointerEvent): void => {
     if (this.pointerId !== event.pointerId || !this.pointerStart) return;
-    const point = this.normalize(event);
+    const point = this.normalizePoint(event);
     if (!point) return;
     this.draft = this.rectBetween(this.pointerStart, point);
     this.renderDraft();
@@ -343,7 +343,7 @@ export class WdRegionOverlay extends HTMLElement {
     this.renderReadout();
   }
 
-  private normalize(event: PointerEvent): Point | null {
+  private normalizePoint(event: PointerEvent): Point | null {
     const rect = this.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return null;
     return {
