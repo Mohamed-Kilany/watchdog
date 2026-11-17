@@ -7,6 +7,7 @@
 // index.html for `/api/state`) leaves the demo in place.
 
 import { DESCRIPTORS } from "./descriptors";
+import { DevicesPage } from "./devices";
 import { FakeDevice } from "./fake-device";
 import {
   consumeTokenFromUrl,
@@ -15,6 +16,8 @@ import {
   readStoredToken,
   saveToken,
 } from "./host";
+import type { ConnectionState } from "./host";
+import type { SessionInfo } from "./device-api";
 import type { WdControlPanel } from "./components/wd-control-panel";
 import type { WdRegionOverlay } from "./components/wd-region-overlay";
 import type {
@@ -324,28 +327,48 @@ function startHost(
   shell: Shell,
   token: string | null,
   initialState: ControlState,
-): void {
-  const backend = new HostClient(token, initialState);
+  initialSession: SessionInfo,
+): HostClient {
+  const backend = new HostClient(token, initialState, initialSession);
   shell.switchTo(backend);
   const banner = mustQuery<HTMLDivElement>("#connection-banner");
 
   backend.subscribeEvents((event) => {
     shell.logEvent(event.kind, event.message);
   });
-  backend.subscribeConnection((state) => {
-    if (state === "live") {
+
+  let connection: ConnectionState = "connecting";
+  let session = initialSession;
+  const updateBanner = (): void => {
+    if (connection === "live" && session.active) {
       banner.hidden = true;
       banner.textContent = "";
       return;
     }
     banner.hidden = false;
-    banner.textContent =
-      state === "connecting"
-        ? "Connecting to the host…"
-        : "Connection lost — reconnecting…";
+    if (connection === "connecting") {
+      banner.textContent = "Connecting to the host…";
+    } else if (connection === "reconnecting") {
+      banner.textContent = "Connection lost — reconnecting…";
+    } else if (session.closed) {
+      banner.textContent =
+        "The device session closed — open Devices to activate it again.";
+    } else {
+      banner.textContent =
+        "No device session — open Devices to pair, provision or activate a device.";
+    }
+  };
+  backend.subscribeConnection((state) => {
+    connection = state;
+    updateBanner();
+  });
+  backend.subscribeSession((next) => {
+    session = next;
+    updateBanner();
   });
 
   backend.start();
+  return backend;
 }
 
 function promptForToken(message: string): Promise<string | null> {
@@ -389,7 +412,7 @@ function promptForToken(message: string): Promise<string | null> {
 }
 
 /** Probe the origin once, then swap in the host channel or keep the demo. */
-async function boot(shell: Shell): Promise<void> {
+async function boot(shell: Shell, devices: DevicesPage): Promise<void> {
   const tokenFromUrl = consumeTokenFromUrl();
   let token = tokenFromUrl ?? readStoredToken();
   let result = await probeHost(token);
@@ -401,7 +424,10 @@ async function boot(shell: Shell): Promise<void> {
         ? "That token was rejected. Check the host output and try again."
         : "This host has a bearer token enabled. Paste the token printed by `watchdog serve`.",
     );
-    if (entered === null) return;
+    if (entered === null) {
+      devices.demo();
+      return;
+    }
     token = entered;
     saveToken(token);
     rejected = true;
@@ -409,13 +435,44 @@ async function boot(shell: Shell): Promise<void> {
   }
 
   if (result.kind === "host") {
-    startHost(shell, token, result.state);
+    const host = startHost(shell, token, result.state, result.session);
+    devices.connect(token, host);
+  } else {
+    devices.demo();
   }
+}
+
+/** Switch between `#/live` and `#/devices` without a reload. */
+function wireRoutes(devices: DevicesPage): void {
+  const liveView = mustQuery<HTMLElement>("#view-live");
+  const devicesView = mustQuery<HTMLElement>("#view-devices");
+  const links = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>("a[data-route]"),
+  );
+
+  const apply = (): void => {
+    const route = window.location.hash === "#/devices" ? "devices" : "live";
+    liveView.hidden = route !== "live";
+    devicesView.hidden = route !== "devices";
+    for (const link of links) {
+      if (link.dataset.route === route) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    }
+    if (route === "devices") void devices.refresh();
+  };
+
+  window.addEventListener("hashchange", apply);
+  apply();
 }
 
 /** Wire the demo immediately, then upgrade to the host if one answers. */
 export function start(): void {
   const shell = wireShell(new FakeDevice());
+  const devices = new DevicesPage();
   expose(shell);
-  void boot(shell);
+  wireRoutes(devices);
+  void boot(shell, devices);
 }

@@ -14,7 +14,17 @@
         <span>watchdog</span>
         <span class="tag" id="mode-tag">demo device</span>
       </div>
+      <nav class="nav" aria-label="Pages">
+        <a class="nav-link" href="#/live" data-route="live">Live</a>
+        <a class="nav-link" href="#/devices" data-route="devices">Devices</a>
+      </nav>
       <div class="actions">
+        <label class="device-picker">
+          <span class="sr-only">Active device</span>
+          <select id="device-select" data-testid="device-select" disabled>
+            <option value="">No device</option>
+          </select>
+        </label>
         <span id="device-status" class="status" role="status" aria-live="polite">ready</span>
         <button id="theme-toggle" class="btn" type="button" aria-label="Toggle dark and light theme">
           Theme: dark
@@ -31,45 +41,131 @@
       aria-live="polite"
       hidden
     ></div>
-    <main class="app">
-      <section class="stage" aria-labelledby="stage-title">
-        <h1 id="stage-title" class="sr-only">Camera preview</h1>
-        <div class="viewfinder" data-testid="viewfinder">
-          <div class="scene" aria-hidden="true"></div>
-          <wd-region-overlay
-            id="metering-overlay"
-            data-testid="metering-overlay"
-            mode="metering"
-            label="Metering region"
-            editable
-          ></wd-region-overlay>
-          <wd-region-overlay
-            id="focus-overlay"
-            data-testid="focus-overlay"
-            mode="focus"
-            label="Focus region"
-          ></wd-region-overlay>
-          <div class="vf-corner">FAKE DEVICE · 1280×720</div>
-        </div>
-        <div class="region-toolbar" role="group" aria-label="Region editing">
-          <span class="toolbar-label">Active region</span>
-          <label><input type="radio" name="region-mode" value="metering" checked /> Metering</label>
-          <label><input type="radio" name="region-mode" value="focus" /> Focus</label>
-          <button id="clear-regions" data-testid="clear-regions" class="btn small" type="button">Clear regions</button>
-        </div>
-        <p id="region-readout" class="readout" data-testid="region-readout" role="status">
-          No regions set
-        </p>
-      </section>
-      <section class="controls" id="controls" aria-labelledby="controls-title">
-        <h2 id="controls-title" class="sr-only">Camera controls</h2>
-        <wd-control-panel data-testid="panel"></wd-control-panel>
-      </section>
-      <section class="log" aria-labelledby="log-title">
-        <h2 id="log-title">Command log</h2>
-        <ol id="command-log" data-testid="command-log"></ol>
+    <main class="main">
+      <div id="view-live" class="app view" data-view="live">
+        <section class="stage" aria-labelledby="stage-title">
+          <h1 id="stage-title" class="sr-only">Camera preview</h1>
+          <div class="viewfinder" data-testid="viewfinder">
+            <div class="scene" aria-hidden="true"></div>
+            <wd-region-overlay
+              id="metering-overlay"
+              data-testid="metering-overlay"
+              mode="metering"
+              label="Metering region"
+              editable
+            ></wd-region-overlay>
+            <wd-region-overlay
+              id="focus-overlay"
+              data-testid="focus-overlay"
+              mode="focus"
+              label="Focus region"
+            ></wd-region-overlay>
+            <div class="vf-corner">FAKE DEVICE · 1280×720</div>
+          </div>
+          <div class="region-toolbar" role="group" aria-label="Region editing">
+            <span class="toolbar-label">Active region</span>
+            <label><input type="radio" name="region-mode" value="metering" checked /> Metering</label>
+            <label><input type="radio" name="region-mode" value="focus" /> Focus</label>
+            <button id="clear-regions" data-testid="clear-regions" class="btn small" type="button">Clear regions</button>
+          </div>
+          <p id="region-readout" class="readout" data-testid="region-readout" role="status">
+            No regions set
+          </p>
+        </section>
+        <section class="controls" id="controls" aria-labelledby="controls-title">
+          <h2 id="controls-title" class="sr-only">Camera controls</h2>
+          <wd-control-panel data-testid="panel"></wd-control-panel>
+        </section>
+        <section class="log" aria-labelledby="log-title">
+          <h2 id="log-title">Command log</h2>
+          <ol id="command-log" data-testid="command-log"></ol>
+        </section>
+      </div>
+
+      <section
+        id="view-devices"
+        class="devices-view view"
+        data-view="devices"
+        aria-labelledby="devices-title"
+        hidden
+      >
+        <header class="devices-head">
+          <div>
+            <h1 id="devices-title">Devices</h1>
+            <p class="muted">
+              Pair a phone over wireless debugging, provision the app, then activate its
+              camera session. Provisioning reuses the session token and reports every step.
+            </p>
+          </div>
+          <div class="devices-actions">
+            <button id="scan-devices" class="btn" type="button">Scan LAN</button>
+            <button id="pair-open" class="btn primary" type="button">Pair device</button>
+          </div>
+        </header>
+        <p
+          id="devices-notice"
+          class="devices-notice"
+          data-testid="devices-notice"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+
+        <section
+          id="active-device"
+          class="card active-device"
+          data-testid="active-device"
+          aria-labelledby="active-title"
+          hidden
+        >
+          <div class="card-head">
+            <h2 id="active-title">Active session</h2>
+            <span id="active-state" class="badge" data-state="closed">Inactive</span>
+          </div>
+          <dl class="facts">
+            <div><dt>Device</dt><dd id="active-model">—</dd></div>
+            <div><dt>Serial</dt><dd id="active-serial">—</dd></div>
+            <div><dt>App</dt><dd id="active-app">—</dd></div>
+          </dl>
+          <div class="card-actions">
+            <button id="active-status" class="btn small" type="button">Check status</button>
+            <button id="active-provision" class="btn small" type="button">Provision / update</button>
+            <button id="active-restore" class="btn small danger" type="button">Restore settings</button>
+            <button id="active-disconnect" class="btn small danger" type="button">Disconnect</button>
+          </div>
+          <p id="active-update" class="update-prompt" data-testid="update-prompt" hidden>
+            The installed app is older than this host's embedded build.
+            <button id="active-update-run" class="btn small primary" type="button">Provision now</button>
+          </p>
+          <pre id="active-status-detail" class="status-detail" data-testid="status-detail" hidden></pre>
+        </section>
+
+        <section class="card" aria-labelledby="known-title">
+          <div class="card-head">
+            <h2 id="known-title">Known devices</h2>
+          </div>
+          <ul id="device-list" class="device-list" data-testid="device-list"></ul>
+          <p id="device-empty" class="muted" hidden>
+            No devices yet. Scan the LAN or pair a phone with a pairing code.
+          </p>
+        </section>
+
+        <section
+          id="provision-panel"
+          class="card provision-panel"
+          data-testid="provision-panel"
+          aria-labelledby="provision-title"
+          hidden
+        >
+          <div class="card-head">
+            <h2 id="provision-title">Provisioning <span id="provision-device" class="muted"></span></h2>
+          </div>
+          <p id="provision-status" class="muted" role="status" aria-live="polite"></p>
+          <ol id="provision-steps" class="provision-steps" data-testid="provision-steps"></ol>
+        </section>
       </section>
     </main>
+
     <dialog
       id="token-dialog"
       class="token-dialog"
@@ -97,6 +193,47 @@
         <div class="dialog-actions">
           <button id="token-cancel" class="btn" type="button">Use demo mode</button>
           <button id="token-submit" class="btn primary" type="submit">Connect</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog
+      id="pair-dialog"
+      class="token-dialog"
+      data-testid="pair-dialog"
+      aria-labelledby="pair-title"
+    >
+      <form id="pair-form" method="dialog">
+        <h2 id="pair-title">Pair a phone</h2>
+        <p class="dialog-copy">
+          On the phone open Developer options → Wireless debugging → Pair device with
+          pairing code, then enter the address and the 6-digit code.
+        </p>
+        <label class="dialog-label" for="pair-target">Pairing address</label>
+        <input
+          id="pair-target"
+          class="dialog-input"
+          name="target"
+          placeholder="192.168.1.10:37123"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <label class="dialog-label" for="pair-code">6-digit code</label>
+        <input
+          id="pair-code"
+          class="dialog-input"
+          name="code"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocomplete="off"
+          required
+        />
+        <p id="pair-error" class="dialog-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="pair-cancel" class="btn" type="button">Cancel</button>
+          <button id="pair-submit" class="btn primary" type="submit">Pair</button>
         </div>
       </form>
     </dialog>

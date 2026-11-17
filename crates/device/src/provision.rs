@@ -79,6 +79,13 @@ impl ProvisionReport {
         }
     }
 
+    fn push_step(&mut self, options: &ProvisionOptions, step: StepReport) {
+        if let Some(progress) = &options.progress {
+            let _ = progress.send(step.clone());
+        }
+        self.steps.push(step);
+    }
+
     /// True when no step failed.
     #[must_use]
     pub fn passed(&self) -> bool {
@@ -114,6 +121,8 @@ pub struct ProvisionOptions {
     pub frame_timeout: Duration,
     /// Do not change screen settings (useful when a human manages the screen).
     pub skip_screen: bool,
+    /// Optional sink that receives every step as soon as it completes (M6-T03).
+    pub progress: Option<tokio::sync::mpsc::UnboundedSender<StepReport>>,
 }
 
 impl Default for ProvisionOptions {
@@ -126,6 +135,7 @@ impl Default for ProvisionOptions {
             handshake_timeout: Duration::from_secs(10),
             frame_timeout: Duration::from_secs(30),
             skip_screen: false,
+            progress: None,
         }
     }
 }
@@ -207,15 +217,19 @@ pub async fn provision(
     let props = match DeviceProps::read(connection).await {
         Ok(props) => {
             if props.sdk < MIN_SDK {
-                report.steps.push(step.failed(
-                    format!(
-                        "Android {} (SDK {}) is older than the supported minimum (SDK {})",
-                        props.release, props.sdk, MIN_SDK
+                report.push_step(
+                    options,
+                    step.failed(
+                        format!(
+                            "Android {} (SDK {}) is older than the supported minimum (SDK {})",
+                            props.release, props.sdk, MIN_SDK
+                        ),
+                        Some("watchdog requires Android 8.0 (API 26) or newer".to_string()),
                     ),
-                    Some("watchdog requires Android 8.0 (API 26) or newer".to_string()),
-                ));
+                );
                 skip_remaining(
                     &mut report,
+                    options,
                     &[
                         "app",
                         "permissions",
@@ -228,15 +242,17 @@ pub async fn provision(
                 );
                 return report;
             }
-            report.steps.push(step.passed(props.summary()));
+            report.push_step(options, step.passed(props.summary()));
             props
         }
         Err(error) => {
-            report
-                .steps
-                .push(step.failed(error.message.clone(), error.hint.clone()));
+            report.push_step(
+                options,
+                step.failed(error.message.clone(), error.hint.clone()),
+            );
             skip_remaining(
                 &mut report,
+                options,
                 &[
                     "app",
                     "permissions",
@@ -254,13 +270,15 @@ pub async fn provision(
     // 2. App version, signature and install/update.
     let step = Step::start("app");
     match ensure_app(connection, paths, serial, options).await {
-        Ok(detail) => report.steps.push(step.passed(detail)),
+        Ok(detail) => report.push_step(options, step.passed(detail)),
         Err(error) => {
-            report
-                .steps
-                .push(step.failed(error.message.clone(), error.hint.clone()));
+            report.push_step(
+                options,
+                step.failed(error.message.clone(), error.hint.clone()),
+            );
             skip_remaining(
                 &mut report,
+                options,
                 &["permissions", "battery", "screen", "launch", "verify"],
                 "app install/update failed",
             );
@@ -271,13 +289,15 @@ pub async fn provision(
     // 3. Runtime permissions and appops.
     let step = Step::start("permissions");
     match ensure_permissions(connection, props.sdk).await {
-        Ok(detail) => report.steps.push(step.passed(detail)),
+        Ok(detail) => report.push_step(options, step.passed(detail)),
         Err(error) => {
-            report
-                .steps
-                .push(step.failed(error.message.clone(), error.hint.clone()));
+            report.push_step(
+                options,
+                step.failed(error.message.clone(), error.hint.clone()),
+            );
             skip_remaining(
                 &mut report,
+                options,
                 &["battery", "screen", "launch", "verify"],
                 "permission grants failed",
             );
@@ -288,13 +308,15 @@ pub async fn provision(
     // 4. Battery: Doze whitelist, active standby bucket, background appops.
     let step = Step::start("battery");
     match ensure_battery(connection).await {
-        Ok(detail) => report.steps.push(step.passed(detail)),
+        Ok(detail) => report.push_step(options, step.passed(detail)),
         Err(error) => {
-            report
-                .steps
-                .push(step.failed(error.message.clone(), error.hint.clone()));
+            report.push_step(
+                options,
+                step.failed(error.message.clone(), error.hint.clone()),
+            );
             skip_remaining(
                 &mut report,
+                options,
                 &["screen", "launch", "verify"],
                 "battery configuration failed",
             );
@@ -305,17 +327,24 @@ pub async fn provision(
     // 5. Screen: wake, keyguard, stay-on (original values recorded first).
     let step = Step::start("screen");
     if options.skip_screen {
-        report
-            .steps
-            .push(step.skipped("disabled by --no-screen (stay-on unchanged)"));
+        report.push_step(
+            options,
+            step.skipped("disabled by --no-screen (stay-on unchanged)"),
+        );
     } else {
         match ensure_screen(connection, paths, &mut record).await {
-            Ok(detail) => report.steps.push(step.passed(detail)),
+            Ok(detail) => report.push_step(options, step.passed(detail)),
             Err(error) => {
-                report
-                    .steps
-                    .push(step.failed(error.message.clone(), error.hint.clone()));
-                skip_remaining(&mut report, &["launch", "verify"], "screen setup failed");
+                report.push_step(
+                    options,
+                    step.failed(error.message.clone(), error.hint.clone()),
+                );
+                skip_remaining(
+                    &mut report,
+                    options,
+                    &["launch", "verify"],
+                    "screen setup failed",
+                );
                 return report;
             }
         }
@@ -327,22 +356,34 @@ pub async fn provision(
     record.applied_at_ms = now_ms();
     if let Err(error) = record.save(paths) {
         let step = Step::start("launch");
-        report
-            .steps
-            .push(step.failed(error.message.clone(), error.hint.clone()));
-        skip_remaining(&mut report, &["verify"], "cannot persist the session token");
+        report.push_step(
+            options,
+            step.failed(error.message.clone(), error.hint.clone()),
+        );
+        skip_remaining(
+            &mut report,
+            options,
+            &["verify"],
+            "cannot persist the session token",
+        );
         return report;
     }
     report.token = Some(token.clone());
 
     let step = Step::start("launch");
     match launch(connection, &token).await {
-        Ok(detail) => report.steps.push(step.passed(detail)),
+        Ok(detail) => report.push_step(options, step.passed(detail)),
         Err(error) => {
-            report
-                .steps
-                .push(step.failed(error.message.clone(), error.hint.clone()));
-            skip_remaining(&mut report, &["verify"], "capture service did not start");
+            report.push_step(
+                options,
+                step.failed(error.message.clone(), error.hint.clone()),
+            );
+            skip_remaining(
+                &mut report,
+                options,
+                &["verify"],
+                "capture service did not start",
+            );
             return report;
         }
     }
@@ -350,14 +391,15 @@ pub async fn provision(
     // 7. Wait for socket, handshake, verify the first frame.
     let step = Step::start("verify");
     if !options.verify_frame {
-        report.steps.push(step.skipped("disabled by --no-verify"));
+        report.push_step(options, step.skipped("disabled by --no-verify"));
         return report;
     }
     match verify(connection, &token, options).await {
-        Ok(detail) => report.steps.push(step.passed(detail)),
-        Err(error) => report
-            .steps
-            .push(step.failed(error.message.clone(), error.hint.clone())),
+        Ok(detail) => report.push_step(options, step.passed(detail)),
+        Err(error) => report.push_step(
+            options,
+            step.failed(error.message.clone(), error.hint.clone()),
+        ),
     }
     report
 }
@@ -1095,15 +1137,23 @@ impl Step {
     }
 }
 
-fn skip_remaining(report: &mut ProvisionReport, names: &[&'static str], reason: &str) {
+fn skip_remaining(
+    report: &mut ProvisionReport,
+    options: &ProvisionOptions,
+    names: &[&'static str],
+    reason: &str,
+) {
     for &name in names {
-        report.steps.push(StepReport {
-            name,
-            status: StepStatus::Skipped,
-            duration_ms: 0,
-            detail: reason.to_string(),
-            hint: None,
-        });
+        report.push_step(
+            options,
+            StepReport {
+                name,
+                status: StepStatus::Skipped,
+                duration_ms: 0,
+                detail: reason.to_string(),
+                hint: None,
+            },
+        );
     }
 }
 

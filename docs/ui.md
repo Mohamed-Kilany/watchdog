@@ -19,7 +19,9 @@ npm run test
 against the built `dist/`, so run `npm run build` first. The demo page uses a fake device
 and needs no phone or emulator. `ui/tests/channel.spec.ts` also covers the host channel
 with Playwright's WebSocket routing: token prompt, state/event frames, command REST calls,
-URL-token consumption and reconnect/backoff.
+URL-token consumption and reconnect/backoff. `ui/tests/devices.spec.ts` covers the
+Devices page with route-mocked host APIs: demo notice, listing and activation, pairing,
+provisioning progress plus the update prompt, and disconnect.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -56,9 +58,10 @@ folder and serve the minimal live page described below instead.
 | `/` and extensionless routes | app shell (`index.html`) for client-side routing |
 | `assets/*` | fingerprinted Vite assets, `Cache-Control: public, max-age=31536000, immutable` |
 | other static files | `Cache-Control: no-cache` plus an ETag for cheap revalidation |
-| `/api/state` | merged control/camera snapshot, or `{ "waiting": true }` before the first `STATE` |
+| `/api/state` | merged control/camera snapshot, or a waiting snapshot before a session/`STATE` |
 | `/api/command` | `POST` one command through the frame hub and return its `COMMAND_RESULT` |
-| `/ws` | RFC 6455 WebSocket for state snapshots, events and command replies |
+| `/api/devices*` | list, discover, pair, activate, disconnect, restore, provision and status |
+| `/ws` | RFC 6455 WebSocket for state snapshots, events, session changes and command replies |
 | `/stream.mjpg`, `/api/stats`, `/healthz` | live MJPEG stream, hub stats and liveness probe |
 
 Every static response carries a weak content-hash ETag (`W/"<sha256>"`), answers
@@ -88,7 +91,7 @@ bar before the probe, so it does not leak through history or screenshots.
 
 ### REST
 
-`GET /api/state` returns the merged snapshot the hub keeps:
+`GET /api/state` returns the merged snapshot the hub keeps, plus the current session:
 
 ```json
 {
@@ -98,19 +101,45 @@ bar before the probe, so it does not leak through history or screenshots.
   "camera_id": "0",
   "state": { "iso": { "supported": true, "actual": 400, "source": "host" } },
   "dropped_frames": 0,
-  "storage_free_mb": 2048
+  "storage_free_mb": 2048,
+  "session": { "active": true, "closed": false, "serial": "R58R41VKXTY", "device": { } }
 }
 ```
 
-Before the app sends its first `STATE`, the response is
-`{"type":"state","waiting":true,"seq":0,"timestamp_ms":0,"camera_id":"","state":{}}`.
+Before a session is activated, or before the app sends its first `STATE`, the response is
+`{"type":"state","waiting":true,"seq":0,"timestamp_ms":0,"camera_id":"","state":{},"session":{...}}`.
+`GET /api/stats` adds the same `session` field and returns zeroed counters while no session
+is open.
 
 `POST /api/command` takes a protocol `CommandMessage` body
 (`{"id","command","params"}`) and returns the `COMMAND_RESULT` envelope
 (`{"type":"result","id","timestamp_ms","results","error"}`). Invalid bodies and empty ids
-are `400`, a closed app session is `503`, a command timeout is `504`, and other app
-failures are `502`. Commands go through the frame hub because it owns the only app
+are `400`, no active session is `503 DEVICE_OFFLINE`, a command timeout is `504` and other
+app failures are `502`. Commands go through the frame hub because it owns the only app
 session; opening a second `LiveSession` would replace the first.
+
+### Device API
+
+The Devices page talks to the host over `/api/devices*`; every route uses the same bearer
+token and returns `{ "error": { "code", "message", "hint"? } }` on failure.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/devices` | active session plus USB and cached mDNS devices |
+| `POST /api/devices/discover` | refresh the mDNS cache (5 s browse), then list |
+| `POST /api/devices/pair` | `{target, code}` wireless-debugging pairing |
+| `POST /api/devices/activate` | `{serial}` open the app session (replaces the current one) |
+| `POST /api/devices/disconnect` | close the active session |
+| `POST /api/devices/restore` | `{serial}` revert provisioning's screen settings |
+| `POST /api/devices/provision` | `{serial, verify?, screen?, apk?}` start a background job (`202`) |
+| `GET /api/devices/provision/{id}` | poll one job: status, steps, error, resulting session |
+| `GET /api/devices/status?serial=...` | app install/version, service pid, appops and restore record |
+
+A job streams every `StepReport` as it completes, keeps the last 20 jobs and auto-activates
+the session after a fully passed run; `session_error` reports an activation failure without
+failing the provisioning result. Device list rows merge the active session first, then USB,
+then mDNS, deduplicated by serial. A discovered row exposes its `pairing` endpoint so the
+pair dialog can prefill it.
 
 ### WebSocket
 
@@ -119,27 +148,46 @@ session; opening a second `LiveSession` would replace the first.
 
 | `type` | Meaning |
 |---|---|
-| `hello` | channel opened, includes the protocol version |
+| `hello` | channel opened, includes the protocol version and the current session |
 | `state` | merged snapshot; `STATE` deltas are merged by the hub before forwarding |
 | `event` | app `EVENT` (`camera_disconnected`, ...) |
+| `session` | the active device session changed (activated, closed or disconnected) |
 | `result` | reply to a `command` message sent on the same socket |
 | `error` | invalid client message or command failure |
-| `closed` | the app session ended |
+| `closed` | the app session ended; the socket stays open for the next session |
 
 Clients may send `{"type":"command","id","command","params"}`, `{"type":"get_state"}` or
 `{"type":"ping"}`. The shell itself uses REST for commands, so its socket only carries
 state/events. The server rejects unmasked client frames, extensions, control frames that
 are fragmented or longer than 125 bytes, and messages over 1 MiB. A slow subscriber that
 lags the bounded broadcast gets a fresh snapshot instead of replaying every intermediate
-delta.
+delta. After a `session` or `closed` envelope the server follows it with a state snapshot;
+activating another device switches the socket to the new hub without a page reload.
 
 ### Reconnect and banner
 
 `HostClient` reconnects with exponential backoff: 500 ms, 1 s, 2 s, ... capped at 15 s,
 with ±20% jitter. The attempt counter resets after a successful open. A global banner
-under the top bar shows `Connecting to the host...` / `Connection lost — reconnecting...`
-and disappears once the socket is live. State snapshots replace the local map because the
-hub already merged deltas; app events are appended to the command log.
+under the top bar shows `Connecting to the host...`, `Connection lost — reconnecting...`,
+`No device session — open Devices...` or `The device session closed — open Devices...`,
+and disappears while the socket is live with an active session. State snapshots replace
+the local map because the hub already merged deltas; app events are appended to the
+command log.
+
+## Pages
+
+The shell uses hash routes without a reload: `#/live` (default) is the camera/controls
+page and `#/devices` is device management. The top bar keeps the active-device selector
+visible on both pages; choosing another device activates it and choosing “No device”
+disconnects. `HostClient.applySession()` adopts the REST result immediately, and the
+`session` WebSocket envelope keeps every other tab in sync.
+
+The Devices page shows the active session card (model, serial, app version, status badge,
+check status, provision/update, restore and disconnect), a known-device list with
+activate/pair/provision/status actions, and the provisioning panel with one row per step
+(name, status, duration, detail, hint). The app update prompt appears when the installed
+`versionCode` differs from the embedded build. Without a host the page renders a demo
+notice and leaves the offline controls demo untouched.
 
 ## CI flow
 
@@ -195,7 +243,8 @@ for focus regions and `ae_regions` for metering.
 overlays, the control panel, a command log, drift and reset-all buttons, and a theme
 toggle. The shell is backend-agnostic: `FakeDevice` keeps the offline demo working and
 `HostClient` drives the same panel, overlays and log from the host channel. The mode tag
-shows `demo device` or `host`; the drift button is hidden in host mode. `window.__watchdog`
+shows `demo device` or `host`; the drift button is hidden in host mode. The Devices page
+works in host mode only and shows a demo notice otherwise. `window.__watchdog`
 exposes the active backend, panel, state snapshot and command log for Playwright
 assertions. The fake device is not a protocol implementation; it only mirrors the
 state/implication semantics needed by the components.

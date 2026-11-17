@@ -11,13 +11,14 @@ import type {
   ControlState,
   DeviceBackend,
 } from "./types";
+import type { SessionInfo } from "./device-api";
 
 const TOKEN_KEY = "watchdog.token";
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 15_000;
 
 /** Connection state reported to the shell banner. */
-export type ConnectionState = "connecting" | "live" | "reconnecting";
+export type ConnectionState = "connecting" | "live" | "reconnecting" | "idle";
 
 /** One asynchronous app event forwarded by the host. */
 export interface HostEvent {
@@ -31,6 +32,7 @@ interface StateEnvelope {
   type?: string;
   state?: ControlState;
   waiting?: boolean;
+  session?: SessionInfo;
 }
 
 interface WireControlResult {
@@ -50,7 +52,7 @@ interface CommandEnvelope {
 
 /** Outcome of the initial `/api/state` probe. */
 export type ProbeResult =
-  | { kind: "host"; state: ControlState }
+  | { kind: "host"; state: ControlState; session: SessionInfo }
   | { kind: "unauthorized" }
   | { kind: "demo" };
 
@@ -149,7 +151,8 @@ export async function probeHost(token: string | null): Promise<ProbeResult> {
   ) {
     return { kind: "demo" };
   }
-  return { kind: "host", state: body.state };
+  const session = body.session ?? { active: true, closed: false };
+  return { kind: "host", state: body.state, session };
 }
 
 /** New correlation id for one command round trip. */
@@ -244,20 +247,32 @@ export class HostClient implements DeviceBackend {
   private readonly connectionListeners = new Set<
     (state: ConnectionState) => void
   >();
+  private readonly sessionListeners = new Set<(session: SessionInfo) => void>();
   private connection: ConnectionState = "connecting";
+  private session: SessionInfo;
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private attempt = 0;
   private started = false;
   private disposed = false;
 
-  constructor(token: string | null, initialState: ControlState = {}) {
+  constructor(
+    token: string | null,
+    initialState: ControlState = {},
+    initialSession: SessionInfo = { active: true, closed: false },
+  ) {
     this.token = token;
     this.state = structuredClone(initialState);
+    this.session = initialSession;
   }
 
   get snapshot(): ControlState {
     return structuredClone(this.state);
+  }
+
+  /** The active app session as the host last reported it. */
+  get currentSession(): SessionInfo {
+    return this.session;
   }
 
   /** Open the channel and keep it open until `stop()` is called. */
@@ -301,6 +316,41 @@ export class HostClient implements DeviceBackend {
     return () => {
       this.connectionListeners.delete(listener);
     };
+  }
+
+  subscribeSession(listener: (session: SessionInfo) => void): () => void {
+    this.sessionListeners.add(listener);
+    listener(this.session);
+    return () => {
+      this.sessionListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Adopt a session reported by the devices page.
+   *
+   * The WebSocket sends the same envelope; this path keeps the banner and the
+   * controls page in sync when the API call finishes first.
+   */
+  applySession(session: SessionInfo): void {
+    this.setSession(session);
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.setConnection(session.active ? "live" : "idle");
+    }
+  }
+
+  /** Drop the current socket and connect again without waiting for backoff. */
+  reconnectNow(): void {
+    if (this.disposed || !this.started) return;
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.attempt = 0;
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close();
+    this.openSocket();
   }
 
   async setControls(changes: ControlChange[]): Promise<ApplyResult[]> {
@@ -377,7 +427,7 @@ export class HostClient implements DeviceBackend {
     socket.addEventListener("open", () => {
       if (this.socket !== socket) return;
       this.attempt = 0;
-      this.setConnection("live");
+      this.setConnection(this.session.active ? "live" : "idle");
     });
     socket.addEventListener("message", (event) => {
       if (this.socket !== socket) return;
@@ -414,6 +464,27 @@ export class HostClient implements DeviceBackend {
     for (const listener of this.connectionListeners) listener(state);
   }
 
+  private setSession(session: SessionInfo): void {
+    this.session = session;
+    for (const listener of this.sessionListeners) listener(session);
+  }
+
+  private sessionFrom(message: Record<string, unknown>): SessionInfo | null {
+    const session = message["session"];
+    if (!session || typeof session !== "object") return null;
+    const record = session as Record<string, unknown>;
+    return {
+      active: record["active"] === true,
+      closed: record["closed"] === true,
+      ...(typeof record["serial"] === "string"
+        ? { serial: record["serial"] }
+        : {}),
+      ...(record["device"] && typeof record["device"] === "object"
+        ? { device: record["device"] as SessionInfo["device"] }
+        : {}),
+    };
+  }
+
   private handleMessage(text: string): void {
     let message: Record<string, unknown>;
     try {
@@ -422,7 +493,18 @@ export class HostClient implements DeviceBackend {
       return;
     }
     switch (message["type"]) {
+      case "hello":
+      case "session": {
+        const session = this.sessionFrom(message);
+        if (session) {
+          this.setSession(session);
+          this.setConnection(session.active ? "live" : "idle");
+        }
+        break;
+      }
       case "state": {
+        const session = this.sessionFrom(message);
+        if (session) this.setSession(session);
         const state = message["state"];
         if (!state || typeof state !== "object") return;
         this.state = state as ControlState;
@@ -438,6 +520,15 @@ export class HostClient implements DeviceBackend {
         }
         if (message["data"] !== undefined) event.data = message["data"];
         for (const listener of this.eventListeners) listener(event);
+        break;
+      }
+      case "closed": {
+        this.setSession({
+          ...this.session,
+          active: false,
+          closed: true,
+        });
+        this.setConnection("idle");
         break;
       }
       case "error": {

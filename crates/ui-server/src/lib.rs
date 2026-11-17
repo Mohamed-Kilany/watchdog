@@ -10,7 +10,9 @@
 //! merged control snapshot, `/api/command` forwards one command to the app
 //! through the frame hub and `/ws` streams state snapshots and events over a
 //! minimal RFC 6455 WebSocket. All three reuse the same bearer-token check as
-//! the static files.
+//! the static files. M6-T03 adds the `/api/devices*` management API backed by
+//! [`watchdog_device::devices::DeviceService`]; the live routes stay up while no
+//! device is active and follow session switches without closing the socket.
 
 #![warn(missing_docs)]
 
@@ -25,13 +27,15 @@ use std::time::Duration;
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use serde::Deserialize;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::error::RecvError;
 
 use watchdog_core::error::{ErrorCode, WatchdogError};
 use watchdog_core::Result;
-use watchdog_device::hub::FrameHub;
+use watchdog_device::devices::{DeviceService, ProvisionJobState, ProvisionRequest, SessionInfo};
+use watchdog_device::hub::{FrameHub, StreamStats};
 use watchdog_protocol::{CommandMessage, CommandResultMessage, StateMessage};
 
 /// Minimal live view served when the UI build was not embedded (Rust-only
@@ -87,8 +91,10 @@ pub struct UiOptions {
 /// until the process exits.
 ///
 /// Each client is handled in its own task; a slow or stalled browser only
-/// affects its own connection, never the frame hub.
-pub async fn serve_ui(options: UiOptions, hub: Arc<FrameHub>) -> Result<()> {
+/// affects its own connection, never the frame hub. The [`DeviceService`] owns
+/// the optional app session, so the UI keeps working before any device is
+/// activated and while sessions switch.
+pub async fn serve_ui(options: UiOptions, service: Arc<DeviceService>) -> Result<()> {
     let listener = TcpListener::bind(options.bind).await.map_err(|error| {
         WatchdogError::new(
             ErrorCode::PortInUse,
@@ -100,10 +106,10 @@ pub async fn serve_ui(options: UiOptions, hub: Arc<FrameHub>) -> Result<()> {
     let token = Arc::new(options.token);
     loop {
         let (stream, peer) = listener.accept().await?;
-        let hub = Arc::clone(&hub);
+        let service = Arc::clone(&service);
         let token = Arc::clone(&token);
         tokio::spawn(async move {
-            if let Err(error) = handle_connection(stream, &hub, token.as_deref()).await {
+            if let Err(error) = handle_connection(stream, &service, token.as_deref()).await {
                 tracing::debug!(%peer, %error, "UI connection ended");
             }
         });
@@ -225,7 +231,7 @@ fn embedded_asset(path: &str) -> Option<Asset> {
 
 async fn handle_connection(
     mut stream: TcpStream,
-    hub: &FrameHub,
+    service: &Arc<DeviceService>,
     token: Option<&str>,
 ) -> std::io::Result<()> {
     let request = match read_request(&mut stream).await? {
@@ -269,22 +275,42 @@ async fn handle_connection(
         .await;
     }
     if request.path() == "/ws" {
-        return websocket_handshake(stream, &request, hub).await;
+        return websocket_handshake(stream, &request, service).await;
     }
     let response = match (request.method.as_str(), request.path()) {
-        ("GET", "/api/state") => state_response(hub),
-        ("POST", "/api/command") => {
-            return write_response(&mut stream, &command_response(hub, &request).await).await
+        ("GET", "/api/state") => state_response(service),
+        ("POST", "/api/command") => command_response(service, &request).await,
+        ("GET", "/api/stats") => stats_response(service),
+        ("GET", "/api/devices") => devices_response(service, false).await,
+        ("POST", "/api/devices/discover") => devices_response(service, true).await,
+        ("POST", "/api/devices/pair") => pair_response(service, &request).await,
+        ("POST", "/api/devices/activate") => activate_response(service, &request).await,
+        ("POST", "/api/devices/disconnect") => disconnect_response(service).await,
+        ("POST", "/api/devices/restore") => restore_response(service, &request).await,
+        ("POST", "/api/devices/provision") => provision_response(service, &request),
+        ("GET", "/api/devices/status") => status_response(service, &request).await,
+        ("GET", path) if path.starts_with("/api/devices/provision/") => {
+            provision_job_response(service, path)
         }
-        ("GET", "/api/stats") => {
-            let body = serde_json::to_vec(&hub.stats()).map_err(std::io::Error::other)?;
-            Response::new("200 OK", "application/json", body).header("Cache-Control", "no-store")
+        ("GET", "/stream.mjpg") => {
+            let Some(hub) = service.active_hub() else {
+                return write_response(&mut stream, &no_session_response()).await;
+            };
+            return stream_mjpeg(stream, &hub).await;
         }
-        ("GET", "/stream.mjpg") => return stream_mjpeg(stream, hub).await,
         ("GET", "/healthz") => Response::new("200 OK", "text/plain; charset=utf-8", b"ok\n")
             .header("Cache-Control", "no-store"),
         ("GET", _) => static_response(&request, embedded_asset),
         (_, "/api/command") => method_not_allowed("POST"),
+        (_, "/api/devices/pair")
+        | (_, "/api/devices/activate")
+        | (_, "/api/devices/disconnect")
+        | (_, "/api/devices/restore")
+        | (_, "/api/devices/provision") => method_not_allowed("POST"),
+        (_, "/api/devices/status")
+        | (_, "/api/devices")
+        | (_, "/api/state")
+        | (_, "/api/stats") => method_not_allowed("GET"),
         _ => method_not_allowed("GET"),
     };
     write_response(&mut stream, &response).await
@@ -301,16 +327,40 @@ fn method_not_allowed(allow: &'static str) -> Response {
 }
 
 /// `GET /api/state` — the merged snapshot the app last reported.
-fn state_response(hub: &FrameHub) -> Response {
-    let value = match hub.state() {
-        Some(state) => state_envelope(&state),
-        None => waiting_state_envelope(),
-    };
-    json_response("200 OK", &value)
+fn state_response(service: &DeviceService) -> Response {
+    json_response("200 OK", &snapshot_envelope(service))
+}
+
+/// The snapshot envelope for the current session (or a waiting one).
+fn snapshot_envelope(service: &DeviceService) -> serde_json::Value {
+    let session = service.session_info();
+    match service.active_hub().and_then(|hub| hub.state()) {
+        Some(state) => state_envelope(&state, &session),
+        None => waiting_state_envelope(&session),
+    }
+}
+
+/// `GET /api/stats` — frame counters, zeroed while no session is open.
+fn stats_response(service: &DeviceService) -> Response {
+    let stats = service
+        .active_hub()
+        .map_or_else(StreamStats::default, |hub| hub.stats());
+    match serde_json::to_value(stats) {
+        Ok(mut value) => {
+            if let serde_json::Value::Object(ref mut map) = value {
+                map.insert(
+                    "session".to_string(),
+                    serde_json::to_value(service.session_info()).unwrap_or_default(),
+                );
+            }
+            json_response("200 OK", &value)
+        }
+        Err(error) => internal_error(&error),
+    }
 }
 
 /// `POST /api/command` — forward one command to the app and return its result.
-async fn command_response(hub: &FrameHub, request: &Request) -> Response {
+async fn command_response(service: &DeviceService, request: &Request) -> Response {
     let message: CommandMessage = match serde_json::from_slice(&request.body) {
         Ok(message) => message,
         Err(error) => {
@@ -330,22 +380,204 @@ async fn command_response(hub: &FrameHub, request: &Request) -> Response {
             None,
         );
     }
+    let Some(hub) = service.active_hub() else {
+        return no_session_response();
+    };
     match hub.command(message).await {
         Ok(result) => json_response("200 OK", &result_envelope(&result)),
-        Err(error) => {
-            let status = match error.code {
-                ErrorCode::InvalidRequest => "400 Bad Request",
-                ErrorCode::StreamClosed => "503 Service Unavailable",
-                ErrorCode::ConnectionLost => "504 Gateway Timeout",
-                _ => "502 Bad Gateway",
-            };
-            api_error(status, error.code, &error.message, error.hint.as_deref())
-        }
+        Err(error) => watchdog_response(&error),
     }
 }
 
+fn no_session_response() -> Response {
+    api_error(
+        "503 Service Unavailable",
+        ErrorCode::DeviceOffline,
+        "no device session is active",
+        Some("open the devices page and activate a device"),
+    )
+}
+
+/// `GET /api/devices` and `POST /api/devices/discover`.
+async fn devices_response(service: &DeviceService, discover: bool) -> Response {
+    match service.list(discover).await {
+        Ok(list) => json_value_response("200 OK", &serde_json::to_value(list)),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PairBody {
+    target: String,
+    code: String,
+}
+
+/// `POST /api/devices/pair` — wireless-debugging pairing with a 6-digit code.
+async fn pair_response(service: &DeviceService, request: &Request) -> Response {
+    let body: PairBody = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid pair body: {error}"),
+                None,
+            )
+        }
+    };
+    match service.pair(&body.target, &body.code).await {
+        Ok(guid) => json_response("200 OK", &serde_json::json!({ "ok": true, "guid": guid })),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct SerialBody {
+    serial: String,
+}
+
+/// `POST /api/devices/activate` — open the app session for one device.
+async fn activate_response(service: &DeviceService, request: &Request) -> Response {
+    let body: SerialBody = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid activate body: {error}"),
+                None,
+            )
+        }
+    };
+    match service.activate(&body.serial).await {
+        Ok(device) => {
+            let session = SessionInfo {
+                active: true,
+                closed: false,
+                serial: Some(device.serial.clone()),
+                device: Some(device),
+            };
+            json_response(
+                "200 OK",
+                &serde_json::json!({ "ok": true, "session": session }),
+            )
+        }
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+/// `POST /api/devices/disconnect` — close the active session.
+async fn disconnect_response(service: &DeviceService) -> Response {
+    let previous = service.deactivate().await;
+    json_response(
+        "200 OK",
+        &serde_json::json!({
+            "ok": true,
+            "session": service.session_info(),
+            "disconnected": previous.map(|device| device.serial),
+        }),
+    )
+}
+
+/// `POST /api/devices/restore` — revert provisioning's screen settings.
+async fn restore_response(service: &DeviceService, request: &Request) -> Response {
+    let body: SerialBody = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid restore body: {error}"),
+                None,
+            )
+        }
+    };
+    match service.restore(&body.serial).await {
+        Ok((serial, steps)) => json_response(
+            "200 OK",
+            &serde_json::json!({ "ok": true, "serial": serial, "steps": steps }),
+        ),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+/// `POST /api/devices/provision` — start a background provisioning job.
+fn provision_response(service: &Arc<DeviceService>, request: &Request) -> Response {
+    let body: ProvisionRequest = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid provision body: {error}"),
+                None,
+            )
+        }
+    };
+    match service.start_provision(body) {
+        Ok(id) => {
+            let job: Option<ProvisionJobState> = service.provision_job(&id);
+            json_response("202 Accepted", &serde_json::json!({ "id": id, "job": job }))
+        }
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+/// `GET /api/devices/provision/{id}` — poll one provisioning job.
+fn provision_job_response(service: &DeviceService, path: &str) -> Response {
+    let id = percent_decode(path.trim_start_matches("/api/devices/provision/"));
+    match service.provision_job(&id) {
+        Some(job) => json_value_response("200 OK", &serde_json::to_value(job)),
+        None => api_error(
+            "404 Not Found",
+            ErrorCode::JobNotFound,
+            &format!("no provisioning job {id:?}"),
+            None,
+        ),
+    }
+}
+
+/// `GET /api/devices/status?serial=...` — app/permission/version status.
+async fn status_response(service: &DeviceService, request: &Request) -> Response {
+    let Some(serial) = request.query("serial") else {
+        return api_error(
+            "400 Bad Request",
+            ErrorCode::InvalidRequest,
+            "the serial query parameter is required",
+            None,
+        );
+    };
+    match service.status(&serial).await {
+        Ok(report) => json_value_response("200 OK", &serde_json::to_value(report)),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+fn json_value_response(
+    status: &'static str,
+    value: &std::result::Result<serde_json::Value, serde_json::Error>,
+) -> Response {
+    match value {
+        Ok(value) => json_response(status, value),
+        Err(error) => internal_error(error),
+    }
+}
+
+fn watchdog_response(error: &WatchdogError) -> Response {
+    let status = match error.code {
+        ErrorCode::InvalidRequest => "400 Bad Request",
+        ErrorCode::NotFound | ErrorCode::DeviceNotFound | ErrorCode::JobNotFound => "404 Not Found",
+        ErrorCode::DeviceUnauthorized => "403 Forbidden",
+        ErrorCode::DeviceOffline | ErrorCode::StreamClosed => "503 Service Unavailable",
+        ErrorCode::ConnectionLost => "504 Gateway Timeout",
+        ErrorCode::Conflict => "409 Conflict",
+        _ => "502 Bad Gateway",
+    };
+    api_error(status, error.code, &error.message, error.hint.as_deref())
+}
+
 /// Serialize the WS/REST state envelope (`{ "type": "state", ... }`).
-pub(crate) fn state_envelope(state: &StateMessage) -> serde_json::Value {
+pub(crate) fn state_envelope(state: &StateMessage, session: &SessionInfo) -> serde_json::Value {
     serde_json::json!({
         "type": "state",
         "seq": state.seq,
@@ -354,11 +586,12 @@ pub(crate) fn state_envelope(state: &StateMessage) -> serde_json::Value {
         "state": state.state,
         "dropped_frames": state.dropped_frames,
         "storage_free_mb": state.storage_free_mb,
+        "session": session,
     })
 }
 
 /// Envelope sent before the app has produced its first full `STATE`.
-pub(crate) fn waiting_state_envelope() -> serde_json::Value {
+pub(crate) fn waiting_state_envelope(session: &SessionInfo) -> serde_json::Value {
     serde_json::json!({
         "type": "state",
         "waiting": true,
@@ -366,7 +599,13 @@ pub(crate) fn waiting_state_envelope() -> serde_json::Value {
         "timestamp_ms": 0,
         "camera_id": "",
         "state": {},
+        "session": session,
     })
+}
+
+/// Envelope sent whenever the active device session changes.
+pub(crate) fn session_envelope(session: &SessionInfo) -> serde_json::Value {
+    serde_json::json!({ "type": "session", "session": session })
 }
 
 /// Serialize the WS/REST command-result envelope.
@@ -413,7 +652,7 @@ fn internal_error(error: &impl std::fmt::Display) -> Response {
 async fn websocket_handshake(
     mut stream: TcpStream,
     request: &Request,
-    hub: &FrameHub,
+    service: &DeviceService,
 ) -> std::io::Result<()> {
     if request.method != "GET" {
         return write_response(&mut stream, &method_not_allowed("GET")).await;
@@ -442,7 +681,7 @@ async fn websocket_handshake(
         )
         .await;
     };
-    ws::upgrade(stream, key, hub).await
+    ws::upgrade(stream, key, service).await
 }
 
 /// Resolve a request against the embedded UI.
