@@ -27,7 +27,9 @@ polling, face boxes/grid/rotation, snapshot download, fullscreen and pausing the
 when the Devices page is open. `ui/tests/controls.spec.ts` covers every control kind
 (slider, enum, switch, lock, trigger, readout, reset) and
 `ui/tests/presets.spec.ts` covers preset save/apply/delete; `ui/tests/regions.spec.ts`
-covers metering, focus and white-balance region editing.
+covers metering, focus and white-balance region editing. `ui/tests/capture.spec.ts` covers
+the Capture page: routing, still/burst/recording in the demo, transfer progress, host
+command forwarding and unsupported commands.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -182,6 +184,41 @@ so no frame queue lives in JavaScript. `ui/src/live.ts` owns the page state:
 `ui/src/live-api.ts` is the typed client for the stream URL, `/api/stats` and
 `/api/snapshot`, and reuses the same bearer token as the rest of the UI API.
 
+### Capture
+
+The `#/capture` page (`ui/src/capture.ts`) drives the capture commands from
+`docs/protocol.md` through the same `DeviceBackend` contract as the control panels:
+
+| Action | Command | Params |
+|---|---|---|
+| Still | `capture_still` | `{}` |
+| Burst | `capture_burst` | `{count, interval_ms, from_stream}` |
+| Start recording | `record_start` | `{max_duration_secs}` when set |
+| Stop recording | `record_stop` | `{}` |
+
+In host mode the commands go over the existing authenticated `POST /api/command`; the
+applied payload (`media_id`, `media_ids`, `sequence_id`, dimensions, bytes, duration) is
+normalized into the page readouts. Until the M5 capture pipeline lands the Android
+`CaptureService` answers `UNSUPPORTED_COMMAND`, which the page shows in the status line
+instead of leaving the button stuck.
+
+The page has three cards and a transfer list:
+
+- **Still** reports the media id, dimensions and size of the last capture.
+- **Burst** sends a frame count (1–50) and interval (0–5000 ms) and updates a progress
+  bar from `capture_progress` events (`done`/`total`). `from_stream` asks the app to pull
+  frames from the live stream instead of a full-resolution capture.
+- **Recording** toggles `record_start`/`record_stop`, shows a live `mm:ss` timer fed by
+  `recording_started`/`recording_stopped` events and the merged `recording` state, and
+  sends `max_duration_secs` when a limit is set.
+- **Transfers** render host `transfer` envelopes keyed by `transfer_id` with the media
+  id, state badge, byte counts and a progress bar. Capture and recording keep running
+  when the user switches to another route.
+
+The demo `FakeDevice` simulates the whole flow: media ids, burst progress events,
+recording lifecycle and a stepped transfer (`queued` → `transferring` → `verifying` →
+`done`). `window.__watchdog.capture` exposes the controller for Playwright.
+
 ### Controls and presets
 
 `ui/src/descriptors.ts` describes every control the Android app reports, grouped like the
@@ -221,6 +258,7 @@ in the page; shareable JSON stays in `watchdog device preset export|import`.
 | `state` | merged snapshot; `STATE` deltas are merged by the hub before forwarding |
 | `event` | app `EVENT` (`camera_disconnected`, ...) |
 | `session` | the active device session changed (activated, closed or disconnected) |
+| `transfer` | media transfer progress: `transfer_id`, `media_id`, `state`, `bytes_total`, `bytes_done`, optional `error` (UI contract; emitted once the M5 capture pipeline lands) |
 | `result` | reply to a `command` message sent on the same socket |
 | `error` | invalid client message or command failure |
 | `closed` | the app session ended; the socket stays open for the next session |
@@ -246,8 +284,9 @@ command log.
 ## Pages
 
 The shell uses hash routes without a reload: `#/live` (default) is the camera/controls
-page and `#/devices` is device management. The top bar keeps the active-device selector
-visible on both pages; choosing another device activates it and choosing “No device”
+page, `#/capture` is still/burst/recording with transfer progress, and `#/devices` is
+device management. The top bar keeps the active-device selector
+visible on every page; choosing another device activates it and choosing “No device”
 disconnects. `HostClient.applySession()` adopts the REST result immediately, and the
 `session` WebSocket envelope keeps every other tab in sync.
 
@@ -317,13 +356,15 @@ balance; only the selected overlay is editable.
 metering/focus/white-balance overlays, the two control panels, a preset manager, a command
 log, drift and reset-all buttons, and a theme toggle. The shell is backend-agnostic:
 `FakeDevice` keeps the offline demo working and `HostClient` drives the same panels,
-overlays, presets and log from the host channel. The mode tag shows `demo device` or
-`host`; the drift button is hidden in host mode. The Devices page works in host mode only
-and shows a demo notice otherwise. `window.__watchdog` exposes the active backend, the
-left panel (and both panels via `panels`), the live view controller, the preset manager
-(`presets`), the state snapshot and the command log for Playwright assertions. The fake
-device is not a protocol implementation; it only mirrors the state/implication semantics
-needed by the components.
+overlays, presets, capture page and log from the host channel. The mode tag shows
+`demo device` or `host`; the drift button is hidden in host mode. The Devices page works
+in host mode only and shows a demo notice otherwise. The demo `FakeDevice` also simulates
+still/burst captures, recording and stepped media transfers, so `#/capture` is usable
+without a phone. `window.__watchdog` exposes the active backend, the left panel (and both
+panels via `panels`), the live view controller, the capture controller (`capture`), the
+preset manager (`presets`), the state snapshot and the command log for Playwright
+assertions. The fake device is not a protocol implementation; it only mirrors the
+state/implication semantics needed by the components.
 
 Host resets are sent as one `set_controls` batch: exposure returns `ae_mode` to auto,
 focus returns `af_mode` to continuous, white balance returns `awb_mode` to auto, lens

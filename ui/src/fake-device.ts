@@ -1,10 +1,15 @@
 import type {
   ApplyResult,
+  BurstOptions,
+  CaptureOutcome,
   ControlChange,
   ControlEntry,
   ControlRegion,
   ControlState,
   ControlValue,
+  DeviceEvent,
+  RecordOptions,
+  TransferProgress,
 } from "./types";
 
 type Listener = (state: ControlState, changes: ControlChange[]) => void;
@@ -299,6 +304,11 @@ export class FakeDevice {
   readonly mode = "demo" as const;
   private state: ControlState = initial();
   private listeners = new Set<Listener>();
+  private eventListeners = new Set<(event: DeviceEvent) => void>();
+  private transferListeners = new Set<(transfer: TransferProgress) => void>();
+  private captureSeq = 0;
+  private recordingStartedMs: number | null = null;
+  private recordingMediaId: string | null = null;
 
   get snapshot(): ControlState {
     return structuredClone(this.state);
@@ -307,6 +317,156 @@ export class FakeDevice {
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeEvents(listener: (event: DeviceEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => this.eventListeners.delete(listener);
+  }
+
+  subscribeTransfers(
+    listener: (transfer: TransferProgress) => void,
+  ): () => void {
+    this.transferListeners.add(listener);
+    return () => this.transferListeners.delete(listener);
+  }
+
+  async captureStill(): Promise<CaptureOutcome> {
+    const mediaId = this.nextMediaId("still");
+    const size = this.state.still_size?.actual;
+    const width =
+      size && typeof size === "object" && Number.isFinite(Number((size as Record<string, unknown>)["width"]))
+        ? Number((size as Record<string, unknown>)["width"])
+        : 4000;
+    const height =
+      size && typeof size === "object" && Number.isFinite(Number((size as Record<string, unknown>)["height"]))
+        ? Number((size as Record<string, unknown>)["height"])
+        : 3000;
+    const bytes = Math.round(width * height * 0.35);
+    this.emitEvent({
+      kind: "capture_finished",
+      timestamp_ms: Date.now(),
+      data: { media_id: mediaId, type: "still", width, height, bytes },
+    });
+    this.startTransfer(mediaId, bytes);
+    return {
+      mediaId,
+      type: "still",
+      width,
+      height,
+      bytes,
+      applied: { media_id: mediaId, type: "still", width, height, bytes },
+    };
+  }
+
+  async captureBurst(options: BurstOptions): Promise<CaptureOutcome> {
+    const count = clamp(Math.round(options.count), 1, 50);
+    const interval = clamp(Math.round(options.intervalMs), 0, 5000);
+    const sequenceId = this.nextMediaId("sequence");
+    const mediaIds: string[] = [];
+    for (let done = 1; done <= count; done += 1) {
+      const mediaId = this.nextMediaId("burst");
+      mediaIds.push(mediaId);
+      this.emitEvent({
+        kind: "capture_progress",
+        timestamp_ms: Date.now(),
+        data: {
+          sequence_id: sequenceId,
+          media_id: mediaId,
+          done,
+          total: count,
+          from_stream: options.fromStream,
+        },
+      });
+      if (done < count) {
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, Math.max(interval, 20)),
+        );
+      }
+    }
+    const bytes = count * (options.fromStream ? 120_000 : 1_500_000);
+    this.startTransfer(sequenceId, bytes);
+    return {
+      sequenceId,
+      mediaIds,
+      type: "sequence",
+      bytes,
+      applied: {
+        sequence_id: sequenceId,
+        media_ids: mediaIds,
+        count,
+        interval_ms: interval,
+        from_stream: options.fromStream,
+      },
+    };
+  }
+
+  async recordStart(options: RecordOptions = {}): Promise<CaptureOutcome> {
+    if (this.state.recording?.actual === true) {
+      throw new Error("already recording");
+    }
+    const startedMs = Date.now();
+    const mediaId = this.nextMediaId("video");
+    this.recordingStartedMs = startedMs;
+    this.recordingMediaId = mediaId;
+    this.setRecording(true);
+    this.emitEvent({
+      kind: "recording_started",
+      timestamp_ms: startedMs,
+      data: {
+        media_id: mediaId,
+        started_ms: startedMs,
+        max_duration_secs: options.maxDurationSecs ?? 0,
+      },
+    });
+    if (options.maxDurationSecs && options.maxDurationSecs > 0) {
+      window.setTimeout(
+        () => {
+          if (this.state.recording?.actual === true) {
+            void this.recordStop().catch(() => {
+              // A manual stop won the race; nothing to report in the demo.
+            });
+          }
+        },
+        options.maxDurationSecs * 1000,
+      );
+    }
+    return {
+      mediaId,
+      type: "video",
+      startedMs,
+      applied: {
+        media_id: mediaId,
+        started_ms: startedMs,
+        max_duration_secs: options.maxDurationSecs ?? 0,
+      },
+    };
+  }
+
+  async recordStop(): Promise<CaptureOutcome> {
+    if (this.state.recording?.actual !== true) {
+      throw new Error("not recording");
+    }
+    const startedMs = this.recordingStartedMs ?? Date.now();
+    const durationMs = Math.max(0, Date.now() - startedMs);
+    const mediaId = this.recordingMediaId ?? this.nextMediaId("video");
+    const bytes = Math.max(1, Math.round((durationMs / 1000) * 1_000_000));
+    this.recordingStartedMs = null;
+    this.recordingMediaId = null;
+    this.setRecording(false);
+    this.emitEvent({
+      kind: "recording_stopped",
+      timestamp_ms: Date.now(),
+      data: { media_id: mediaId, duration_ms: durationMs, bytes },
+    });
+    this.startTransfer(mediaId, bytes);
+    return {
+      mediaId,
+      type: "video",
+      durationMs,
+      bytes,
+      applied: { media_id: mediaId, duration_ms: durationMs, bytes },
+    };
   }
 
   setControls(changes: ControlChange[]): ApplyResult[] {
@@ -842,6 +1002,54 @@ export class FakeDevice {
     if (!entry) return;
     entry.actual = value;
     entry.source = "device";
+  }
+
+  private setRecording(recording: boolean): void {
+    const entry = this.state.recording;
+    if (entry) {
+      entry.actual = recording;
+      entry.source = "device";
+    }
+    this.emit([]);
+  }
+
+  private nextMediaId(kind: string): string {
+    this.captureSeq += 1;
+    return `m-${kind}-${Date.now().toString(36)}-${this.captureSeq}`;
+  }
+
+  private emitEvent(event: DeviceEvent): void {
+    for (const listener of this.eventListeners) listener(event);
+  }
+
+  private startTransfer(mediaId: string, bytesTotal: number): void {
+    const transferId = `t-${Date.now().toString(36)}-${this.captureSeq}`;
+    const send = (
+      state: TransferProgress["state"],
+      bytesDone: number,
+    ): void => {
+      const transfer: TransferProgress = {
+        transferId,
+        mediaId,
+        state,
+        bytesTotal,
+        bytesDone,
+      };
+      for (const listener of this.transferListeners) listener(transfer);
+    };
+    send("queued", 0);
+    const steps = 4;
+    for (let step = 1; step <= steps; step += 1) {
+      window.setTimeout(() => {
+        send("transferring", Math.round((bytesTotal * step) / steps));
+        if (step === steps) {
+          window.setTimeout(() => {
+            send("verifying", bytesTotal);
+            window.setTimeout(() => send("done", bytesTotal), 80);
+          }, 80);
+        }
+      }, step * 80);
+    }
   }
 
   private emit(changes: ControlChange[]): void {

@@ -7,6 +7,7 @@
 // index.html for `/api/state`) leaves the demo in place.
 
 import { DESCRIPTORS } from "./descriptors";
+import { CapturePage } from "./capture";
 import { DevicesPage } from "./devices";
 import { FakeDevice } from "./fake-device";
 import {
@@ -91,6 +92,7 @@ interface Shell {
 function wireShell(
   initial: DeviceBackend,
   onState: (state: ControlState) => void,
+  onBackend?: (backend: DeviceBackend) => void,
 ): Shell {
   const panel = mustQuery<WdControlPanel>("#panel-left");
   const rightPanel = mustQuery<WdControlPanel>("#panel-right");
@@ -363,6 +365,7 @@ function wireShell(
     updateMode();
     renderLog();
     if (window.__watchdog) window.__watchdog.device = backend;
+    onBackend?.(backend);
   }
 
   syncRegions(backend.snapshot);
@@ -382,13 +385,14 @@ function wireShell(
   };
 }
 
-function expose(shell: Shell, live: LivePage): void {
+function expose(shell: Shell, live: LivePage, capture: CapturePage): void {
   window.__watchdog = {
     device: shell.current(),
     panel: shell.panel,
     panels: shell.panels,
     presets: shell.presets,
     live,
+    capture,
     state: () => shell.current().snapshot,
     commands: () => structuredClone(shell.commands),
   };
@@ -521,19 +525,32 @@ async function boot(
   }
 }
 
-/** Switch between `#/live` and `#/devices` without a reload. */
-function wireRoutes(devices: DevicesPage, live: LivePage): void {
+/** Switch between `#/live`, `#/capture` and `#/devices` without a reload. */
+function wireRoutes(
+  devices: DevicesPage,
+  live: LivePage,
+  capture: CapturePage,
+): void {
   const liveView = mustQuery<HTMLElement>("#view-live");
+  const captureView = mustQuery<HTMLElement>("#view-capture");
   const devicesView = mustQuery<HTMLElement>("#view-devices");
   const links = Array.from(
     document.querySelectorAll<HTMLAnchorElement>("a[data-route]"),
   );
 
   const apply = (): void => {
-    const route = window.location.hash === "#/devices" ? "devices" : "live";
+    const hash = window.location.hash;
+    const route =
+      hash === "#/devices"
+        ? "devices"
+        : hash === "#/capture"
+          ? "capture"
+          : "live";
     liveView.hidden = route !== "live";
+    captureView.hidden = route !== "capture";
     devicesView.hidden = route !== "devices";
     live.setVisible(route === "live");
+    capture.setVisible(route === "capture");
     for (const link of links) {
       if (link.dataset.route === route) {
         link.setAttribute("aria-current", "page");
@@ -551,9 +568,18 @@ function wireRoutes(devices: DevicesPage, live: LivePage): void {
 /** Wire the demo immediately, then upgrade to the host if one answers. */
 export function start(): void {
   const live = new LivePage();
-  const shell = wireShell(new FakeDevice(), (state) => live.renderState(state));
+  const capture = new CapturePage();
+  const shell = wireShell(
+    new FakeDevice(),
+    (state) => {
+      live.renderState(state);
+      capture.renderState(state);
+    },
+    (backend) => capture.setBackend(backend),
+  );
   const devices = new DevicesPage();
-  expose(shell, live);
-  wireRoutes(devices, live);
+  capture.setBackend(shell.current());
+  expose(shell, live, capture);
+  wireRoutes(devices, live, capture);
   void boot(shell, devices, live);
 }
