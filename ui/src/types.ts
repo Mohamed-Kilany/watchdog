@@ -89,6 +89,38 @@ export interface TransferProgress {
   error?: string;
 }
 
+/** Device information attached to one media item. */
+export interface MediaDeviceInfo {
+  model: string;
+  serial?: string;
+  sdk?: number;
+}
+
+/**
+ * One item in the host media library, matching the protocol's
+ * `MEDIA_MANIFEST` item plus the host's storage metadata.
+ */
+export interface MediaItem {
+  id: string;
+  type: "still" | "video";
+  created_ms: number;
+  duration_ms?: number;
+  width: number;
+  height: number;
+  bytes: number;
+  sha256: string;
+  mime: string;
+  device: MediaDeviceInfo;
+  control_snapshot?: Record<string, unknown>;
+  host_job_id?: string | null;
+}
+
+/** Result of submitting media to the analysis queue. */
+export interface AnalysisSubmission {
+  id: string;
+  state: string;
+}
+
 /**
  * The shell's device contract. `FakeDevice` implements it for the offline demo
  * and `HostClient` implements it against the host's real-time channel.
@@ -106,6 +138,11 @@ export interface DeviceBackend {
   recordStop(): Promise<CaptureOutcome>;
   subscribeEvents(listener: (event: DeviceEvent) => void): () => void;
   subscribeTransfers(listener: (transfer: TransferProgress) => void): () => void;
+  listMedia(): Promise<MediaItem[]>;
+  getMedia(id: string): Promise<MediaItem | null>;
+  deleteMedia(id: string): Promise<void>;
+  mediaFileUrl(id: string): string;
+  analyzeMedia(ids: string[]): Promise<AnalysisSubmission>;
 }
 
 export interface SelectOption {
