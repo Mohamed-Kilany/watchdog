@@ -71,11 +71,22 @@ The default page is the live view:
   drawn into the file; it is the camera frame the app sent.
 - **Fullscreen.** Expands the viewfinder; use the overlay button or Escape to leave it.
 - **Overlays.** Show the rule-of-thirds grid and face boxes reported by the app, and draw
-  the metering/focus regions on top of the video. Rotation reported by the app is applied
-  to the preview and its overlays.
+  the metering, focus and white-balance regions on top of the video. Pick the active
+  overlay with the toolbar radio buttons; Clear regions removes all three. Rotation
+  reported by the app is applied to the preview and its overlays.
 - **Controls.** The left panel holds Exposure, Focus and White balance; the right panel
-  holds Lens, mirroring the phone's own layout. Controls stay available while the preview
+  holds Lens, Flash & scene, Output and Recording, mirroring the phone's own layout.
+  Sliders, enums, switches and one-shot triggers all report the value requested by the
+  host next to the value the camera actually used. Readouts such as battery, measured FPS,
+  AE/AF/AWB state and face count are live-only. Controls stay available while the preview
   is connecting; commands are logged at the bottom of the page.
+- **Presets.** Name the current setup and Save it, pick a preset and Apply to send every
+  stored value as one batch, or Delete the selected preset. A preset stores writable
+  controls only; camera selection and stream layout are not included. Shareable JSON files
+  remain available through `watchdog device preset export|import`.
+- **Reset all.** Returns exposure, focus and white balance to auto, clears manual values
+  and all regions, turns torch and face detection off, and restores the default output
+  settings in one batch.
 
 If no host answers the page probe, it falls back to the offline fake-device demo so the
 controls can still be explored. Capture and the media library are wired up in the

@@ -64,6 +64,15 @@ const css = `${baseCss}
     right: 0.6rem;
     color: var(--wd-accent);
   }
+  :host([mode="awb"]) rect.region {
+    fill: rgb(124 224 179 / 10%);
+    stroke: var(--wd-accent-2);
+  }
+  :host([mode="awb"]) .mode-label {
+    top: auto;
+    bottom: 0.6rem;
+    color: var(--wd-accent-2);
+  }
   .hint {
     position: absolute;
     top: 0.6rem;
@@ -225,18 +234,23 @@ export class WdRegionOverlay extends HTMLElement {
     this.renderDraft();
   };
 
-  get mode(): "metering" | "focus" {
-    return this.getAttribute("mode") === "focus" ? "focus" : "metering";
+  get mode(): "metering" | "focus" | "awb" {
+    const value = this.getAttribute("mode");
+    return value === "focus" || value === "awb" ? value : "metering";
   }
 
-  set mode(value: "metering" | "focus") {
+  set mode(value: "metering" | "focus" | "awb") {
     this.setAttribute("mode", value);
   }
 
   get label(): string {
     return (
       this.getAttribute("label") ??
-      (this.mode === "focus" ? "Focus region" : "Metering region")
+      (this.mode === "focus"
+        ? "Focus region"
+        : this.mode === "awb"
+          ? "White balance region"
+          : "Metering region")
     );
   }
 
@@ -330,7 +344,8 @@ export class WdRegionOverlay extends HTMLElement {
     const mode = this.mode;
     const label = this.label;
     const editable = this.editable;
-    this.modeLabel.textContent = mode === "focus" ? "FOCUS" : "METERING";
+    this.modeLabel.textContent =
+      mode === "focus" ? "FOCUS" : mode === "awb" ? "WHITE BALANCE" : "METERING";
     this.setAttribute("role", "group");
     this.setAttribute(
       "aria-label",

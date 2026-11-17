@@ -53,6 +53,8 @@ pub const READ_ONLY_CONTROLS: &[&str] = &[
     "lens_state",
     "face_count",
     "faces",
+    "tonemap_curve",
+    "tonemap_gamma",
 ];
 
 /// One-shot trigger controls that are never stored in a preset.

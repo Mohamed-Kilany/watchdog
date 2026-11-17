@@ -7,7 +7,7 @@ async function state(page: Page) {
 
 async function regionOf(
   page: Page,
-  id: "ae_regions" | "af_regions",
+  id: "ae_regions" | "af_regions" | "awb_regions",
 ): Promise<ControlRegion | null> {
   return page.evaluate((controlId) => {
     const entry = window.__watchdog.state()[controlId];
@@ -135,17 +135,75 @@ test("Escape discards a keyboard draft", async ({ page }) => {
   await expect.poll(async () => (await state(page)).af_regions?.actual).toBeUndefined();
 });
 
-test("clear regions removes both overlays", async ({ page }) => {
+test("white balance region drag sends awb_regions and updates AWB state", async ({
+  page,
+}) => {
+  await page.getByRole("radio", { name: "White balance" }).check();
+  const overlay = page.getByTestId("awb-overlay");
+  await expect(overlay).toHaveAttribute("editable", "");
+  await expect(page.getByTestId("metering-overlay")).not.toHaveAttribute(
+    "editable",
+    "",
+  );
+
+  await drag(page, overlay, { x: 0.2, y: 0.2 }, { x: 0.5, y: 0.6 });
+
+  await expect
+    .poll(async () => {
+      const region = await regionOf(page, "awb_regions");
+      if (!region) return false;
+      return (
+        Math.abs(region.x - 0.2) < 0.02 &&
+        Math.abs(region.y - 0.2) < 0.02 &&
+        Math.abs(region.w - 0.3) < 0.02 &&
+        Math.abs(region.h - 0.4) < 0.02
+      );
+    })
+    .toBe(true);
+
+  await expect.poll(async () => (await state(page)).awb_state?.actual).toBe(
+    "searching",
+  );
+  await expect(overlay.locator("rect.region")).toHaveCount(1);
+  await expect(page.getByTestId("region-readout")).toContainText(
+    "white balance",
+  );
+  await expect(page.getByTestId("command-log")).toContainText("awb_regions");
+});
+
+test("clear regions removes metering, focus and white balance regions", async ({
+  page,
+}) => {
   await drag(
     page,
     page.getByTestId("metering-overlay"),
     { x: 0.2, y: 0.2 },
     { x: 0.5, y: 0.5 },
   );
+  await page.getByRole("radio", { name: "Focus" }).check();
+  await drag(
+    page,
+    page.getByTestId("focus-overlay"),
+    { x: 0.3, y: 0.3 },
+    { x: 0.6, y: 0.6 },
+  );
+  await page.getByRole("radio", { name: "White balance" }).check();
+  await drag(
+    page,
+    page.getByTestId("awb-overlay"),
+    { x: 0.4, y: 0.4 },
+    { x: 0.7, y: 0.7 },
+  );
   await expect.poll(async () => regionOf(page, "ae_regions")).not.toBeNull();
+  await expect.poll(async () => regionOf(page, "af_regions")).not.toBeNull();
+  await expect.poll(async () => regionOf(page, "awb_regions")).not.toBeNull();
 
   await page.getByTestId("clear-regions").click();
   await expect.poll(async () => (await state(page)).ae_regions?.actual).toBeUndefined();
-  await expect(page.getByTestId("metering-overlay").locator("rect.region")).toHaveCount(0);
+  await expect.poll(async () => (await state(page)).af_regions?.actual).toBeUndefined();
+  await expect.poll(async () => (await state(page)).awb_regions?.actual).toBeUndefined();
+  for (const id of ["metering-overlay", "focus-overlay", "awb-overlay"]) {
+    await expect(page.getByTestId(id).locator("rect.region")).toHaveCount(0);
+  }
   await expect(page.getByTestId("region-readout")).toHaveText("No regions set");
 });

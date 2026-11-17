@@ -15,14 +15,15 @@
 //! device is active and follow session switches without closing the socket.
 //! M6-T04 adds `/api/snapshot`, which returns the latest viewfinder frame as a
 //! downloadable JPEG so the live page's snapshot button never needs a canvas
-//! copy of the stream.
+//! copy of the stream. M6-T05 adds `/api/presets` (list, load, save, delete)
+//! backed by `watchdog_presets::PresetStore` for the controls page.
 
 #![warn(missing_docs)]
 
 mod ws;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Write as _;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -40,6 +41,7 @@ use watchdog_core::error::{ErrorCode, WatchdogError};
 use watchdog_core::Result;
 use watchdog_device::devices::{DeviceService, ProvisionJobState, ProvisionRequest, SessionInfo};
 use watchdog_device::hub::{FrameHub, ReceivedFrame, StreamStats};
+use watchdog_presets::{Preset, PresetStore};
 use watchdog_protocol::{CommandMessage, CommandResultMessage, StateMessage};
 
 /// Minimal live view served when the UI build was not embedded (Rust-only
@@ -287,6 +289,9 @@ async fn handle_connection(
         ("GET", "/api/state") => state_response(service),
         ("POST", "/api/command") => command_response(service, &request).await,
         ("GET", "/api/stats") => stats_response(service),
+        ("GET", "/api/presets") => presets_response(service, &request),
+        ("POST", "/api/presets") => save_preset_response(service, &request),
+        ("DELETE", "/api/presets") => delete_preset_response(service, &request),
         ("GET", "/api/devices") => devices_response(service, false).await,
         ("POST", "/api/devices/discover") => devices_response(service, true).await,
         ("POST", "/api/devices/pair") => pair_response(service, &request).await,
@@ -312,6 +317,7 @@ async fn handle_connection(
         ("GET", _) => static_response(&request, embedded_asset),
         (_, "/api/command") => method_not_allowed("POST"),
         (_, "/api/snapshot") => method_not_allowed("GET"),
+        (_, "/api/presets") => method_not_allowed("GET, POST, DELETE"),
         (_, "/api/devices/pair")
         | (_, "/api/devices/activate")
         | (_, "/api/devices/disconnect")
@@ -347,6 +353,70 @@ fn snapshot_envelope(service: &DeviceService) -> serde_json::Value {
     match service.active_hub().and_then(|hub| hub.state()) {
         Some(state) => state_envelope(&state, &session),
         None => waiting_state_envelope(&session),
+    }
+}
+
+/// `GET /api/presets` — list summaries, or one preset with `?name=`.
+fn presets_response(service: &DeviceService, request: &Request) -> Response {
+    let store = PresetStore::new(&service.paths().presets);
+    if let Some(name) = request.query("name") {
+        return match store.load(&name) {
+            Ok(preset) => json_value_response("200 OK", &serde_json::to_value(preset)),
+            Err(error) => watchdog_response(&error),
+        };
+    }
+    match store.list() {
+        Ok(presets) => json_response("200 OK", &serde_json::json!({ "presets": presets })),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PresetSaveBody {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    controls: BTreeMap<String, serde_json::Value>,
+}
+
+/// `POST /api/presets` — create or overwrite a preset from a controls map.
+fn save_preset_response(service: &DeviceService, request: &Request) -> Response {
+    let body: PresetSaveBody = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid preset body: {error}"),
+                None,
+            )
+        }
+    };
+    let store = PresetStore::new(&service.paths().presets);
+    let saved = Preset::new(body.name, body.description, body.controls)
+        .and_then(|mut preset| {
+            store.save(&mut preset)?;
+            Ok(preset)
+        });
+    match saved {
+        Ok(preset) => json_value_response("200 OK", &serde_json::to_value(preset)),
+        Err(error) => watchdog_response(&error),
+    }
+}
+
+/// `DELETE /api/presets?name=...` — remove a stored preset.
+fn delete_preset_response(service: &DeviceService, request: &Request) -> Response {
+    let Some(name) = request.query("name") else {
+        return api_error(
+            "400 Bad Request",
+            ErrorCode::InvalidRequest,
+            "missing preset name",
+            Some("pass ?name=<preset>"),
+        );
+    };
+    match PresetStore::new(&service.paths().presets).delete(&name) {
+        Ok(()) => json_response("200 OK", &serde_json::json!({ "ok": true, "name": name })),
+        Err(error) => watchdog_response(&error),
     }
 }
 
@@ -1483,5 +1553,61 @@ mod tests {
         assert!(FALLBACK_PAGE.contains("/stream.mjpg"));
         assert!(FALLBACK_PAGE.contains("/api/stats"));
         assert!(FALLBACK_PAGE.contains("token"));
+    }
+
+    #[test]
+    fn preset_api_saves_lists_loads_and_deletes() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "watchdog-ui-presets-{}-{stamp}",
+            std::process::id()
+        ));
+        let paths = watchdog_core::paths::DataPaths::resolve(&root);
+        let service = DeviceService::new(paths).expect("device service");
+
+        let payload = serde_json::json!({
+            "name": "TV screen capture",
+            "description": "Manual exposure",
+            "controls": { "ae_mode": 0, "iso": 100, "zoom_ratio": 1.0 }
+        })
+        .to_string();
+        let save_request = parse_request(&format!(
+            "POST /api/presets HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n{}",
+            payload.len(),
+            payload
+        ))
+        .expect("valid request");
+        let saved = save_preset_response(&service, &save_request);
+        assert_eq!(saved.status, "200 OK");
+        let saved_body: serde_json::Value =
+            serde_json::from_slice(&saved.body).expect("preset JSON");
+        assert_eq!(saved_body["name"], "TV screen capture");
+        assert_eq!(saved_body["controls"]["iso"], 100);
+
+        let listed = presets_response(&service, &request("/api/presets"));
+        assert_eq!(listed.status, "200 OK");
+        let listed_body: serde_json::Value =
+            serde_json::from_slice(&listed.body).expect("list JSON");
+        assert_eq!(listed_body["presets"][0]["name"], "TV screen capture");
+        assert_eq!(listed_body["presets"][0]["controls"], 3);
+
+        let loaded = presets_response(&service, &request("/api/presets?name=tv-screen-capture"));
+        assert_eq!(loaded.status, "200 OK");
+        let loaded_body: serde_json::Value =
+            serde_json::from_slice(&loaded.body).expect("preset JSON");
+        assert_eq!(loaded_body["controls"]["ae_mode"], 0);
+
+        let deleted = delete_preset_response(
+            &service,
+            &request("/api/presets?name=tv-screen-capture"),
+        );
+        assert_eq!(deleted.status, "200 OK");
+        let missing = presets_response(&service, &request("/api/presets?name=tv-screen-capture"));
+        assert_eq!(missing.status, "404 Not Found");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -101,6 +101,12 @@ export interface SliderDescriptor extends DescriptorBase {
 export interface SelectDescriptor extends DescriptorBase {
   kind: "select";
   options: SelectOption[];
+  /**
+   * Encode the option value before sending it. `size` turns `"1280x720"` into
+   * `{width: 1280, height: 720}` and `fps-range` turns `"30-30"` into
+   * `[30, 30]`, matching the device's structural and FPS-range controls.
+   */
+  format?: "size" | "fps-range";
 }
 
 /** Reset-to-auto button for a group of controls. */
@@ -109,12 +115,36 @@ export interface ResetDescriptor extends DescriptorBase {
   targets: string[];
 }
 
+/** Read-only live state entry (no input), shown with its reported value. */
+export interface ReadoutDescriptor extends DescriptorBase {
+  kind: "readout";
+  unit?: string;
+  precision?: number;
+  /** Optional enum labels for numeric or string states. */
+  options?: SelectOption[];
+}
+
+/** Boolean switch backed by a `true`/`false` control such as torch or audio. */
+export interface ToggleDescriptor extends DescriptorBase {
+  kind: "toggle";
+}
+
+/** One-shot action button such as `af_trigger` or `ae_precapture`. */
+export interface TriggerDescriptor extends DescriptorBase {
+  kind: "trigger";
+  value: ControlValue;
+  actionLabel?: string;
+}
+
 export type ControlDescriptor =
   | AutoDescriptor
   | LockDescriptor
   | SliderDescriptor
   | SelectDescriptor
-  | ResetDescriptor;
+  | ResetDescriptor
+  | ReadoutDescriptor
+  | ToggleDescriptor
+  | TriggerDescriptor;
 
 export interface CommandLogEntry {
   batch: ControlChange[];

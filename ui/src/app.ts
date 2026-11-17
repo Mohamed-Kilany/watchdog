@@ -19,8 +19,16 @@ import {
 import type { ConnectionState } from "./host";
 import type { SessionInfo } from "./device-api";
 import type { WdControlPanel } from "./components/wd-control-panel";
+import type { WdPresetManager } from "./components/wd-preset-manager";
 import type { WdRegionOverlay } from "./components/wd-region-overlay";
 import { LivePage } from "./live";
+import {
+  captureControls,
+  HostPresetSource,
+  LocalPresetSource,
+  orderedChanges,
+} from "./presets";
+import type { PresetSource } from "./presets";
 import type {
   ApplyResult,
   CommandLogEntry,
@@ -71,11 +79,13 @@ function describe(region: ControlRegion): string {
 interface Shell {
   panel: WdControlPanel;
   panels: WdControlPanel[];
+  presets: WdPresetManager;
   commands: CommandLogEntry[];
   current(): DeviceBackend;
   log(changes: ControlChange[], results: ApplyResult[]): void;
   logEvent(kind: string, detail?: string): void;
   switchTo(backend: DeviceBackend): void;
+  setPresetSource(source: PresetSource): void;
 }
 
 function wireShell(
@@ -87,6 +97,8 @@ function wireShell(
   const panels = [panel, rightPanel];
   const meteringOverlay = mustQuery<WdRegionOverlay>("#metering-overlay");
   const focusOverlay = mustQuery<WdRegionOverlay>("#focus-overlay");
+  const awbOverlay = mustQuery<WdRegionOverlay>("#awb-overlay");
+  const presetManager = mustQuery<WdPresetManager>("#preset-manager");
   const regionReadout = mustQuery<HTMLParagraphElement>("#region-readout");
   const commandLog = mustQuery<HTMLOListElement>("#command-log");
   const status = mustQuery<HTMLSpanElement>("#device-status");
@@ -101,17 +113,22 @@ function wireShell(
   rightPanel.heading = "Lens & output";
   for (const target of panels) target.descriptors = DESCRIPTORS;
   panel.groups = ["Exposure", "Focus", "White balance"];
-  rightPanel.groups = ["Lens"];
+  rightPanel.groups = ["Lens", "Flash & scene", "Output", "Recording"];
   for (const target of panels) target.state = backend.snapshot;
+  presetManager.source = new LocalPresetSource();
+  presetManager.controls = captureControls(backend.snapshot);
 
   function syncRegions(state: ControlState): void {
     const metering = regionOf(state["ae_regions"]);
     const focus = regionOf(state["af_regions"]);
+    const awb = regionOf(state["awb_regions"]);
     meteringOverlay.regions = metering ? [metering] : [];
     focusOverlay.regions = focus ? [focus] : [];
+    awbOverlay.regions = awb ? [awb] : [];
     const parts: string[] = [];
     if (metering) parts.push(`metering ${describe(metering)}`);
     if (focus) parts.push(`focus ${describe(focus)}`);
+    if (awb) parts.push(`white balance ${describe(awb)}`);
     regionReadout.textContent =
       parts.length > 0 ? parts.join(" · ") : "No regions set";
   }
@@ -146,6 +163,7 @@ function wireShell(
 
   function handleState(state: ControlState): void {
     for (const target of panels) target.state = state;
+    presetManager.controls = captureControls(state);
     syncRegions(state);
     onState(state);
   }
@@ -224,11 +242,11 @@ function wireShell(
     });
   }
 
-  for (const overlay of [meteringOverlay, focusOverlay]) {
+  for (const overlay of [meteringOverlay, focusOverlay, awbOverlay]) {
     overlay.addEventListener("wd-region-change", (event) => {
       const detail = (
         event as CustomEvent<{
-          mode: "metering" | "focus";
+          mode: "metering" | "focus" | "awb";
           region: ControlRegion;
         }>
       ).detail;
@@ -239,7 +257,9 @@ function wireShell(
               { id: "af_regions", value: detail.region },
               { id: "af_trigger", value: "start" },
             ]
-          : [{ id: "ae_regions", value: detail.region }];
+          : detail.mode === "awb"
+            ? [{ id: "awb_regions", value: detail.region }]
+            : [{ id: "ae_regions", value: detail.region }];
       void applyChanges(changes);
     });
   }
@@ -251,6 +271,7 @@ function wireShell(
   function setActiveRegion(mode: string): void {
     meteringOverlay.editable = mode === "metering";
     focusOverlay.editable = mode === "focus";
+    awbOverlay.editable = mode === "awb";
   }
 
   for (const radio of radios) {
@@ -275,6 +296,40 @@ function wireShell(
   document.querySelector("#reset-all")?.addEventListener("click", () => {
     void reset(["all"], { id: "reset_all", value: true });
   });
+
+  presetManager.addEventListener("wd-preset-apply", (event) => {
+    const detail = (
+      event as CustomEvent<{ name: string; controls: Record<string, unknown> }>
+    ).detail;
+    if (!detail) return;
+    const changes = orderedChanges(detail.controls);
+    const marker: ControlChange[] = [
+      { id: "preset", value: detail.name },
+      ...changes,
+    ];
+    void (async () => {
+      try {
+        const results = await backend.setControls(changes);
+        log(marker, results);
+        const failed = results.filter((result) => !result.ok).length;
+        presetManager.report(
+          failed === 0
+            ? `Applied "${detail.name}" (${results.length} controls).`
+            : `Applied "${detail.name}" with ${failed} of ${results.length} controls rejected.`,
+          failed === 0,
+        );
+      } catch (error) {
+        log(marker, [
+          { control: "preset", ok: false, error: messageOf(error) },
+        ]);
+        presetManager.report(messageOf(error), false);
+      }
+    })();
+  });
+
+  function setPresetSource(source: PresetSource): void {
+    presetManager.source = source;
+  }
 
   const themeButton = mustQuery<HTMLButtonElement>("#theme-toggle");
   const storedTheme = localStorage.getItem("watchdog.theme");
@@ -302,6 +357,7 @@ function wireShell(
     backend = next;
     unsubscribe = backend.subscribe(handleState);
     for (const target of panels) target.state = backend.snapshot;
+    presetManager.controls = captureControls(backend.snapshot);
     syncRegions(backend.snapshot);
     onState(backend.snapshot);
     updateMode();
@@ -316,11 +372,13 @@ function wireShell(
   return {
     panel,
     panels,
+    presets: presetManager,
     commands,
     current: () => backend,
     log,
     logEvent,
     switchTo,
+    setPresetSource,
   };
 }
 
@@ -329,6 +387,7 @@ function expose(shell: Shell, live: LivePage): void {
     device: shell.current(),
     panel: shell.panel,
     panels: shell.panels,
+    presets: shell.presets,
     live,
     state: () => shell.current().snapshot,
     commands: () => structuredClone(shell.commands),
@@ -343,6 +402,7 @@ function startHost(
 ): HostClient {
   const backend = new HostClient(token, initialState, initialSession);
   shell.switchTo(backend);
+  shell.setPresetSource(new HostPresetSource(token));
   const banner = mustQuery<HTMLDivElement>("#connection-banner");
 
   backend.subscribeEvents((event) => {

@@ -107,9 +107,49 @@ export function formatValue(
   } else if (typeof value === "string") {
     text = value;
   } else if (Array.isArray(value)) {
-    text = `${value.length} region${value.length === 1 ? "" : "s"}`;
+    const first = value[0];
+    const second = value[1];
+    if (
+      value.length === 2 &&
+      typeof first === "number" &&
+      typeof second === "number"
+    ) {
+      text = `${formatNumber(first, precision)}–${formatNumber(second, precision)}`;
+    } else if (
+      first &&
+      typeof first === "object" &&
+      ("x" in first || "y" in first)
+    ) {
+      text = `${value.length} region${value.length === 1 ? "" : "s"}`;
+    } else if (
+      first &&
+      typeof first === "object" &&
+      ("score" in first || "id" in first)
+    ) {
+      text = `${value.length} face${value.length === 1 ? "" : "s"}`;
+    } else {
+      text = `${value.length} item${value.length === 1 ? "" : "s"}`;
+    }
   } else if (typeof value === "object") {
-    text = "set";
+    const record = value as Record<string, unknown>;
+    if (
+      typeof record["width"] === "number" &&
+      typeof record["height"] === "number"
+    ) {
+      text = `${record["width"]}×${record["height"]}`;
+    } else if (Array.isArray(record["red"])) {
+      text = "curve";
+    } else if (typeof record["r"] === "number" && typeof record["b"] === "number") {
+      const green =
+        typeof record["g"] === "number"
+          ? formatNumber(record["g"], precision)
+          : `${formatNumber(Number(record["g_even"] ?? 0), precision)}/${formatNumber(Number(record["g_odd"] ?? 0), precision)}`;
+      text = `r ${formatNumber(record["r"], precision)} · g ${green} · b ${formatNumber(record["b"], precision)}`;
+    } else if ("components" in record || "matrix_size" in record) {
+      text = "matrix";
+    } else {
+      text = "set";
+    }
   } else {
     text = String(value);
   }
