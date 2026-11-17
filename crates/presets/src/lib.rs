@@ -53,6 +53,9 @@ pub const READ_ONLY_CONTROLS: &[&str] = &[
     "lens_state",
     "face_count",
     "faces",
+    "storage_free_mb",
+    "tonemap_curve",
+    "tonemap_gamma",
 ];
 
 /// One-shot trigger controls that are never stored in a preset.
@@ -674,6 +677,7 @@ mod tests {
         assert!(is_structural("stream_size"));
         assert!(!is_structural("iso"));
         assert!(is_read_only("awb_gains"));
+        assert!(is_read_only("storage_free_mb"));
         assert!(is_one_shot("af_trigger"));
     }
 }

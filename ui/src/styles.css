@@ -466,6 +466,16 @@ body {
   grid-area: right;
 }
 
+.preset-section {
+  display: block;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.85rem;
+  background: var(--wd-panel);
+  box-shadow: var(--wd-shadow);
+}
+
 .log {
   grid-area: log;
   padding: 0.8rem 1rem;

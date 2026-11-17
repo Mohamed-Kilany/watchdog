@@ -94,7 +94,7 @@ export function consumeTokenFromUrl(): string | null {
   return token;
 }
 
-function authHeaders(token: string | null): Record<string, string> {
+export function authHeaders(token: string | null): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -102,7 +102,7 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function errorMessageFromBody(body: unknown): string | null {
+export function errorMessageFromBody(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const record = body as Record<string, unknown>;
   const error = record["error"];
@@ -178,16 +178,46 @@ function asRegionArray(value: unknown): unknown {
  * rejects an empty region array.
  */
 const RESET_VALUES: Record<string, unknown> = {
+  control_mode: 1,
   ae_mode: 1,
   ae_lock: false,
   ae_compensation: 0,
   anti_banding: 3,
+  ae_fps_range: [30, 30],
+  ae_precapture: "cancel",
   af_mode: 4,
   af_lock: false,
   af_trigger: "cancel",
   awb_mode: 1,
   awb_lock: false,
+  effect: 0,
+  aberration_correction: 1,
   zoom_ratio: 1,
+  filter_density: 0,
+  optical_stabilization: 1,
+  video_stabilization: 0,
+  lens_shading: 1,
+  distortion_correction: 1,
+  torch: false,
+  flash_mode: 0,
+  scene_mode: 0,
+  noise_reduction: 1,
+  edge_enhancement: 1,
+  hot_pixel: 1,
+  tonemap: 1,
+  tonemap_preset_curve: 0,
+  face_detect: false,
+  test_pattern: 0,
+  stream_size: { width: 1280, height: 720 },
+  jpeg_quality: 80,
+  stream_rotation: 0,
+  still_format: "JPEG",
+  still_size: { width: 4000, height: 3000 },
+  video_size: { width: 1920, height: 1080 },
+  video_bitrate: 8_000_000,
+  video_codec: "h264",
+  video_container: "mp4",
+  audio: false,
 };
 
 const CLEARED_REGION = { x: 0, y: 0, w: 1, h: 1, weight: 0 };
@@ -197,7 +227,7 @@ function resetChanges(targets: string[]): ControlChange[] {
   const changes: ControlChange[] = [];
   for (const id of ids) {
     if (!Object.hasOwn(RESET_VALUES, id)) continue;
-    changes.push({ id, value: RESET_VALUES[id] });
+    changes.push({ id, value: structuredClone(RESET_VALUES[id]) });
   }
   const all = targets.includes("all");
   if (all || targets.includes("ae_regions")) {
@@ -205,6 +235,9 @@ function resetChanges(targets: string[]): ControlChange[] {
   }
   if (all || targets.includes("af_regions")) {
     changes.push({ id: "af_regions", value: [CLEARED_REGION] });
+  }
+  if (all || targets.includes("awb_regions")) {
+    changes.push({ id: "awb_regions", value: [CLEARED_REGION] });
   }
   return changes;
 }
@@ -375,6 +408,7 @@ export class HostClient implements DeviceBackend {
     return this.setControls([
       { id: "ae_regions", value: [CLEARED_REGION] },
       { id: "af_regions", value: [CLEARED_REGION] },
+      { id: "awb_regions", value: [CLEARED_REGION] },
       { id: "af_trigger", value: "cancel" },
     ]);
   }

@@ -2245,6 +2245,7 @@ dependencies = [
  "tracing",
  "watchdog-core",
  "watchdog-device",
+ "watchdog-presets",
  "watchdog-protocol",
 ]
 

@@ -60,9 +60,10 @@ The directory is included in `watchdog config paths` and is created on first use
 
 Read-only `STATE` entries (`fps_actual`, `recording`, `battery_percent`, `ae_state`,
 `af_state`, `awb_state`, `focus_distance_diopters`, `awb_gains`, `color_transform`,
-`zoom_actual`, lens readouts, `face_count`, `faces`, …) and one-shot triggers
-(`ae_precapture`, `af_trigger`) are rejected. A preset stores *requests*; actuals are read
-back from the device after applying it.
+`zoom_actual`, lens readouts, `tonemap_curve`, `tonemap_gamma`, `face_count`, `faces`,
+`storage_free_mb`, …)
+and one-shot triggers (`ae_precapture`, `af_trigger`) are rejected. A preset stores
+*requests*; actuals are read back from the device after applying it.
 
 Control ids and values are the same ones documented in
 [camera-controls.md](camera-controls.md) and [protocol.md](protocol.md). `camera_id` and

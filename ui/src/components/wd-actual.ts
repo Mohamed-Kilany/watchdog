@@ -5,6 +5,7 @@ import {
   formatValue,
   valuesEqual,
 } from "./base";
+import type { SelectOption } from "../types";
 
 const css = `${baseCss}
   .actual {
@@ -61,6 +62,10 @@ const css = `${baseCss}
   .badge[data-state="n/a"] {
     color: var(--wd-muted);
   }
+  .badge[data-state="readout"] {
+    color: var(--wd-accent-2);
+    border-color: color-mix(in srgb, var(--wd-accent-2) 50%, var(--wd-border));
+  }
 `;
 
 export class WdActual extends HTMLElement {
@@ -71,14 +76,17 @@ export class WdActual extends HTMLElement {
     "precision",
     "source",
     "supported",
+    "readonly",
   ];
 
   private _requested: unknown = undefined;
   private _actual: unknown = undefined;
+  private _options: SelectOption[] = [];
   private rendered = false;
 
   private labelEl!: HTMLSpanElement;
   private requestedEl!: HTMLSpanElement;
+  private arrowEl!: HTMLSpanElement;
   private actualEl!: HTMLSpanElement;
   private unitEl!: HTMLSpanElement;
   private sourceEl!: HTMLSpanElement;
@@ -135,6 +143,24 @@ export class WdActual extends HTMLElement {
     this.setAttribute("supported", String(value));
   }
 
+  /** Read-only entries hide the requested arrow and report a `live` badge. */
+  get readonly(): boolean {
+    return this.hasAttribute("readonly");
+  }
+
+  set readonly(value: boolean) {
+    this.toggleAttribute("readonly", value);
+  }
+
+  get options(): SelectOption[] {
+    return this._options;
+  }
+
+  set options(value: SelectOption[]) {
+    this._options = value.map((option) => ({ ...option }));
+    this.sync();
+  }
+
   get requested(): unknown {
     return this._requested;
   }
@@ -184,6 +210,7 @@ export class WdActual extends HTMLElement {
     `;
     this.labelEl = root.querySelector(".label") as HTMLSpanElement;
     this.requestedEl = root.querySelector(".requested") as HTMLSpanElement;
+    this.arrowEl = root.querySelector(".arrow") as HTMLSpanElement;
     this.actualEl = root.querySelector(".actual-value") as HTMLSpanElement;
     this.unitEl = root.querySelector(".unit") as HTMLSpanElement;
     this.sourceEl = root.querySelector(".source") as HTMLSpanElement;
@@ -199,10 +226,13 @@ export class WdActual extends HTMLElement {
     const hasActual = actual !== undefined && actual !== null;
     const source = this.source;
     const supported = this.supported;
+    const readonly = this.readonly;
 
-    let state: "match" | "differs" | "auto" | "pending" | "n/a";
+    let state: "match" | "differs" | "auto" | "pending" | "n/a" | "readout";
     if (!supported) {
       state = "n/a";
+    } else if (readonly) {
+      state = hasActual ? "readout" : "pending";
     } else if (!hasActual) {
       state = "pending";
     } else if (!hasRequested) {
@@ -213,27 +243,39 @@ export class WdActual extends HTMLElement {
       state = "differs";
     }
 
-    const requestedText = hasRequested
-      ? formatValue(requested, this.precision, this.unit)
-      : source === "auto"
-        ? "auto"
-        : "—";
-    const actualText = hasActual
-      ? formatValue(actual, this.precision, this.unit)
-      : "—";
+    const requestedText = readonly
+      ? ""
+      : hasRequested
+        ? this.format(requested)
+        : source === "auto"
+          ? "auto"
+          : "—";
+    const actualText = hasActual ? this.format(actual) : "—";
 
     this.labelEl.textContent = this.label;
     this.requestedEl.textContent = requestedText;
+    this.requestedEl.hidden = readonly;
+    this.arrowEl.hidden = readonly;
     this.actualEl.textContent = actualText;
     this.unitEl.textContent = "";
     this.sourceEl.textContent = source ? `source ${source}` : "";
-    this.badge.textContent = state === "n/a" ? "n/a" : state;
+    this.badge.textContent =
+      state === "n/a" ? "n/a" : state === "readout" ? "live" : state;
     this.badge.dataset.state = state;
     this.dataset.state = state;
     this.setAttribute(
       "aria-label",
-      `${this.label || this.controlId}: requested ${requestedText}, actual ${actualText}, ${state}`,
+      readonly
+        ? `${this.label || this.controlId}: ${actualText}, live`
+        : `${this.label || this.controlId}: requested ${requestedText}, actual ${actualText}, ${state}`,
     );
+  }
+
+  private format(value: unknown): string {
+    const option = this._options.find((item) => valuesEqual(item.value, value));
+    return option
+      ? option.label
+      : formatValue(value, this.precision, this.unit);
   }
 }
 

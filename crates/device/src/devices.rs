@@ -396,6 +396,12 @@ impl DeviceService {
         self.notices.subscribe()
     }
 
+    /// Data-directory layout (presets, media, logs, ...).
+    #[must_use]
+    pub fn paths(&self) -> &DataPaths {
+        &self.paths
+    }
+
     /// Current session state, including a closed session's last handshake.
     pub fn session_info(&self) -> SessionInfo {
         let guard = lock(&self.active);

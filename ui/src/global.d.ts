@@ -1,4 +1,5 @@
 import type { WdControlPanel } from "./components/wd-control-panel";
+import type { WdPresetManager } from "./components/wd-preset-manager";
 import type { LivePage } from "./live";
 import type { CommandLogEntry, ControlState, DeviceBackend } from "./types";
 
@@ -8,6 +9,7 @@ declare global {
       device: DeviceBackend;
       panel: WdControlPanel;
       panels: WdControlPanel[];
+      presets: WdPresetManager;
       live: LivePage;
       state: () => ControlState;
       commands: () => CommandLogEntry[];

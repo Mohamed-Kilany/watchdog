@@ -24,7 +24,10 @@ Devices page with route-mocked host APIs: demo notice, listing and activation, p
 provisioning progress plus the update prompt, and disconnect. `ui/tests/live.spec.ts`
 covers the live view: demo scene, split control panels, host MJPEG stream plus stats
 polling, face boxes/grid/rotation, snapshot download, fullscreen and pausing the stream
-when the Devices page is open.
+when the Devices page is open. `ui/tests/controls.spec.ts` covers every control kind
+(slider, enum, switch, lock, trigger, readout, reset) and
+`ui/tests/presets.spec.ts` covers preset save/apply/delete; `ui/tests/regions.spec.ts`
+covers metering, focus and white-balance region editing.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -67,6 +70,7 @@ folder and serve the minimal live page described below instead.
 | `/ws` | RFC 6455 WebSocket for state snapshots, events, session changes and command replies |
 | `/stream.mjpg` | multipart MJPEG viewfinder stream (`token` accepted as a query parameter) |
 | `/api/snapshot` | next hub frame as a `watchdog-snapshot.jpg` attachment (`503` without a frame/session) |
+| `/api/presets` | `GET` list/summaries or one preset (`?name=`), `POST` save, `DELETE` (`?name=`) |
 | `/api/stats`, `/healthz` | hub frame counters and liveness probe |
 
 Every static response carries a weak content-hash ETag (`W/"<sha256>"`), answers
@@ -165,16 +169,46 @@ so no frame queue lives in JavaScript. `ui/src/live.ts` owns the page state:
 - Snapshot downloads `/api/snapshot` as `watchdog-snapshot.jpg`; the endpoint returns the
   next hub frame, so overlays are never baked into the image.
 - The rule-of-thirds grid, face boxes (`wd-face-overlay` from `state.faces.actual`) and
-  the metering/focus region overlays are DOM elements above the stream. `stream_rotation`
-  rotates the `.vf-media` wrapper with a CSS transform and a computed fit scale.
+  the metering/focus/white-balance region overlays are DOM elements above the stream.
+  `stream_rotation` rotates the `.vf-media` wrapper with a CSS transform and a computed
+  fit scale.
 - Fullscreen uses the Fullscreen API on the viewfinder; an overlay button exits it (the
   toolbar button also updates its label), and Escape keeps the browser's native exit.
 - The controls are split into a left panel (Exposure, Focus, White balance) and a right
-  panel (Lens) around the video; below 1200 px the video spans the top row and the panels
-  share the second row, and below 720 px everything stacks.
+  panel (Lens, Flash & scene, Output, Recording) around the video; below 1200 px the
+  video spans the top row and the panels share the second row, and below 720 px
+  everything stacks. The right panel also holds the preset manager.
 
 `ui/src/live-api.ts` is the typed client for the stream URL, `/api/stats` and
 `/api/snapshot`, and reuses the same bearer token as the rest of the UI API.
+
+### Controls and presets
+
+`ui/src/descriptors.ts` describes every control the Android app reports, grouped like the
+phone's own panel. A descriptor is one of four kinds:
+
+| Kind | Rendered by | Behaviour |
+|---|---|---|
+| `slider` | `wd-slider` | Numeric range plus entry; `scale` converts UI units to device units |
+| `select` | `wd-select` | Enum; `format: "size"` sends `{width, height}`, `format: "fps-range"` sends `[lower, upper]` |
+| `readout` | `wd-actual` | Live-only value with a `live` badge; no requested value and no writes |
+| `toggle` | `wd-toggle` | Boolean switch with `role="switch"`; sends `true`/`false` |
+| `trigger` | `wd-trigger` | One-shot button (`af_trigger`, `ae_precapture`) that reports pending state |
+
+Auto/manual pairs keep their `wd-auto-toggle` and lock buttons; region controls are edited
+directly on the viewfinder. Every writable control is reset by `Reset all`, which sends one
+`set_controls` batch: exposure/focus/white balance return to auto, manual values are
+cleared, lens zoom returns to 1, torch and face detection turn off, output settings return
+to their defaults, and all three region arrays are cleared with a full-frame weight-0
+rectangle. `tonemap_curve`/`tonemap_gamma` are read-only in both the UI and the host.
+
+The preset manager (`wd-preset-manager`, `ui/src/presets.ts`) captures the requested value
+of every supported writable control, skipping read-only entries, one-shot triggers and
+structural ids (`camera_id`, `stream_size`, ...). Applying a preset sends a single
+`set_controls` batch with camera ids first and the rest in alphabetical order, matching
+`docs/presets.md`. In host mode presets live under `<data_dir>/presets` behind
+`/api/presets`; the demo stores the same schema in `localStorage`. Save/apply/delete are
+in the page; shareable JSON stays in `watchdog device preset export|import`.
 
 ### WebSocket
 
@@ -244,8 +278,11 @@ events, so a consumer can listen on the panel or on `document`.
 | `wd-lock-button` | Lock/unlock button with a live badge | `control-id`, `label`, `locked`, `pending`, `supported`, `disabled` | `wd-lock-change` `{id, locked}` |
 | `wd-region-overlay` | Metering/focus region drawn over the viewfinder | `mode`, `label`, `regions`, `editable`, `maxRegions` | `wd-region-change` `{mode, region, regions}` |
 | `wd-face-overlay` | Read-only normalized face boxes from `state.faces.actual` | `faces` | — |
-| `wd-actual` | Requested vs actual readout with `match`/`differs`/`auto`/`pending` badge | `control-id`, `label`, `requested`, `actual`, `unit`, `precision`, `source`, `supported` | — |
-| `wd-select` | Enum control | `control-id`, `label`, `options`, `value`, `disabled` | `wd-commit` `{id, value}` |
+| `wd-actual` | Requested vs actual readout with `match`/`differs`/`auto`/`pending` badge, or a live-only readout | `control-id`, `label`, `requested`, `actual`, `unit`, `precision`, `source`, `supported`, `readonly`, `options` | — |
+| `wd-select` | Enum control; optional `size`/`fps-range` value encoding | `control-id`, `label`, `options`, `value`, `disabled` | `wd-commit` `{id, value}` |
+| `wd-toggle` | Boolean switch with a live on/off badge | `control-id`, `label`, `checked`, `disabled` | `wd-toggle-change` `{id, on}` |
+| `wd-trigger` | One-shot trigger button with a pending badge | `control-id`, `label`, `pending`, `disabled` | `wd-trigger` `{id}` |
+| `wd-preset-manager` | Save/apply/delete named presets with a status line | `source` (preset source), `controls` (current writable values) | `wd-preset-apply` `{preset}`, `wd-preset-saved`/`wd-preset-deleted` `{name}` |
 | `wd-reset` | Reset-to-auto button for a group of control ids | `label`, `targets`, `disabled` | `wd-reset` `{targets}` |
 | `wd-control-panel` | Groups descriptors, renders rows and translates child events | `descriptors`, `state`, `heading`, `groups`, `disabled` | `wd-control-change` `{id, value}`, `wd-control-reset` `{targets}` |
 
@@ -258,10 +295,11 @@ applies it in both directions.
 ### Region overlay
 
 The overlay normalizes coordinates to `0..1` and emits the same `{x, y, w, h, weight}`
-shape as `ae_regions` / `af_regions`. Pointer drag draws a region; a click creates a
-20% x 20% region centered on the tap. Keyboard: arrows move by 2%, Shift+arrows resize by
-5%, Enter applies, Escape cancels. The demo sends `af_regions` plus `af_trigger=start`
-for focus regions and `ae_regions` for metering.
+shape as `ae_regions` / `af_regions` / `awb_regions`. Pointer drag draws a region; a click
+creates a 20% x 20% region centered on the tap. Keyboard: arrows move by 2%, Shift+arrows
+resize by 5%, Enter applies, Escape cancels. The demo sends `af_regions` plus
+`af_trigger=start` for focus regions, `ae_regions` for metering and `awb_regions` for white
+balance; only the selected overlay is editable.
 
 ### Accessibility
 
@@ -275,14 +313,15 @@ for focus regions and `ae_regions` for metering.
 
 ## Demo and fake device
 
-`ui/index.html` + `ui/src/app.ts` render a fake 16:9 viewfinder, the metering/focus
-overlays, the two control panels, a command log, drift and reset-all buttons, and a theme
-toggle. The shell is backend-agnostic: `FakeDevice` keeps the offline demo working and
-`HostClient` drives the same panels, overlays and log from the host channel. The mode tag
-shows `demo device` or `host`; the drift button is hidden in host mode. The Devices page
-works in host mode only and shows a demo notice otherwise. `window.__watchdog` exposes
-the active backend, the left panel (and both panels via `panels`), the live view
-controller, the state snapshot and the command log for Playwright assertions. The fake
+`ui/index.html` + `ui/src/app.ts` render a fake 16:9 viewfinder, the
+metering/focus/white-balance overlays, the two control panels, a preset manager, a command
+log, drift and reset-all buttons, and a theme toggle. The shell is backend-agnostic:
+`FakeDevice` keeps the offline demo working and `HostClient` drives the same panels,
+overlays, presets and log from the host channel. The mode tag shows `demo device` or
+`host`; the drift button is hidden in host mode. The Devices page works in host mode only
+and shows a demo notice otherwise. `window.__watchdog` exposes the active backend, the
+left panel (and both panels via `panels`), the live view controller, the preset manager
+(`presets`), the state snapshot and the command log for Playwright assertions. The fake
 device is not a protocol implementation; it only mirrors the state/implication semantics
 needed by the components.
 
@@ -290,4 +329,4 @@ Host resets are sent as one `set_controls` batch: exposure returns `ae_mode` to 
 focus returns `af_mode` to continuous, white balance returns `awb_mode` to auto, lens
 returns `zoom_ratio` to 1, and regions are cleared with a full-frame region of weight 0
 (the app rejects an empty region array). Region edits are wrapped in an array because the
-app's validator expects `ae_regions` / `af_regions` as arrays.
+app's validator expects `ae_regions` / `af_regions` / `awb_regions` as arrays.

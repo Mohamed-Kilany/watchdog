@@ -221,3 +221,144 @@ test("controls expose accessible roles and names", async ({ page }) => {
     page.getByRole("button", { name: "Reset exposure" }),
   ).toBeVisible();
 });
+
+test("both panels render every Android control group", async ({ page }) => {
+  const left = page.getByTestId("panel");
+  const right = page.getByTestId("panel-right");
+  for (const group of ["Exposure", "Focus", "White balance"]) {
+    await expect(left.locator(`.group[data-group="${group}"]`)).toBeVisible();
+  }
+  for (const group of ["Lens", "Flash & scene", "Output", "Recording"]) {
+    await expect(right.locator(`.group[data-group="${group}"]`)).toBeVisible();
+  }
+
+  // One representative control from each side of the layout.
+  await expect(
+    left.locator('wd-select[data-control-id="awb_mode"]'),
+  ).toBeVisible();
+  await expect(
+    left.locator('wd-select[data-control-id="control_mode"]'),
+  ).toBeVisible();
+  await expect(
+    right.locator('wd-toggle[data-control-id="torch"]'),
+  ).toBeVisible();
+  await expect(
+    right.locator('wd-select[data-control-id="stream_size"]'),
+  ).toBeVisible();
+  await expect(
+    right.locator('wd-actual[data-control-id="battery_percent"]'),
+  ).toBeVisible();
+});
+
+test("readouts show live values without a requested value", async ({ page }) => {
+  const battery = page.locator('wd-actual[data-control-id="battery_percent"]');
+  await expect(battery.locator(".badge")).toHaveText("live");
+  await expect(battery.locator(".requested")).toBeHidden();
+  await expect(battery.locator(".actual-value")).toHaveText("87 %");
+
+  const aeState = page.locator('wd-actual[data-control-id="ae_state"]');
+  await expect(aeState.locator(".badge")).toHaveText("live");
+  await expect(aeState.locator(".actual-value")).toHaveText("Converged");
+});
+
+test("toggle controls send booleans and reflect the live value", async ({
+  page,
+}) => {
+  const torch = page.locator('wd-toggle[data-control-id="torch"]');
+  const button = torch.locator("button");
+  await expect(button).toHaveAttribute("aria-checked", "false");
+  await expect(torch.locator(".badge")).toHaveText("Off");
+
+  await button.click();
+  await expect(button).toHaveAttribute("aria-checked", "true");
+  await expect(torch.locator(".badge")).toHaveText("On");
+  await expect.poll(async () => (await state(page)).torch?.actual).toBe(true);
+  await expect(page.getByTestId("command-log")).toContainText("torch=true");
+
+  await button.click();
+  await expect.poll(async () => (await state(page)).torch?.actual).toBe(false);
+});
+
+test("one-shot triggers send start and update the reported AF/AE state", async ({
+  page,
+}) => {
+  await page.locator('wd-trigger[data-control-id="af_trigger"] button').click();
+  await expect
+    .poll(async () => (await state(page)).af_trigger?.actual)
+    .toBe("start");
+  await expect.poll(async () => (await state(page)).af_state?.actual).toBe(
+    "focused_locked",
+  );
+
+  await page
+    .locator('wd-trigger[data-control-id="ae_precapture"] button')
+    .click();
+  await expect
+    .poll(async () => (await state(page)).ae_precapture?.actual)
+    .toBe("start");
+  await expect.poll(async () => (await state(page)).ae_state?.actual).toBe(
+    "precapture",
+  );
+});
+
+test("structural size selects send {width, height} objects", async ({ page }) => {
+  const stream = page.locator('wd-select[data-control-id="stream_size"] select');
+  await stream.selectOption({ label: "1920 × 1080" });
+  await expect
+    .poll(async () => (await state(page)).stream_size?.requested)
+    .toEqual({ width: 1920, height: 1080 });
+  await expect(
+    page.locator('wd-actual[data-control-id="stream_size"] .actual-value'),
+  ).toHaveText("1920×1080");
+});
+
+test("the FPS range select sends a [lower, upper] array", async ({ page }) => {
+  const fps = page.locator('wd-select[data-control-id="ae_fps_range"] select');
+  await fps.selectOption({ label: "60 fps" });
+  await expect
+    .poll(async () => (await state(page)).ae_fps_range?.requested)
+    .toEqual([60, 60]);
+  await expect(
+    page.locator('wd-actual[data-control-id="ae_fps_range"] .actual-value'),
+  ).toHaveText("60–60");
+});
+
+test("reset all restores writable defaults and clears manual requests", async ({
+  page,
+}) => {
+  await page.locator('wd-auto-toggle[data-control-id="ae_mode"] button').click();
+  const iso = page.locator('wd-slider[data-control-id="iso"] input[type="number"]');
+  await iso.fill("800");
+  await iso.press("Enter");
+  await page.locator('wd-toggle[data-control-id="torch"] button').click();
+  await page
+    .locator('wd-select[data-control-id="anti_banding"] select')
+    .selectOption({ label: "Off" });
+  await page
+    .locator('wd-select[data-control-id="awb_mode"] select')
+    .selectOption({ label: "Daylight" });
+  await page
+    .locator('wd-select[data-control-id="ae_fps_range"] select')
+    .selectOption({ label: "60 fps" });
+
+  await page.locator("#reset-all").click();
+
+  await expect.poll(async () => (await state(page)).ae_mode?.actual).toBe(1);
+  await expect.poll(async () => (await state(page)).torch?.actual).toBe(false);
+  await expect
+    .poll(async () => (await state(page)).anti_banding?.actual)
+    .toBe(3);
+  await expect.poll(async () => (await state(page)).awb_mode?.actual).toBe(1);
+  await expect
+    .poll(async () => (await state(page)).ae_fps_range?.actual)
+    .toEqual([30, 30]);
+  await expect.poll(async () => (await state(page)).control_mode?.actual).toBe(1);
+
+  const snapshot = await state(page);
+  expect(snapshot.iso?.requested).toBeUndefined();
+  expect(snapshot.iso?.source).toBe("auto");
+  await expect(
+    page.locator('wd-auto-toggle[data-control-id="ae_mode"] button'),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("command-log")).toContainText("reset_all");
+});

@@ -6,9 +6,12 @@ import type {
   ControlEntry,
   ControlState,
   LockDescriptor,
+  ReadoutDescriptor,
   ResetDescriptor,
   SelectDescriptor,
   SliderDescriptor,
+  ToggleDescriptor,
+  TriggerDescriptor,
 } from "../types";
 import type { WdSlider } from "./wd-slider";
 import type { WdActual } from "./wd-actual";
@@ -16,6 +19,8 @@ import type { WdAutoToggle } from "./wd-auto-toggle";
 import type { WdLockButton } from "./wd-lock-button";
 import type { WdSelect } from "./wd-select";
 import type { WdReset } from "./wd-reset";
+import type { WdToggle } from "./wd-toggle";
+import type { WdTrigger } from "./wd-trigger";
 
 import "./wd-slider";
 import "./wd-actual";
@@ -23,6 +28,8 @@ import "./wd-auto-toggle";
 import "./wd-lock-button";
 import "./wd-select";
 import "./wd-reset";
+import "./wd-toggle";
+import "./wd-trigger";
 
 const css = `${baseCss}
   .panel {
@@ -111,6 +118,37 @@ const css = `${baseCss}
   }
 `;
 
+function parseSize(value: string): { width: number; height: number } | null {
+  const match = /^(\d+)x(\d+)$/.exec(value.trim());
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+function isSize(value: unknown): value is { width: number; height: number } {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return Number.isFinite(record["width"]) && Number.isFinite(record["height"]);
+}
+
+function parseFpsRange(value: string): [number, number] | null {
+  const match = /^(\d+)-(\d+)$/.exec(value.trim());
+  if (!match) return null;
+  const lower = Number(match[1]);
+  const upper = Number(match[2]);
+  return lower > 0 && upper >= lower ? [lower, upper] : null;
+}
+
+function isFpsRange(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number"
+  );
+}
+
 interface SliderRow {
   kind: "slider";
   host: WdSlider;
@@ -137,7 +175,25 @@ interface LockRow {
   desc: LockDescriptor;
 }
 
-type Row = SliderRow | SelectRow | AutoRow | LockRow;
+interface ReadoutRow {
+  kind: "readout";
+  host: WdActual;
+  desc: ReadoutDescriptor;
+}
+
+interface ToggleRow {
+  kind: "toggle";
+  host: WdToggle;
+  desc: ToggleDescriptor;
+}
+
+interface TriggerRow {
+  kind: "trigger";
+  host: WdTrigger;
+  desc: TriggerDescriptor;
+}
+
+type Row = SliderRow | SelectRow | AutoRow | LockRow | ReadoutRow | ToggleRow | TriggerRow;
 
 export class WdControlPanel extends HTMLElement {
   static observedAttributes = ["heading", "disabled"];
@@ -216,6 +272,8 @@ export class WdControlPanel extends HTMLElement {
       root.addEventListener("wd-commit", this.onCommit);
       root.addEventListener("wd-auto-change", this.onAutoChange);
       root.addEventListener("wd-lock-change", this.onLockChange);
+      root.addEventListener("wd-toggle-change", this.onToggleChange);
+      root.addEventListener("wd-trigger", this.onTrigger);
       root.addEventListener("wd-reset", this.onReset);
       this.render();
     } else {
@@ -368,6 +426,52 @@ export class WdControlPanel extends HTMLElement {
       };
     }
 
+    if (descriptor.kind === "readout") {
+      const actual = document.createElement("wd-actual") as WdActual;
+      actual.controlId = descriptor.id;
+      actual.dataset.controlId = descriptor.id;
+      actual.label = descriptor.label;
+      actual.readonly = true;
+      actual.unit = descriptor.unit ?? "";
+      if (descriptor.precision !== undefined) actual.precision = descriptor.precision;
+      if (descriptor.options) actual.options = descriptor.options;
+      wrapper.append(actual);
+      if (descriptor.help) wrapper.append(this.help(descriptor.help));
+      return {
+        element: wrapper,
+        row: { kind: "readout", host: actual, desc: descriptor },
+      };
+    }
+
+    if (descriptor.kind === "toggle") {
+      wrapper.classList.add("compact");
+      const host = document.createElement("wd-toggle") as WdToggle;
+      host.controlId = descriptor.id;
+      host.dataset.controlId = descriptor.id;
+      host.label = descriptor.label;
+      wrapper.append(host);
+      if (descriptor.help) wrapper.append(this.help(descriptor.help));
+      return {
+        element: wrapper,
+        row: { kind: "toggle", host, desc: descriptor },
+      };
+    }
+
+    if (descriptor.kind === "trigger") {
+      wrapper.classList.add("compact");
+      const host = document.createElement("wd-trigger") as WdTrigger;
+      host.controlId = descriptor.id;
+      host.dataset.controlId = descriptor.id;
+      host.label = descriptor.label;
+      host.action = descriptor.actionLabel ?? "Run";
+      wrapper.append(host);
+      if (descriptor.help) wrapper.append(this.help(descriptor.help));
+      return {
+        element: wrapper,
+        row: { kind: "trigger", host, desc: descriptor },
+      };
+    }
+
     wrapper.classList.add("compact");
     const host = document.createElement("wd-lock-button") as WdLockButton;
     host.controlId = descriptor.id;
@@ -416,7 +520,7 @@ export class WdControlPanel extends HTMLElement {
         row.actual.source = entry.source ?? "";
         row.actual.supported = entry.supported;
       } else if (row.kind === "select") {
-        row.host.value = entry.requested ?? entry.actual;
+        row.host.value = this.selectValue(row.desc, entry.requested ?? entry.actual);
         row.host.disabled = this.disabled || !entry.supported;
         row.actual.requested = entry.requested;
         row.actual.actual = entry.actual;
@@ -427,6 +531,26 @@ export class WdControlPanel extends HTMLElement {
         row.host.auto = value === row.desc.autoValue;
         row.host.source = entry.source ?? "";
         row.host.disabled = this.disabled || !entry.supported;
+      } else if (row.kind === "readout") {
+        row.host.requested = undefined;
+        row.host.actual = entry.actual;
+        row.host.source = entry.source ?? "";
+        row.host.supported = entry.supported;
+      } else if (row.kind === "toggle") {
+        row.host.on = (entry.actual ?? entry.requested) === true;
+        row.host.pending =
+          entry.requested !== undefined &&
+          entry.actual !== undefined &&
+          !valuesEqual(entry.requested, entry.actual);
+        row.host.supported = entry.supported;
+        row.host.disabled = this.disabled;
+      } else if (row.kind === "trigger") {
+        row.host.pending =
+          entry.requested !== undefined &&
+          entry.actual !== undefined &&
+          !valuesEqual(entry.requested, entry.actual);
+        row.host.supported = entry.supported;
+        row.host.disabled = this.disabled;
       } else {
         row.host.locked = entry.actual === true;
         row.host.pending =
@@ -441,6 +565,22 @@ export class WdControlPanel extends HTMLElement {
     for (const { host } of this.resets.values()) {
       host.disabled = this.disabled;
     }
+  }
+
+  private selectValue(descriptor: SelectDescriptor, value: unknown): unknown {
+    if (descriptor.format === "size" && isSize(value)) {
+      return `${value.width}x${value.height}`;
+    }
+    if (descriptor.format === "fps-range" && isFpsRange(value)) {
+      return `${value[0]}-${value[1]}`;
+    }
+    if (
+      typeof value === "number" &&
+      descriptor.options.every((option) => typeof option.value === "string")
+    ) {
+      return String(value);
+    }
+    return value;
   }
 
   private isAuto(id: string): boolean {
@@ -465,6 +605,24 @@ export class WdControlPanel extends HTMLElement {
       descriptor.scale !== undefined
     ) {
       value *= descriptor.scale;
+    }
+    if (
+      descriptor !== undefined &&
+      descriptor.kind === "select" &&
+      descriptor.format === "size" &&
+      typeof value === "string"
+    ) {
+      const size = parseSize(value);
+      if (size) value = size;
+    }
+    if (
+      descriptor !== undefined &&
+      descriptor.kind === "select" &&
+      descriptor.format === "fps-range" &&
+      typeof value === "string"
+    ) {
+      const range = parseFpsRange(value);
+      if (range) value = range;
     }
     emit(this, "wd-control-change", { id: detail.id, value });
   };
@@ -493,6 +651,28 @@ export class WdControlPanel extends HTMLElement {
     emit(this, "wd-control-change", {
       id: detail.id,
       value: detail.locked,
+    });
+  };
+
+  private readonly onToggleChange = (event: Event): void => {
+    const detail = (
+      event as CustomEvent<{ id: string; on: boolean }>
+    ).detail;
+    if (!detail) return;
+    emit(this, "wd-control-change", { id: detail.id, value: detail.on });
+  };
+
+  private readonly onTrigger = (event: Event): void => {
+    const detail = (event as CustomEvent<{ id: string }>).detail;
+    if (!detail) return;
+    const descriptor = this._descriptors.find(
+      (item): item is TriggerDescriptor =>
+        item.kind === "trigger" && item.id === detail.id,
+    );
+    if (!descriptor) return;
+    emit(this, "wd-control-change", {
+      id: detail.id,
+      value: descriptor.value,
     });
   };
 

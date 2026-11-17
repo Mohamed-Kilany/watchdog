@@ -264,6 +264,9 @@ export class LivePage {
     this.statsBusy = true;
     try {
       const stats = await this.api.stats();
+      // The session or route can end while the request is in flight; do not
+      // resurrect stale stats after the live view has been cleared.
+      if (!this.isLive() || !this.visible) return;
       this.setStats(stats);
       // `<img>` load timing for multipart streams varies between browsers; a
       // frame count from the hub proves the open stream is delivering.
