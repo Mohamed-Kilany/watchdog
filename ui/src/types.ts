@@ -44,6 +44,51 @@ export interface ApplyResult {
 /** Where the shell is getting state from. */
 export type DeviceMode = "demo" | "host";
 
+/** Options for a burst/sequence capture. */
+export interface BurstOptions {
+  count: number;
+  intervalMs: number;
+  fromStream: boolean;
+}
+
+/** Options for starting a video recording. */
+export interface RecordOptions {
+  maxDurationSecs?: number;
+}
+
+/** Normalized outcome of one capture or recording command. */
+export interface CaptureOutcome {
+  mediaId?: string;
+  mediaIds?: string[];
+  sequenceId?: string;
+  type?: string;
+  bytes?: number;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  startedMs?: number;
+  /** Raw `applied` payload from the device, for diagnostics. */
+  applied?: unknown;
+}
+
+/** One asynchronous device event (recording lifecycle, capture progress). */
+export interface DeviceEvent {
+  kind: string;
+  timestamp_ms?: number;
+  data?: unknown;
+  message?: string;
+}
+
+/** Host-side media transfer progress. */
+export interface TransferProgress {
+  transferId: string;
+  mediaId: string;
+  state: "queued" | "transferring" | "verifying" | "done" | "failed";
+  bytesTotal: number;
+  bytesDone: number;
+  error?: string;
+}
+
 /**
  * The shell's device contract. `FakeDevice` implements it for the offline demo
  * and `HostClient` implements it against the host's real-time channel.
@@ -55,6 +100,12 @@ export interface DeviceBackend {
   setControls(changes: ControlChange[]): ApplyResult[] | Promise<ApplyResult[]>;
   reset(targets: string[]): ApplyResult[] | Promise<ApplyResult[]>;
   clearRegions(): ApplyResult[] | Promise<ApplyResult[]>;
+  captureStill(): Promise<CaptureOutcome>;
+  captureBurst(options: BurstOptions): Promise<CaptureOutcome>;
+  recordStart(options?: RecordOptions): Promise<CaptureOutcome>;
+  recordStop(): Promise<CaptureOutcome>;
+  subscribeEvents(listener: (event: DeviceEvent) => void): () => void;
+  subscribeTransfers(listener: (transfer: TransferProgress) => void): () => void;
 }
 
 export interface SelectOption {

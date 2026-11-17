@@ -89,8 +89,31 @@ The default page is the live view:
   settings in one batch.
 
 If no host answers the page probe, it falls back to the offline fake-device demo so the
-controls can still be explored. Capture and the media library are wired up in the
-remaining M6 tasks.
+controls can still be explored. The demo also simulates capture, recording and transfers.
+
+## 6. Capture (web UI)
+
+Open **Capture** in the top navigation (`#/capture`). The page keeps working while you
+switch to another page, so a burst or recording does not stop when you go back to the
+live view.
+
+- **Still.** Takes one full-resolution JPEG. The last capture reports its media id,
+  dimensions and size.
+- **Burst.** Choose 1–50 frames and an interval in milliseconds. Tick *Use live-stream
+  frames* to reuse the preview stream instead of full-resolution captures. The progress
+  bar fills as the app reports each frame.
+- **Recording.** Start and stop video with a live timer. Set *Max duration* to stop
+  automatically after that many seconds; `0` means unlimited.
+- **Transfers.** Finished media appears in the transfer list with its media id, state
+  (`queued`, `transferring`, `verifying`, `done` or `failed`), byte progress and an error
+  message when it fails. The host verifies each file before adding it to the media
+  library.
+
+The commands are `capture_still`, `capture_burst`, `record_start` and `record_stop` from
+[protocol.md](protocol.md); in host mode they go through `POST /api/command`. The Android
+capture pipeline is tracked under M5 and is not implemented yet, so the phone answers
+`UNSUPPORTED_COMMAND`; the status line shows that, while the offline demo simulates the
+complete flow.
 
 ## 9. Scheduler (summary)
 

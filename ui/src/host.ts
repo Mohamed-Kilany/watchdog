@@ -7,9 +7,14 @@
 
 import type {
   ApplyResult,
+  BurstOptions,
+  CaptureOutcome,
   ControlChange,
   ControlState,
   DeviceBackend,
+  DeviceEvent,
+  RecordOptions,
+  TransferProgress,
 } from "./types";
 import type { SessionInfo } from "./device-api";
 
@@ -21,12 +26,7 @@ const RECONNECT_MAX_MS = 15_000;
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "idle";
 
 /** One asynchronous app event forwarded by the host. */
-export interface HostEvent {
-  kind: string;
-  timestamp_ms?: number;
-  data?: unknown;
-  message?: string;
-}
+export type HostEvent = DeviceEvent;
 
 interface StateEnvelope {
   type?: string;
@@ -264,6 +264,61 @@ function mapResults(body: CommandEnvelope | null): ApplyResult[] {
   return results;
 }
 
+/** Normalize the `applied` payload of a capture/record command. */
+function captureOutcome(applied: unknown): CaptureOutcome {
+  const outcome: CaptureOutcome = { applied };
+  if (!applied || typeof applied !== "object") return outcome;
+  const record = applied as Record<string, unknown>;
+  const text = (key: string): string | undefined =>
+    typeof record[key] === "string" ? (record[key] as string) : undefined;
+  const number = (key: string): number | undefined =>
+    Number.isFinite(Number(record[key])) ? Number(record[key]) : undefined;
+  outcome.mediaId = text("media_id") ?? text("mediaId");
+  outcome.sequenceId = text("sequence_id") ?? text("sequenceId");
+  outcome.type = text("type");
+  outcome.bytes = number("bytes");
+  outcome.width = number("width");
+  outcome.height = number("height");
+  outcome.durationMs = number("duration_ms") ?? number("durationMs");
+  outcome.startedMs = number("started_ms") ?? number("startedMs");
+  const ids = record["media_ids"] ?? record["mediaIds"];
+  if (Array.isArray(ids)) {
+    outcome.mediaIds = ids.filter((id): id is string => typeof id === "string");
+  }
+  return outcome;
+}
+
+/** Normalize a host `transfer` WebSocket envelope. */
+function transferFrom(message: Record<string, unknown>): TransferProgress | null {
+  const transfer = message["transfer"];
+  const record =
+    transfer && typeof transfer === "object"
+      ? (transfer as Record<string, unknown>)
+      : message;
+  const mediaId = record["media_id"] ?? record["mediaId"];
+  const transferId = record["transfer_id"] ?? record["transferId"];
+  const state = record["state"];
+  if (
+    typeof mediaId !== "string" ||
+    typeof transferId !== "string" ||
+    typeof state !== "string"
+  ) {
+    return null;
+  }
+  const bytesTotal = Number(record["bytes_total"] ?? record["bytesTotal"] ?? 0);
+  const bytesDone = Number(record["bytes_done"] ?? record["bytesDone"] ?? 0);
+  const progress: TransferProgress = {
+    transferId,
+    mediaId,
+    state: state as TransferProgress["state"],
+    bytesTotal: Number.isFinite(bytesTotal) ? bytesTotal : 0,
+    bytesDone: Number.isFinite(bytesDone) ? bytesDone : 0,
+  };
+  const error = record["error"];
+  if (typeof error === "string") progress.error = error;
+  return progress;
+}
+
 /**
  * Host-backed device: merged state over WebSocket, commands over REST.
  *
@@ -281,6 +336,9 @@ export class HostClient implements DeviceBackend {
     (state: ConnectionState) => void
   >();
   private readonly sessionListeners = new Set<(session: SessionInfo) => void>();
+  private readonly transferListeners = new Set<
+    (transfer: TransferProgress) => void
+  >();
   private connection: ConnectionState = "connecting";
   private session: SessionInfo;
   private socket: WebSocket | null = null;
@@ -338,6 +396,13 @@ export class HostClient implements DeviceBackend {
     this.eventListeners.add(listener);
     return () => {
       this.eventListeners.delete(listener);
+    };
+  }
+
+  subscribeTransfers(listener: (transfer: TransferProgress) => void): () => void {
+    this.transferListeners.add(listener);
+    return () => {
+      this.transferListeners.delete(listener);
     };
   }
 
@@ -411,6 +476,44 @@ export class HostClient implements DeviceBackend {
       { id: "awb_regions", value: [CLEARED_REGION] },
       { id: "af_trigger", value: "cancel" },
     ]);
+  }
+
+  captureStill(): Promise<CaptureOutcome> {
+    return this.sendCapture("capture_still", {});
+  }
+
+  captureBurst(options: BurstOptions): Promise<CaptureOutcome> {
+    return this.sendCapture("capture_burst", {
+      count: options.count,
+      interval_ms: options.intervalMs,
+      from_stream: options.fromStream,
+    });
+  }
+
+  recordStart(options: RecordOptions = {}): Promise<CaptureOutcome> {
+    const params: Record<string, unknown> = {};
+    if (options.maxDurationSecs && options.maxDurationSecs > 0) {
+      params["max_duration_secs"] = options.maxDurationSecs;
+    }
+    return this.sendCapture("record_start", params);
+  }
+
+  recordStop(): Promise<CaptureOutcome> {
+    return this.sendCapture("record_stop", {});
+  }
+
+  private async sendCapture(
+    command: string,
+    params: unknown,
+  ): Promise<CaptureOutcome> {
+    const results = await this.sendCommand(command, params);
+    const result =
+      results.find((item) => item.control === "command") ?? results[0];
+    if (!result) throw new Error(`${command} returned no result`);
+    if (!result.ok) {
+      throw new Error(result.error ?? `${command} was rejected`);
+    }
+    return captureOutcome(result.applied);
   }
 
   private async sendCommand(
@@ -554,6 +657,13 @@ export class HostClient implements DeviceBackend {
         }
         if (message["data"] !== undefined) event.data = message["data"];
         for (const listener of this.eventListeners) listener(event);
+        break;
+      }
+      case "transfer": {
+        const transfer = transferFrom(message);
+        if (transfer) {
+          for (const listener of this.transferListeners) listener(transfer);
+        }
         break;
       }
       case "closed": {

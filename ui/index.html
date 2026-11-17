@@ -16,6 +16,7 @@
       </div>
       <nav class="nav" aria-label="Pages">
         <a class="nav-link" href="#/live" data-route="live">Live</a>
+        <a class="nav-link" href="#/capture" data-route="capture">Capture</a>
         <a class="nav-link" href="#/devices" data-route="devices">Devices</a>
       </nav>
       <div class="actions">
@@ -262,6 +263,190 @@
           <p id="provision-status" data-testid="provision-status" class="muted" role="status" aria-live="polite"></p>
           <ol id="provision-steps" class="provision-steps" data-testid="provision-steps"></ol>
         </section>
+      </section>
+
+      <section
+        id="view-capture"
+        class="capture-view view"
+        data-view="capture"
+        aria-labelledby="capture-title"
+        hidden
+      >
+        <header class="capture-head">
+          <div>
+            <h1 id="capture-title">Capture</h1>
+            <p class="muted">
+              Take a full-resolution still, run a burst, or record video on the phone.
+              The host pulls finished media, verifies its hash, then indexes it for the
+              media library.
+            </p>
+          </div>
+          <span id="capture-mode" class="badge" data-state="demo">demo device</span>
+        </header>
+
+        <p
+          id="capture-status"
+          class="capture-status"
+          data-testid="capture-status"
+          role="status"
+          aria-live="polite"
+          data-state="idle"
+        >
+          Ready.
+        </p>
+
+        <div class="capture-grid">
+          <section class="card" aria-labelledby="still-title">
+            <div class="card-head">
+              <h2 id="still-title">Still</h2>
+            </div>
+            <p class="muted">
+              Full-resolution JPEG with the control-state snapshot in the manifest.
+            </p>
+            <button
+              id="capture-still"
+              data-testid="capture-still"
+              class="btn primary"
+              type="button"
+            >
+              Capture still
+            </button>
+            <p
+              id="capture-last-still"
+              class="readout"
+              data-testid="capture-last-still"
+            >
+              No still captured yet.
+            </p>
+          </section>
+
+          <section class="card" aria-labelledby="burst-title">
+            <div class="card-head">
+              <h2 id="burst-title">Burst</h2>
+            </div>
+            <div class="capture-form">
+              <label for="capture-burst-count">
+                Frames
+                <input
+                  id="capture-burst-count"
+                  data-testid="capture-burst-count"
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value="5"
+                />
+              </label>
+              <label for="capture-burst-interval">
+                Interval (ms)
+                <input
+                  id="capture-burst-interval"
+                  data-testid="capture-burst-interval"
+                  type="number"
+                  min="0"
+                  max="5000"
+                  step="50"
+                  value="200"
+                />
+              </label>
+            </div>
+            <label class="toolbar-check">
+              <input
+                id="capture-from-stream"
+                data-testid="capture-from-stream"
+                type="checkbox"
+              />
+              Use live-stream frames (cheaper, lower resolution)
+            </label>
+            <button
+              id="capture-burst"
+              data-testid="capture-burst"
+              class="btn primary"
+              type="button"
+            >
+              Start burst
+            </button>
+            <div class="capture-progress">
+              <progress
+                id="capture-burst-bar"
+                data-testid="capture-burst-bar"
+                max="5"
+                value="0"
+                aria-label="Burst progress"
+              ></progress>
+              <span id="capture-burst-progress" data-testid="capture-burst-progress">
+                0 / 5
+              </span>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="record-title">
+            <div class="card-head">
+              <h2 id="record-title">Recording</h2>
+              <span
+                id="recording-state"
+                data-testid="recording-state"
+                class="badge"
+                data-state="idle"
+              >
+                Idle
+              </span>
+            </div>
+            <p
+              id="recording-timer"
+              class="recording-timer"
+              data-testid="recording-timer"
+              role="timer"
+            >
+              00:00
+            </p>
+            <label class="capture-max" for="capture-record-max">
+              Max duration (seconds, 0 = unlimited)
+              <input
+                id="capture-record-max"
+                data-testid="capture-record-max"
+                type="number"
+                min="0"
+                max="3600"
+                step="10"
+                value="0"
+              />
+            </label>
+            <div class="card-actions">
+              <button
+                id="capture-record-start"
+                data-testid="capture-record-start"
+                class="btn primary"
+                type="button"
+              >
+                Start recording
+              </button>
+              <button
+                id="capture-record-stop"
+                data-testid="capture-record-stop"
+                class="btn danger"
+                type="button"
+                disabled
+              >
+                Stop recording
+              </button>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="transfer-title">
+            <div class="card-head">
+              <h2 id="transfer-title">Transfers</h2>
+            </div>
+            <p id="transfer-empty" class="muted">
+              No transfers yet. Captures are pulled from the phone after they finish.
+            </p>
+            <ol
+              id="transfer-list"
+              class="transfer-list"
+              data-testid="transfer-list"
+            ></ol>
+          </section>
+        </div>
       </section>
     </main>
 
