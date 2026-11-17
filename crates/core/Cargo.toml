@@ -9,7 +9,6 @@ homepage.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-chrono.workspace = true
 directories.workspace = true
 serde.workspace = true
 serde_json.workspace = true

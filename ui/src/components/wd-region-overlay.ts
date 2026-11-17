@@ -368,7 +368,7 @@ export class WdRegionOverlay extends HTMLElement {
       y: clamp(region.y, 0, 1 - h),
       w,
       h,
-      weight: region.weight ?? 1,
+      weight: region.weight ?? 1000,
     };
   }
 
@@ -381,7 +381,7 @@ export class WdRegionOverlay extends HTMLElement {
       y: rounded(clamp(region.y, 0, 1 - h)),
       w,
       h,
-      weight: region.weight ?? 1,
+      weight: region.weight ?? 1000,
     };
   }
 

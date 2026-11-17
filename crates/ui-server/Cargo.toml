@@ -11,9 +11,13 @@ rust-version.workspace = true
 [dependencies]
 watchdog-core.workspace = true
 watchdog-device.workspace = true
+watchdog-protocol.workspace = true
+base64.workspace = true
 flate2.workspace = true
 rust-embed.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+sha1.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

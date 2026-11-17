@@ -5,8 +5,16 @@
 //! the health probe. Static responses carry a content-hash ETag, answer
 //! `If-None-Match` with `304 Not Modified` and are gzip-compressed when the
 //! client advertises support.
+//!
+//! M6-T02 adds the app shell's real-time channel: `/api/state` returns the
+//! merged control snapshot, `/api/command` forwards one command to the app
+//! through the frame hub and `/ws` streams state snapshots and events over a
+//! minimal RFC 6455 WebSocket. All three reuse the same bearer-token check as
+//! the static files.
 
 #![warn(missing_docs)]
+
+mod ws;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -24,13 +32,16 @@ use tokio::sync::broadcast::error::RecvError;
 use watchdog_core::error::{ErrorCode, WatchdogError};
 use watchdog_core::Result;
 use watchdog_device::hub::FrameHub;
+use watchdog_protocol::{CommandMessage, CommandResultMessage, StateMessage};
 
 /// Minimal live view served when the UI build was not embedded (Rust-only
 /// builds such as clippy/test jobs).
 const FALLBACK_PAGE: &str = include_str!("test_page.html");
 /// Longest request head accepted before returning `400 Bad Request`.
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
-/// How long a client has to send its request head.
+/// Largest command body accepted by `/api/command`.
+const MAX_BODY_BYTES: usize = 1024 * 1024;
+/// How long a client has to send its request head or body.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Idle check interval while a viewer waits for frames.
 const STREAM_TICK: Duration = Duration::from_secs(1);
@@ -99,11 +110,12 @@ pub async fn serve_ui(options: UiOptions, hub: Arc<FrameHub>) -> Result<()> {
     }
 }
 
-/// One parsed HTTP/1.1 request head.
+/// One parsed HTTP/1.1 request.
 struct Request {
     method: String,
     target: String,
     headers: Vec<(String, String)>,
+    body: Vec<u8>,
 }
 
 impl Request {
@@ -216,17 +228,32 @@ async fn handle_connection(
     hub: &FrameHub,
     token: Option<&str>,
 ) -> std::io::Result<()> {
-    let Some(request) = read_request(&mut stream).await? else {
-        return write_response(
-            &mut stream,
-            &Response::new(
-                "400 Bad Request",
-                "text/plain; charset=utf-8",
-                b"bad request\n",
+    let request = match read_request(&mut stream).await? {
+        ReadRequest::Request(request) => request,
+        ReadRequest::BadRequest => {
+            return write_response(
+                &mut stream,
+                &Response::new(
+                    "400 Bad Request",
+                    "text/plain; charset=utf-8",
+                    b"bad request\n",
+                )
+                .header("Cache-Control", "no-store"),
             )
-            .header("Cache-Control", "no-store"),
-        )
-        .await;
+            .await
+        }
+        ReadRequest::TooLarge => {
+            return write_response(
+                &mut stream,
+                &Response::new(
+                    "413 Payload Too Large",
+                    "text/plain; charset=utf-8",
+                    b"request body too large\n",
+                )
+                .header("Cache-Control", "no-store"),
+            )
+            .await
+        }
     };
     if !authorized(&request, token) {
         return write_response(
@@ -241,30 +268,181 @@ async fn handle_connection(
         )
         .await;
     }
-    if request.method != "GET" {
-        return write_response(
-            &mut stream,
-            &Response::new(
-                "405 Method Not Allowed",
-                "text/plain; charset=utf-8",
-                b"method not allowed\n",
-            )
-            .header("Cache-Control", "no-store")
-            .header("Allow", "GET"),
-        )
-        .await;
+    if request.path() == "/ws" {
+        return websocket_handshake(stream, &request, hub).await;
     }
-    let response = match request.path() {
-        "/api/stats" => {
+    let response = match (request.method.as_str(), request.path()) {
+        ("GET", "/api/state") => state_response(hub),
+        ("POST", "/api/command") => {
+            return write_response(&mut stream, &command_response(hub, &request).await).await
+        }
+        ("GET", "/api/stats") => {
             let body = serde_json::to_vec(&hub.stats()).map_err(std::io::Error::other)?;
             Response::new("200 OK", "application/json", body).header("Cache-Control", "no-store")
         }
-        "/stream.mjpg" => return stream_mjpeg(stream, hub).await,
-        "/healthz" => Response::new("200 OK", "text/plain; charset=utf-8", b"ok\n")
+        ("GET", "/stream.mjpg") => return stream_mjpeg(stream, hub).await,
+        ("GET", "/healthz") => Response::new("200 OK", "text/plain; charset=utf-8", b"ok\n")
             .header("Cache-Control", "no-store"),
-        _ => static_response(&request, embedded_asset),
+        ("GET", _) => static_response(&request, embedded_asset),
+        (_, "/api/command") => method_not_allowed("POST"),
+        _ => method_not_allowed("GET"),
     };
     write_response(&mut stream, &response).await
+}
+
+fn method_not_allowed(allow: &'static str) -> Response {
+    Response::new(
+        "405 Method Not Allowed",
+        "text/plain; charset=utf-8",
+        b"method not allowed\n",
+    )
+    .header("Cache-Control", "no-store")
+    .header("Allow", allow)
+}
+
+/// `GET /api/state` — the merged snapshot the app last reported.
+fn state_response(hub: &FrameHub) -> Response {
+    let value = match hub.state() {
+        Some(state) => state_envelope(&state),
+        None => waiting_state_envelope(),
+    };
+    json_response("200 OK", &value)
+}
+
+/// `POST /api/command` — forward one command to the app and return its result.
+async fn command_response(hub: &FrameHub, request: &Request) -> Response {
+    let message: CommandMessage = match serde_json::from_slice(&request.body) {
+        Ok(message) => message,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid command body: {error}"),
+                None,
+            )
+        }
+    };
+    if message.id.is_empty() {
+        return api_error(
+            "400 Bad Request",
+            ErrorCode::InvalidRequest,
+            "command id must not be empty",
+            None,
+        );
+    }
+    match hub.command(message).await {
+        Ok(result) => json_response("200 OK", &result_envelope(&result)),
+        Err(error) => {
+            let status = match error.code {
+                ErrorCode::InvalidRequest => "400 Bad Request",
+                ErrorCode::StreamClosed => "503 Service Unavailable",
+                ErrorCode::ConnectionLost => "504 Gateway Timeout",
+                _ => "502 Bad Gateway",
+            };
+            api_error(status, error.code, &error.message, error.hint.as_deref())
+        }
+    }
+}
+
+/// Serialize the WS/REST state envelope (`{ "type": "state", ... }`).
+pub(crate) fn state_envelope(state: &StateMessage) -> serde_json::Value {
+    serde_json::json!({
+        "type": "state",
+        "seq": state.seq,
+        "timestamp_ms": state.timestamp_ms,
+        "camera_id": state.camera_id,
+        "state": state.state,
+        "dropped_frames": state.dropped_frames,
+        "storage_free_mb": state.storage_free_mb,
+    })
+}
+
+/// Envelope sent before the app has produced its first full `STATE`.
+pub(crate) fn waiting_state_envelope() -> serde_json::Value {
+    serde_json::json!({
+        "type": "state",
+        "waiting": true,
+        "seq": 0,
+        "timestamp_ms": 0,
+        "camera_id": "",
+        "state": {},
+    })
+}
+
+/// Serialize the WS/REST command-result envelope.
+pub(crate) fn result_envelope(result: &CommandResultMessage) -> serde_json::Value {
+    serde_json::json!({
+        "type": "result",
+        "id": result.id,
+        "timestamp_ms": result.timestamp_ms,
+        "results": result.results,
+        "error": result.error,
+    })
+}
+
+fn json_response(status: &'static str, value: &serde_json::Value) -> Response {
+    match serde_json::to_vec(value) {
+        Ok(body) => {
+            Response::new(status, "application/json", body).header("Cache-Control", "no-store")
+        }
+        Err(error) => internal_error(&error),
+    }
+}
+
+fn api_error(status: &'static str, code: ErrorCode, message: &str, hint: Option<&str>) -> Response {
+    let mut error = serde_json::json!({ "code": code.as_str(), "message": message });
+    if let (Some(hint), serde_json::Value::Object(map)) = (hint, &mut error) {
+        map.insert(
+            "hint".to_string(),
+            serde_json::Value::String(hint.to_string()),
+        );
+    }
+    json_response(status, &serde_json::json!({ "error": error }))
+}
+
+fn internal_error(error: &impl std::fmt::Display) -> Response {
+    let body = serde_json::json!({
+        "error": { "code": ErrorCode::Internal.as_str(), "message": error.to_string() }
+    });
+    let bytes = serde_json::to_vec(&body).unwrap_or_default();
+    Response::new("500 Internal Server Error", "application/json", bytes)
+        .header("Cache-Control", "no-store")
+}
+
+/// Validate the RFC 6455 upgrade and hand the stream to the WebSocket loop.
+async fn websocket_handshake(
+    mut stream: TcpStream,
+    request: &Request,
+    hub: &FrameHub,
+) -> std::io::Result<()> {
+    if request.method != "GET" {
+        return write_response(&mut stream, &method_not_allowed("GET")).await;
+    }
+    let upgrade = request
+        .header("upgrade")
+        .is_some_and(|value| value.eq_ignore_ascii_case("websocket"));
+    let connection = request.header("connection").is_some_and(|value| {
+        value
+            .split(',')
+            .any(|part| part.trim().eq_ignore_ascii_case("upgrade"))
+    });
+    let version = request.header("sec-websocket-version") == Some("13");
+    let Some(key) = request
+        .header("sec-websocket-key")
+        .filter(|_| upgrade && connection && version)
+    else {
+        return write_response(
+            &mut stream,
+            &Response::new(
+                "400 Bad Request",
+                "text/plain; charset=utf-8",
+                b"invalid websocket handshake\n",
+            )
+            .header("Cache-Control", "no-store"),
+        )
+        .await;
+    };
+    ws::upgrade(stream, key, hub).await
 }
 
 /// Resolve a request against the embedded UI.
@@ -461,30 +639,66 @@ fn gzip(bytes: &[u8]) -> Option<Vec<u8>> {
     encoder.finish().ok()
 }
 
-async fn read_request(stream: &mut TcpStream) -> std::io::Result<Option<Request>> {
+/// Outcome of reading one HTTP request from a connection.
+enum ReadRequest {
+    Request(Request),
+    BadRequest,
+    TooLarge,
+}
+
+async fn read_request(stream: &mut TcpStream) -> std::io::Result<ReadRequest> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 1024];
-    loop {
+    let head_end = loop {
         let read = match tokio::time::timeout(REQUEST_TIMEOUT, stream.read(&mut chunk)).await {
             Ok(read) => read?,
-            Err(_) => return Ok(None),
+            Err(_) => return Ok(ReadRequest::BadRequest),
         };
         if read == 0 {
-            return Ok(None);
+            return Ok(ReadRequest::BadRequest);
         }
         buffer.extend_from_slice(&chunk[..read]);
-        if buffer
+        if let Some(position) = buffer
             .windows(HEAD_END.len())
-            .any(|window| window == HEAD_END)
+            .position(|window| window == HEAD_END)
         {
-            break;
+            break position;
         }
         if buffer.len() > MAX_REQUEST_BYTES {
-            return Ok(None);
+            return Ok(ReadRequest::BadRequest);
+        }
+    };
+    let head = String::from_utf8_lossy(&buffer[..head_end]);
+    let Some(mut request) = parse_request(&head) else {
+        return Ok(ReadRequest::BadRequest);
+    };
+    let content_length = match request.header("content-length") {
+        Some(value) => match value.parse::<usize>() {
+            Ok(length) => length,
+            Err(_) => return Ok(ReadRequest::BadRequest),
+        },
+        None => 0,
+    };
+    if content_length > MAX_BODY_BYTES {
+        return Ok(ReadRequest::TooLarge);
+    }
+    let mut body = buffer[head_end + HEAD_END.len()..].to_vec();
+    while body.len() < content_length {
+        let read = match tokio::time::timeout(REQUEST_TIMEOUT, stream.read(&mut chunk)).await {
+            Ok(read) => read?,
+            Err(_) => return Ok(ReadRequest::BadRequest),
+        };
+        if read == 0 {
+            return Ok(ReadRequest::BadRequest);
+        }
+        body.extend_from_slice(&chunk[..read]);
+        if body.len() > MAX_BODY_BYTES {
+            return Ok(ReadRequest::TooLarge);
         }
     }
-    let head = String::from_utf8_lossy(&buffer);
-    Ok(parse_request(&head))
+    body.truncate(content_length);
+    request.body = body;
+    Ok(ReadRequest::Request(request))
 }
 
 fn parse_request(head: &str) -> Option<Request> {
@@ -503,6 +717,7 @@ fn parse_request(head: &str) -> Option<Request> {
         method,
         target,
         headers,
+        body: Vec::new(),
     })
 }
 

@@ -12,7 +12,7 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"></span>
         <span>watchdog</span>
-        <span class="tag">fake device</span>
+        <span class="tag" id="mode-tag">demo device</span>
       </div>
       <div class="actions">
         <span id="device-status" class="status" role="status" aria-live="polite">ready</span>
@@ -23,6 +23,14 @@
         <button id="reset-all" class="btn danger" type="button">Reset all to auto</button>
       </div>
     </header>
+    <div
+      id="connection-banner"
+      class="connection-banner"
+      data-testid="connection-banner"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
     <main class="app">
       <section class="stage" aria-labelledby="stage-title">
         <h1 id="stage-title" class="sr-only">Camera preview</h1>
@@ -62,6 +70,36 @@
         <ol id="command-log" data-testid="command-log"></ol>
       </section>
     </main>
+    <dialog
+      id="token-dialog"
+      class="token-dialog"
+      data-testid="token-dialog"
+      aria-labelledby="token-title"
+      aria-describedby="token-copy"
+    >
+      <form id="token-form" method="dialog">
+        <h2 id="token-title">Host token required</h2>
+        <p id="token-copy" class="dialog-copy">
+          This host has a bearer token enabled. Paste the token printed by
+          <code>watchdog serve</code> or saved during provisioning.
+        </p>
+        <label class="dialog-label" for="token-input">Bearer token</label>
+        <input
+          id="token-input"
+          class="dialog-input"
+          name="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <p id="token-error" class="dialog-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="token-cancel" class="btn" type="button">Use demo mode</button>
+          <button id="token-submit" class="btn primary" type="submit">Connect</button>
+        </div>
+      </form>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -1,3 +1,5 @@
 import "./styles.css";
 import "./components/index";
-import "./demo";
+import { start } from "./app";
+
+start();

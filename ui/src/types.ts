@@ -33,6 +33,30 @@ export interface ControlChange {
   value: unknown;
 }
 
+/** One per-control outcome, mirroring the app's `COMMAND_RESULT.results`. */
+export interface ApplyResult {
+  control: string;
+  ok: boolean;
+  applied?: unknown;
+  error?: string;
+}
+
+/** Where the shell is getting state from. */
+export type DeviceMode = "demo" | "host";
+
+/**
+ * The shell's device contract. `FakeDevice` implements it for the offline demo
+ * and `HostClient` implements it against the host's real-time channel.
+ */
+export interface DeviceBackend {
+  readonly mode: DeviceMode;
+  readonly snapshot: ControlState;
+  subscribe(listener: (state: ControlState) => void): () => void;
+  setControls(changes: ControlChange[]): ApplyResult[] | Promise<ApplyResult[]>;
+  reset(targets: string[]): ApplyResult[] | Promise<ApplyResult[]>;
+  clearRegions(): ApplyResult[] | Promise<ApplyResult[]>;
+}
+
 export interface SelectOption {
   value: ControlValue;
   label: string;
@@ -94,6 +118,8 @@ export type ControlDescriptor =
 
 export interface CommandLogEntry {
   batch: ControlChange[];
-  results: Array<{ control: string; ok: boolean; applied?: unknown; error?: string }>;
+  results: ApplyResult[];
   at: string;
+  /** Free-form note for entries that are not control batches (host events). */
+  note?: string;
 }
