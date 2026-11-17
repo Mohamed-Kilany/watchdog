@@ -46,6 +46,7 @@ test("saves writable controls only and stores them in the demo", async ({
   expect(controls?.ae_mode).toBe(0);
   expect(controls?.anti_banding).toBe(0);
   expect(controls).not.toHaveProperty("battery_percent");
+  expect(controls).not.toHaveProperty("storage_free_mb");
   expect(controls).not.toHaveProperty("af_trigger");
   expect(controls).not.toHaveProperty("stream_size");
   expect(controls).not.toHaveProperty("camera_id");

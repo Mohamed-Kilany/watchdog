@@ -393,11 +393,10 @@ fn save_preset_response(service: &DeviceService, request: &Request) -> Response 
         }
     };
     let store = PresetStore::new(&service.paths().presets);
-    let saved = Preset::new(body.name, body.description, body.controls)
-        .and_then(|mut preset| {
-            store.save(&mut preset)?;
-            Ok(preset)
-        });
+    let saved = Preset::new(body.name, body.description, body.controls).and_then(|mut preset| {
+        store.save(&mut preset)?;
+        Ok(preset)
+    });
     match saved {
         Ok(preset) => json_value_response("200 OK", &serde_json::to_value(preset)),
         Err(error) => watchdog_response(&error),
@@ -1600,10 +1599,8 @@ mod tests {
             serde_json::from_slice(&loaded.body).expect("preset JSON");
         assert_eq!(loaded_body["controls"]["ae_mode"], 0);
 
-        let deleted = delete_preset_response(
-            &service,
-            &request("/api/presets?name=tv-screen-capture"),
-        );
+        let deleted =
+            delete_preset_response(&service, &request("/api/presets?name=tv-screen-capture"));
         assert_eq!(deleted.status, "200 OK");
         let missing = presets_response(&service, &request("/api/presets?name=tv-screen-capture"));
         assert_eq!(missing.status, "404 Not Found");

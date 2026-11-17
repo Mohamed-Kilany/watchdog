@@ -27,6 +27,7 @@ export const READ_ONLY_CONTROLS = new Set([
   "lens_state",
   "face_count",
   "faces",
+  "storage_free_mb",
   "tonemap_curve",
   "tonemap_gamma",
 ]);

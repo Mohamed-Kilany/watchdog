@@ -341,7 +341,7 @@ test("reset all restores writable defaults and clears manual requests", async ({
     .locator('wd-select[data-control-id="ae_fps_range"] select')
     .selectOption({ label: "60 fps" });
 
-  await page.getByTestId("reset-all").click();
+  await page.locator("#reset-all").click();
 
   await expect.poll(async () => (await state(page)).ae_mode?.actual).toBe(1);
   await expect.poll(async () => (await state(page)).torch?.actual).toBe(false);
