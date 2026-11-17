@@ -21,7 +21,10 @@ and needs no phone or emulator. `ui/tests/channel.spec.ts` also covers the host 
 with Playwright's WebSocket routing: token prompt, state/event frames, command REST calls,
 URL-token consumption and reconnect/backoff. `ui/tests/devices.spec.ts` covers the
 Devices page with route-mocked host APIs: demo notice, listing and activation, pairing,
-provisioning progress plus the update prompt, and disconnect.
+provisioning progress plus the update prompt, and disconnect. `ui/tests/live.spec.ts`
+covers the live view: demo scene, split control panels, host MJPEG stream plus stats
+polling, face boxes/grid/rotation, snapshot download, fullscreen and pausing the stream
+when the Devices page is open.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -62,7 +65,9 @@ folder and serve the minimal live page described below instead.
 | `/api/command` | `POST` one command through the frame hub and return its `COMMAND_RESULT` |
 | `/api/devices*` | list, discover, pair, activate, disconnect, restore, provision and status |
 | `/ws` | RFC 6455 WebSocket for state snapshots, events, session changes and command replies |
-| `/stream.mjpg`, `/api/stats`, `/healthz` | live MJPEG stream, hub stats and liveness probe |
+| `/stream.mjpg` | multipart MJPEG viewfinder stream (`token` accepted as a query parameter) |
+| `/api/snapshot` | next hub frame as a `watchdog-snapshot.jpg` attachment (`503` without a frame/session) |
+| `/api/stats`, `/healthz` | hub frame counters and liveness probe |
 
 Every static response carries a weak content-hash ETag (`W/"<sha256>"`), answers
 `If-None-Match` with `304 Not Modified`, and is gzip-compressed when the client sends
@@ -141,6 +146,36 @@ failing the provisioning result. Device list rows merge the active session first
 then mDNS, deduplicated by serial. A discovered row exposes its `pairing` endpoint so the
 pair dialog can prefill it.
 
+### Live view
+
+The default `#/live` page is described in
+[ADR-0008](adr/0008-live-view-mjpeg-and-overlays.md). The viewfinder is a plain
+`<img>` on `/stream.mjpg` with the bearer token in the query string; Chromium decodes the
+multipart JPEG stream natively and TCP backpressure reaches the hub's bounded broadcast,
+so no frame queue lives in JavaScript. `ui/src/live.ts` owns the page state:
+
+- The stream opens only while the live route is visible and the host reports an active
+  session over a live WebSocket. Closing the session or switching to `#/devices` removes
+  `src` and stops polling; returning reopens the stream with a new `rev` value.
+- A load failure shows the synthetic scene and retries after 2 s. Status text and the
+  corner badge report demo, no session, connecting, waiting for frames or live with the
+  device model.
+- `/api/stats` is polled once a second while live and visible (not while the tab is
+  hidden) and renders FPS, bitrate, latency, drops and total frames.
+- Snapshot downloads `/api/snapshot` as `watchdog-snapshot.jpg`; the endpoint returns the
+  next hub frame, so overlays are never baked into the image.
+- The rule-of-thirds grid, face boxes (`wd-face-overlay` from `state.faces.actual`) and
+  the metering/focus region overlays are DOM elements above the stream. `stream_rotation`
+  rotates the `.vf-media` wrapper with a CSS transform and a computed fit scale.
+- Fullscreen uses the Fullscreen API on the viewfinder; an overlay button exits it (the
+  toolbar button also updates its label), and Escape keeps the browser's native exit.
+- The controls are split into a left panel (Exposure, Focus, White balance) and a right
+  panel (Lens) around the video; below 1200 px the video spans the top row and the panels
+  share the second row, and below 720 px everything stacks.
+
+`ui/src/live-api.ts` is the typed client for the stream URL, `/api/stats` and
+`/api/snapshot`, and reuses the same bearer token as the rest of the UI API.
+
 ### WebSocket
 
 `GET /ws` performs the RFC 6455 handshake (token via `?token=` or
@@ -208,10 +243,11 @@ events, so a consumer can listen on the panel or on `document`.
 | `wd-auto-toggle` | Auto/manual switch with a live source badge | `control-id`, `label`, `auto`, `source`, `disabled` | `wd-auto-change` `{id, auto}` |
 | `wd-lock-button` | Lock/unlock button with a live badge | `control-id`, `label`, `locked`, `pending`, `supported`, `disabled` | `wd-lock-change` `{id, locked}` |
 | `wd-region-overlay` | Metering/focus region drawn over the viewfinder | `mode`, `label`, `regions`, `editable`, `maxRegions` | `wd-region-change` `{mode, region, regions}` |
+| `wd-face-overlay` | Read-only normalized face boxes from `state.faces.actual` | `faces` | — |
 | `wd-actual` | Requested vs actual readout with `match`/`differs`/`auto`/`pending` badge | `control-id`, `label`, `requested`, `actual`, `unit`, `precision`, `source`, `supported` | — |
 | `wd-select` | Enum control | `control-id`, `label`, `options`, `value`, `disabled` | `wd-commit` `{id, value}` |
 | `wd-reset` | Reset-to-auto button for a group of control ids | `label`, `targets`, `disabled` | `wd-reset` `{targets}` |
-| `wd-control-panel` | Groups descriptors, renders rows and translates child events | `descriptors`, `state`, `heading`, `disabled` | `wd-control-change` `{id, value}`, `wd-control-reset` `{targets}` |
+| `wd-control-panel` | Groups descriptors, renders rows and translates child events | `descriptors`, `state`, `heading`, `groups`, `disabled` | `wd-control-change` `{id, value}`, `wd-control-reset` `{targets}` |
 
 `ui/src/descriptors.ts` is the demo descriptor set. Its ids are the host's `state.<id>`
 names (`iso`, `exposure_time_ns`, `awb_lock`, ...), so M6 can feed a real
@@ -240,14 +276,15 @@ for focus regions and `ae_regions` for metering.
 ## Demo and fake device
 
 `ui/index.html` + `ui/src/app.ts` render a fake 16:9 viewfinder, the metering/focus
-overlays, the control panel, a command log, drift and reset-all buttons, and a theme
+overlays, the two control panels, a command log, drift and reset-all buttons, and a theme
 toggle. The shell is backend-agnostic: `FakeDevice` keeps the offline demo working and
-`HostClient` drives the same panel, overlays and log from the host channel. The mode tag
+`HostClient` drives the same panels, overlays and log from the host channel. The mode tag
 shows `demo device` or `host`; the drift button is hidden in host mode. The Devices page
-works in host mode only and shows a demo notice otherwise. `window.__watchdog`
-exposes the active backend, panel, state snapshot and command log for Playwright
-assertions. The fake device is not a protocol implementation; it only mirrors the
-state/implication semantics needed by the components.
+works in host mode only and shows a demo notice otherwise. `window.__watchdog` exposes
+the active backend, the left panel (and both panels via `panels`), the live view
+controller, the state snapshot and the command log for Playwright assertions. The fake
+device is not a protocol implementation; it only mirrors the state/implication semantics
+needed by the components.
 
 Host resets are sent as one `set_controls` batch: exposure returns `ae_mode` to auto,
 focus returns `af_mode` to continuous, white balance returns `awb_mode` to auto, lens

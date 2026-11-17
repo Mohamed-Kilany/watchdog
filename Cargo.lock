@@ -2235,6 +2235,7 @@ name = "watchdog-ui-server"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "flate2",
  "rust-embed",
  "serde",

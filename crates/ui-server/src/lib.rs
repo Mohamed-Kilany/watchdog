@@ -13,6 +13,9 @@
 //! the static files. M6-T03 adds the `/api/devices*` management API backed by
 //! [`watchdog_device::devices::DeviceService`]; the live routes stay up while no
 //! device is active and follow session switches without closing the socket.
+//! M6-T04 adds `/api/snapshot`, which returns the latest viewfinder frame as a
+//! downloadable JPEG so the live page's snapshot button never needs a canvas
+//! copy of the stream.
 
 #![warn(missing_docs)]
 
@@ -30,12 +33,13 @@ use flate2::Compression;
 use serde::Deserialize;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
 use watchdog_core::error::{ErrorCode, WatchdogError};
 use watchdog_core::Result;
 use watchdog_device::devices::{DeviceService, ProvisionJobState, ProvisionRequest, SessionInfo};
-use watchdog_device::hub::{FrameHub, StreamStats};
+use watchdog_device::hub::{FrameHub, ReceivedFrame, StreamStats};
 use watchdog_protocol::{CommandMessage, CommandResultMessage, StateMessage};
 
 /// Minimal live view served when the UI build was not embedded (Rust-only
@@ -49,6 +53,8 @@ const MAX_BODY_BYTES: usize = 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Idle check interval while a viewer waits for frames.
 const STREAM_TICK: Duration = Duration::from_secs(1);
+/// How long a snapshot request waits for the next frame.
+const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(2);
 /// Multipart boundary used by the MJPEG stream.
 const MJPEG_BOUNDARY: &str = "watchdogframe";
 /// Terminator of an HTTP request head.
@@ -298,10 +304,14 @@ async fn handle_connection(
             };
             return stream_mjpeg(stream, &hub).await;
         }
+        ("GET", "/api/snapshot") => {
+            return write_response(&mut stream, &snapshot_response(service).await).await;
+        }
         ("GET", "/healthz") => Response::new("200 OK", "text/plain; charset=utf-8", b"ok\n")
             .header("Cache-Control", "no-store"),
         ("GET", _) => static_response(&request, embedded_asset),
         (_, "/api/command") => method_not_allowed("POST"),
+        (_, "/api/snapshot") => method_not_allowed("GET"),
         (_, "/api/devices/pair")
         | (_, "/api/devices/activate")
         | (_, "/api/devices/disconnect")
@@ -340,7 +350,47 @@ fn snapshot_envelope(service: &DeviceService) -> serde_json::Value {
     }
 }
 
-/// `GET /api/stats` — frame counters, zeroed while no session is open.
+/// `GET /api/snapshot` - the latest viewfinder frame as a JPEG download.
+async fn snapshot_response(service: &DeviceService) -> Response {
+    let Some(hub) = service.active_hub() else {
+        return no_session_response();
+    };
+    let Some(frame) = next_frame(hub.subscribe(), SNAPSHOT_TIMEOUT).await else {
+        return api_error(
+            "503 Service Unavailable",
+            ErrorCode::StreamClosed,
+            "no viewfinder frame is available yet",
+            Some("wait for the live view to show frames, then try again"),
+        );
+    };
+    Response::new("200 OK", "image/jpeg", &frame.jpeg)
+        .header("Cache-Control", "no-store")
+        .header(
+            "Content-Disposition",
+            "attachment; filename=\"watchdog-snapshot.jpg\"",
+        )
+}
+
+/// Wait for the next usable frame, skipping lagged markers.
+async fn next_frame(
+    mut frames: broadcast::Receiver<Arc<ReceivedFrame>>,
+    timeout: Duration,
+) -> Option<Arc<ReceivedFrame>> {
+    tokio::time::timeout(timeout, async {
+        loop {
+            match frames.recv().await {
+                Ok(frame) => return Some(frame),
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => return None,
+            }
+        }
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// `GET /api/stats` - frame counters, zeroed while no session is open.
 fn stats_response(service: &DeviceService) -> Response {
     let stats = service
         .active_hub()
@@ -1097,6 +1147,46 @@ mod tests {
             .iter()
             .find(|(header, _)| *header == name)
             .map(|(_, value)| value.as_str())
+    }
+
+    fn frame(seq: u64) -> ReceivedFrame {
+        ReceivedFrame {
+            seq,
+            sensor_timestamp_ns: seq * 1_000_000,
+            width: 2,
+            height: 2,
+            rotation: watchdog_protocol::Rotation::R0,
+            flags: 0,
+            jpeg: bytes::Bytes::from_static(b"\xff\xd8jpeg\xff\xd9"),
+            received_at: std::time::Instant::now(),
+            latency_ms: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn next_frame_skips_lagged_markers() {
+        let (sender, receiver) = broadcast::channel(1);
+        sender.send(Arc::new(frame(1))).expect("send first");
+        sender.send(Arc::new(frame(2))).expect("send second");
+        let received = next_frame(receiver, Duration::from_secs(1))
+            .await
+            .expect("a frame");
+        assert_eq!(received.seq, 2);
+    }
+
+    #[tokio::test]
+    async fn next_frame_times_out_without_frames() {
+        let (_sender, receiver) = broadcast::channel(1);
+        let received = next_frame(receiver, Duration::from_millis(10)).await;
+        assert!(received.is_none());
+    }
+
+    #[tokio::test]
+    async fn next_frame_reports_a_closed_stream() {
+        let (sender, receiver) = broadcast::channel(1);
+        drop(sender);
+        let received = next_frame(receiver, Duration::from_secs(1)).await;
+        assert!(received.is_none());
     }
 
     #[test]
