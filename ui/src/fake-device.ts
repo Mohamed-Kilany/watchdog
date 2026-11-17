@@ -378,9 +378,9 @@ export class FakeDevice {
     if (gains && typeof gains.actual === "object" && gains.actual !== null) {
       const record = gains.actual as Record<string, number>;
       gains.actual = {
-        r: round(record.r * 1.1, 0.01),
-        g: record.g,
-        b: round(record.b * 0.9, 0.01),
+        r: round((record.r ?? 1) * 1.1, 0.01),
+        g: record.g ?? 1,
+        b: round((record.b ?? 1) * 0.9, 0.01),
       };
       gains.source = "device";
     }
