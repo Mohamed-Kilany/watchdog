@@ -1573,14 +1573,20 @@ mod tests {
             "controls": { "ae_mode": 0, "iso": 100, "zoom_ratio": 1.0 }
         })
         .to_string();
-        let save_request = parse_request(&format!(
+        let mut save_request = parse_request(&format!(
             "POST /api/presets HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n{}",
             payload.len(),
             payload
         ))
         .expect("valid request");
+        save_request.body = payload.into_bytes();
         let saved = save_preset_response(&service, &save_request);
-        assert_eq!(saved.status, "200 OK");
+        assert_eq!(
+            saved.status,
+            "200 OK",
+            "{}",
+            String::from_utf8_lossy(&saved.body)
+        );
         let saved_body: serde_json::Value =
             serde_json::from_slice(&saved.body).expect("preset JSON");
         assert_eq!(saved_body["name"], "TV screen capture");
