@@ -100,6 +100,68 @@ All JSON calls send `Authorization: Bearer <token>` when a token is configured; 
 carry it as `?token=` so `<img>`/`<video>` can load them. Non-2xx responses use the error
 model above, and the UI shows `error.message` (plus `error.hint`) in its status line.
 
+## Settings, logs and diagnostics UI contract (M6-T08)
+
+The web UI uses the unprefixed `/api/settings`, `/api/logs` and `/api/diagnostics` routes.
+The host configuration (M1), log ring buffer (M1-T04), ffmpeg bundle (M7) and system
+resources (M9) will back them. Until those routes exist the Settings page shows a clear
+M7/M9 notice instead of empty cards.
+
+`GET /api/settings` returns either the object below or `{"settings": {...}}`:
+
+```json
+{
+  "ports": {"ui": 7700, "mcp": 7701, "api": 7702},
+  "listen": {
+    "mode": "localhost",
+    "addresses": {"ui": "127.0.0.1", "mcp": "127.0.0.1", "api": "127.0.0.1"}
+  },
+  "token": {"configured": false, "hint": null},
+  "storage": {
+    "data_dir": "<data dir>",
+    "media_dir": "<data dir>/media",
+    "logs_dir": "<data dir>/logs",
+    "media_items": 12,
+    "media_bytes": 104857600,
+    "free_bytes": 68719476736,
+    "total_bytes": 274877906944
+  },
+  "retention": {"max_age_days": 30, "max_size_mb": 10240},
+  "ffmpeg": {
+    "available": true,
+    "ffmpeg_version": "7.1",
+    "ffprobe_version": "7.1",
+    "path": "<data dir>/tools/ffmpeg",
+    "license": "LGPL-2.1-or-later",
+    "filters": 418
+  },
+  "about": {
+    "version": "0.1.0",
+    "commit": "<short sha>",
+    "build": "2026-11-17T18:00:00Z",
+    "os": "windows",
+    "arch": "x86_64",
+    "protocol": 1
+  }
+}
+```
+
+`listen.mode` is `localhost`, `lan` or `mixed`; the UI also derives it from the addresses
+when omitted. `token.hint` is a non-secret suffix such as `…c0de`; the token value is
+never returned. `free_bytes`/`total_bytes` and the ffmpeg strings are optional, as are
+`commit`, `build` and `protocol`.
+
+| Method | Path | Behaviour |
+|---|---|---|
+| `GET` | `/api/settings` | Reads the effective configuration, storage usage, retention, ffmpeg and about data. |
+| `PATCH` | `/api/settings` | Accepts `{"retention": {"max_age_days": 14, "max_size_mb": 2048}}` and returns the updated settings or `{"retention": {...}}`. Negative values are rejected with 422 `INVALID_SETTING`; persistence is host-defined (config file or runtime override). |
+| `GET` | `/api/logs?level=warn&limit=200` | Returns `{"lines": [{"ts_ms": 1700000000000, "level": "warn", "target": "stream", "message": "..."}]}` (or a bare array). Levels: trace/debug/info/warn/error; `level=all` and a missing level return everything; `limit` defaults to 200. |
+| `GET` | `/api/diagnostics` | Streams a zip bundle (`application/zip`, attachment `watchdog-diagnostics-<timestamp>.zip`) with the effective config (token redacted), recent logs, versions and storage summary. The UI passes the bearer token as `?token=` because a download link cannot send headers. |
+
+All JSON calls send `Authorization: Bearer <token>` when a token is configured. Non-2xx
+responses use the error model above, and the UI shows `error.message` (plus `error.hint`)
+in its status line.
+
 ## WebSocket events
 
 Event envelope: `{ "event": "device.connected" | "device.disconnected" | "state.changed" |
