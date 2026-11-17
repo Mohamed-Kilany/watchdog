@@ -42,9 +42,11 @@ any required path is unusable.
 Start the web UI on `--ui-port` (default 7700). The host serves the embedded static UI
 built from `ui/` (see [ui.md](ui.md)): `/` is the app shell, `assets/*` are the
 fingerprinted bundles, `/api/stats` exposes the frame-hub counters, `/stream.mjpg` is the
-live multipart MJPEG stream and `/healthz` is a liveness probe. Static responses use
-content-hash ETags, `304 Not Modified` and gzip compression. Builds without an embedded
-UI serve the minimal live page (MJPEG view plus stats) at `/` instead.
+live multipart MJPEG stream and `/healthz` is a liveness probe. The app shell's real-time
+channel is `/api/state` (merged snapshot), `POST /api/command` (one command through the
+frame hub) and `/ws` (state/event WebSocket); all three reuse the same bearer token.
+Static responses use content-hash ETags, `304 Not Modified` and gzip compression. Builds
+without an embedded UI serve the minimal live page (MJPEG view plus stats) at `/` instead.
 
 The command reuses the session token stored by `watchdog device provision` (run it
 first). `--serial` selects a USB serial or `host[:port]` (wireless debugging over LAN).

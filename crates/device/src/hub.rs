@@ -1,4 +1,4 @@
-//! Frame receiver and bounded broadcast hub (M3-T14).
+//! Frame receiver and bounded broadcast hub (M3-T14, extended in M6-T02).
 //!
 //! The hub owns one authenticated app session, reads `FRAME` messages, puts
 //! them back in sequence order (dropping duplicates and counting gaps) and
@@ -7,20 +7,32 @@
 //! subscriber only lags and loses old frames, so the UI, MCP and recorder can
 //! consume the stream independently.
 //!
+//! The hub is also the single owner of the control state and of the command
+//! channel. It merges full and delta `STATE` messages into one snapshot,
+//! republishes `EVENT` messages and forwards commands from the web UI (or any
+//! other consumer) to the app, matching `COMMAND_RESULT` replies by id. Keeping
+//! this on the hub is what lets the UI and the MCP server share one app session
+//! instead of racing to open a second one.
+//!
 //! While reading, the hub sends `PING` once per second; `PONG` carries the
 //! app's `CLOCK_BOOTTIME` timestamp, which gives a clock-offset estimate so
 //! every frame can report an estimated glass-to-sensor latency.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use serde::Serialize;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use watchdog_protocol::{FramePacket, Message, PingPong, Rotation};
+use watchdog_core::error::{ErrorCode, WatchdogError};
+use watchdog_core::Result;
+use watchdog_protocol::{
+    CommandMessage, CommandResultMessage, EventMessage, FramePacket, Message, PingPong, Rotation,
+    StateMessage,
+};
 
 use crate::session::{LiveSession, Polled};
 
@@ -34,7 +46,12 @@ pub const DEFAULT_REORDER_HOLD: Duration = Duration::from_millis(250);
 pub const DEFAULT_PING_INTERVAL: Duration = Duration::from_secs(1);
 /// Default window used to compute FPS and bitrate.
 pub const DEFAULT_STATS_WINDOW: Duration = Duration::from_secs(2);
-
+/// Default number of state/event updates kept for slow subscribers.
+pub const DEFAULT_UPDATE_CAPACITY: usize = 64;
+/// Default time a caller waits for the app's `COMMAND_RESULT`.
+pub const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+/// Maximum number of commands queued for the hub at once.
+const COMMAND_CAPACITY: usize = 16;
 /// Poll granularity while waiting for app messages.
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 /// Oldest latency probes kept for `PONG` matching.
@@ -45,8 +62,10 @@ const MAX_PLAUSIBLE_LATENCY_NS: i128 = 60_000_000_000;
 /// Tunables for [`FrameHub`].
 #[derive(Debug, Clone)]
 pub struct HubConfig {
-    /// Bounded broadcast capacity per subscriber.
+    /// Bounded broadcast capacity per frame subscriber.
     pub channel_capacity: usize,
+    /// Bounded broadcast capacity per state/event subscriber.
+    pub update_capacity: usize,
     /// Out-of-order frames buffered before the hub gives up on a gap.
     pub max_reorder: usize,
     /// How long an out-of-order frame may wait for missing predecessors.
@@ -55,18 +74,45 @@ pub struct HubConfig {
     pub ping_interval: Duration,
     /// Sliding window used to compute FPS and bitrate.
     pub stats_window: Duration,
+    /// How long a [`FrameHub::command`] caller waits for the app's reply.
+    pub command_timeout: Duration,
 }
 
 impl Default for HubConfig {
     fn default() -> Self {
         Self {
             channel_capacity: DEFAULT_CHANNEL_CAPACITY,
+            update_capacity: DEFAULT_UPDATE_CAPACITY,
             max_reorder: DEFAULT_MAX_REORDER,
             reorder_hold: DEFAULT_REORDER_HOLD,
             ping_interval: DEFAULT_PING_INTERVAL,
             stats_window: DEFAULT_STATS_WINDOW,
+            command_timeout: DEFAULT_COMMAND_TIMEOUT,
         }
     }
+}
+
+/// One update published by [`FrameHub`] to state/event subscribers.
+#[derive(Debug, Clone)]
+pub enum HubUpdate {
+    /// Merged full control/camera state. Always a complete map, never a delta.
+    State(StateMessage),
+    /// Asynchronous app event (`camera_disconnected`, `error`, ...).
+    Event(EventMessage),
+    /// The app session ended; no further updates will be published.
+    Closed,
+}
+
+/// One command queued for the hub task.
+struct HubCommand {
+    message: CommandMessage,
+    reply: oneshot::Sender<Result<CommandResultMessage>>,
+}
+
+/// A command waiting for the matching `COMMAND_RESULT`.
+struct PendingCommand {
+    queued_at: Instant,
+    reply: oneshot::Sender<Result<CommandResultMessage>>,
 }
 
 /// One JPEG frame published to subscribers.
@@ -211,6 +257,10 @@ impl FrameBroadcaster {
 /// A running frame hub; dropping it stops reading and forwarding.
 pub struct FrameHub {
     broadcaster: FrameBroadcaster,
+    updates: broadcast::Sender<HubUpdate>,
+    state: Arc<Mutex<Option<StateMessage>>>,
+    commands: mpsc::Sender<HubCommand>,
+    command_timeout: Duration,
     task: JoinHandle<()>,
 }
 
@@ -221,17 +271,69 @@ impl FrameHub {
     pub fn spawn(live: LiveSession, config: HubConfig) -> Self {
         let broadcaster =
             FrameBroadcaster::with_window(config.channel_capacity, config.stats_window);
+        let (updates, _receiver) = broadcast::channel(config.update_capacity.max(1));
+        let state = Arc::new(Mutex::new(None));
+        let (commands, command_rx) = mpsc::channel(COMMAND_CAPACITY);
+        let command_timeout = config.command_timeout;
         let task_broadcaster = broadcaster.clone();
+        let task_updates = updates.clone();
+        let task_state = Arc::clone(&state);
         let task = tokio::spawn(async move {
-            run(live, &config, &task_broadcaster).await;
+            run(
+                live,
+                &config,
+                &task_broadcaster,
+                &task_updates,
+                &task_state,
+                command_rx,
+            )
+            .await;
         });
-        Self { broadcaster, task }
+        Self {
+            broadcaster,
+            updates,
+            state,
+            commands,
+            command_timeout,
+            task,
+        }
     }
 
     /// Subscribe to frames from this hub.
     #[must_use]
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<ReceivedFrame>> {
         self.broadcaster.subscribe()
+    }
+
+    /// Subscribe to merged state snapshots, app events and the close notice.
+    #[must_use]
+    pub fn subscribe_updates(&self) -> broadcast::Receiver<HubUpdate> {
+        self.updates.subscribe()
+    }
+
+    /// Latest merged state snapshot, when the app has sent one.
+    #[must_use]
+    pub fn state(&self) -> Option<StateMessage> {
+        lock_state(&self.state).clone()
+    }
+
+    /// Forward one command to the app and wait for its `COMMAND_RESULT`.
+    ///
+    /// The hub owns the only app session, so every caller shares this path.
+    pub async fn command(&self, message: CommandMessage) -> Result<CommandResultMessage> {
+        let outcome = tokio::time::timeout(self.command_timeout, async {
+            let (reply, response) = oneshot::channel();
+            self.commands
+                .send(HubCommand { message, reply })
+                .await
+                .map_err(|_| session_closed_error())?;
+            response.await.map_err(|_| session_closed_error())?
+        })
+        .await;
+        match outcome {
+            Ok(result) => result,
+            Err(_) => Err(command_timeout_error()),
+        }
     }
 
     /// Snapshot of the rolling stats.
@@ -247,12 +349,57 @@ impl Drop for FrameHub {
     }
 }
 
-async fn run(mut live: LiveSession, config: &HubConfig, out: &FrameBroadcaster) {
+async fn run(
+    mut live: LiveSession,
+    config: &HubConfig,
+    out: &FrameBroadcaster,
+    updates: &broadcast::Sender<HubUpdate>,
+    state: &Mutex<Option<StateMessage>>,
+    mut commands: mpsc::Receiver<HubCommand>,
+) {
     let epoch = Instant::now();
     let mut sequencer = Sequencer::new(config.max_reorder, config.reorder_hold);
     let mut pinger = Pinger::new(config.ping_interval);
+    let mut pending: HashMap<String, PendingCommand> = HashMap::new();
+
+    // Ask for a full snapshot as soon as the hub owns the session. The app
+    // also sends one when the session opens; this only closes that race.
+    let request = Message::Command(CommandMessage {
+        id: "hub-get-state".to_string(),
+        command: "get_state".to_string(),
+        params: serde_json::json!({}),
+    });
+    if let Err(error) = live.session().send(&request).await {
+        out.mark_closed(Some(error.to_string()));
+        let _ = updates.send(HubUpdate::Closed);
+        return;
+    }
 
     loop {
+        // Forward queued UI commands before blocking on the session. The poll
+        // below waits at most POLL_INTERVAL, so a command is never delayed for
+        // long even when it arrives just after this check.
+        while let Ok(command) = commands.try_recv() {
+            prune_pending(&mut pending, config.command_timeout);
+            let sent = live
+                .session()
+                .send(&Message::Command(command.message.clone()))
+                .await;
+            if let Err(error) = sent {
+                out.mark_closed(Some(error.to_string()));
+                let _ = command.reply.send(Err(session_closed_error()));
+                close_pending(&mut pending, updates);
+                return;
+            }
+            pending.insert(
+                command.message.id,
+                PendingCommand {
+                    queued_at: Instant::now(),
+                    reply: command.reply,
+                },
+            );
+        }
+
         match live.session().poll(POLL_INTERVAL).await {
             Ok(Polled::Message(message)) => match *message {
                 Message::Frame(frame) => {
@@ -266,11 +413,24 @@ async fn run(mut live: LiveSession, config: &HubConfig, out: &FrameBroadcaster) 
                         out.set_rtt(rtt_ms);
                     }
                 }
+                Message::State(incoming) => {
+                    let merged = merge_into_state(state, incoming);
+                    let _ = updates.send(HubUpdate::State(merged));
+                }
+                Message::Event(event) => {
+                    let _ = updates.send(HubUpdate::Event(event));
+                }
+                Message::CommandResult(result) => {
+                    if let Some(waiter) = pending.remove(&result.id) {
+                        let _ = waiter.reply.send(Ok(result));
+                    }
+                }
                 Message::Error(error) => {
                     out.set_error(format!("{} ({})", error.message, error.code));
                 }
                 Message::Bye(bye) => {
                     out.mark_closed(Some(format!("app closed the session: {}", bye.reason)));
+                    close_pending(&mut pending, updates);
                     break;
                 }
                 _ => {}
@@ -286,10 +446,12 @@ async fn run(mut live: LiveSession, config: &HubConfig, out: &FrameBroadcaster) 
             }
             Ok(Polled::Closed) => {
                 out.mark_closed(None);
+                close_pending(&mut pending, updates);
                 break;
             }
             Err(error) => {
                 out.mark_closed(Some(error.to_string()));
+                close_pending(&mut pending, updates);
                 break;
             }
         }
@@ -297,10 +459,84 @@ async fn run(mut live: LiveSession, config: &HubConfig, out: &FrameBroadcaster) 
         if let Some(ping) = pinger.due(Instant::now()) {
             if let Err(error) = live.session().send(&ping).await {
                 out.mark_closed(Some(error.to_string()));
+                close_pending(&mut pending, updates);
                 break;
             }
         }
     }
+}
+
+/// Merge a full snapshot or a delta into the hub's current state.
+///
+/// Deltas only carry changed control entries plus the repeated camera metadata,
+/// so the previous full map is kept and updated in place.
+fn merge_into_state(state: &Mutex<Option<StateMessage>>, incoming: StateMessage) -> StateMessage {
+    let mut guard = lock_state(state);
+    let mut merged = match guard.take() {
+        Some(mut current) if incoming.delta => {
+            current.seq = incoming.seq;
+            current.timestamp_ms = incoming.timestamp_ms;
+            current.camera_id.clone_from(&incoming.camera_id);
+            current.dropped_frames = incoming.dropped_frames;
+            current.storage_free_mb = incoming.storage_free_mb;
+            for (id, entry) in incoming.state {
+                current.state.insert(id, entry);
+            }
+            current
+        }
+        _ => incoming,
+    };
+    merged.delta = false;
+    *guard = Some(merged.clone());
+    merged
+}
+
+fn lock_state(
+    state: &Mutex<Option<StateMessage>>,
+) -> std::sync::MutexGuard<'_, Option<StateMessage>> {
+    state.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Drop waiters that already outlived the command timeout.
+fn prune_pending(pending: &mut HashMap<String, PendingCommand>, timeout: Duration) {
+    let now = Instant::now();
+    let expired: Vec<String> = pending
+        .iter()
+        .filter(|(_, waiter)| now.saturating_duration_since(waiter.queued_at) > timeout)
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in expired {
+        if let Some(waiter) = pending.remove(&id) {
+            let _ = waiter.reply.send(Err(command_timeout_error()));
+        }
+    }
+}
+
+/// Fail every queued command and tell subscribers that the session is gone.
+fn close_pending(
+    pending: &mut HashMap<String, PendingCommand>,
+    updates: &broadcast::Sender<HubUpdate>,
+) {
+    for (_, waiter) in pending.drain() {
+        let _ = waiter.reply.send(Err(session_closed_error()));
+    }
+    let _ = updates.send(HubUpdate::Closed);
+}
+
+fn session_closed_error() -> WatchdogError {
+    WatchdogError::new(
+        ErrorCode::StreamClosed,
+        "the app session is closed; no command can be delivered",
+    )
+    .with_hint("reconnect the device and restart `watchdog serve`")
+}
+
+fn command_timeout_error() -> WatchdogError {
+    WatchdogError::new(
+        ErrorCode::ConnectionLost,
+        "timed out waiting for the app to answer a command",
+    )
+    .with_hint("check that the app is still streaming and the camera is open")
 }
 
 fn publish_due(
@@ -587,6 +823,7 @@ fn now_ms() -> u64 {
 mod tests {
     use super::*;
     use tokio::sync::broadcast::error::TryRecvError;
+    use watchdog_protocol::{ControlEntry, ControlSource};
 
     fn packet(seq: u64) -> FramePacket {
         FramePacket {
@@ -598,6 +835,76 @@ mod tests {
             flags: 0,
             jpeg: Bytes::from_static(&[0xFF, 0xD8, 0xFF, 0xD9]),
         }
+    }
+
+    fn entry(actual: serde_json::Value) -> ControlEntry {
+        ControlEntry {
+            requested: None,
+            actual: Some(actual),
+            locked: None,
+            supported: true,
+            source: ControlSource::Device,
+        }
+    }
+
+    fn state(seq: u64, camera: &str, entries: &[(&str, serde_json::Value)]) -> StateMessage {
+        StateMessage {
+            seq,
+            timestamp_ms: seq * 10,
+            camera_id: camera.to_string(),
+            state: entries
+                .iter()
+                .map(|(id, actual)| ((*id).to_string(), entry(actual.clone())))
+                .collect(),
+            dropped_frames: 0,
+            storage_free_mb: Some(1024),
+            delta: false,
+        }
+    }
+
+    #[test]
+    fn merges_deltas_into_the_last_full_state() {
+        let hub_state = Mutex::new(None);
+        let merged = merge_into_state(
+            &hub_state,
+            state(
+                1,
+                "0",
+                &[
+                    ("iso", serde_json::json!(100)),
+                    ("ae_mode", serde_json::json!(1)),
+                ],
+            ),
+        );
+        assert!(!merged.delta);
+        assert_eq!(merged.state.len(), 2);
+
+        let mut delta = state(2, "1", &[("iso", serde_json::json!(400))]);
+        delta.delta = true;
+        delta.dropped_frames = 3;
+        let merged = merge_into_state(&hub_state, delta);
+        assert!(!merged.delta);
+        assert_eq!(merged.seq, 2);
+        assert_eq!(merged.camera_id, "1");
+        assert_eq!(merged.dropped_frames, 3);
+        assert_eq!(merged.state.len(), 2);
+        assert_eq!(merged.state["iso"].actual, Some(serde_json::json!(400)));
+        assert_eq!(merged.state["ae_mode"].actual, Some(serde_json::json!(1)));
+        assert_eq!(
+            lock_state(&hub_state).as_ref().map(|state| state.seq),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn delta_without_a_snapshot_becomes_a_full_state() {
+        let hub_state = Mutex::new(None);
+        let mut delta = state(7, "0", &[("iso", serde_json::json!(800))]);
+        delta.delta = true;
+        let merged = merge_into_state(&hub_state, delta);
+        assert!(!merged.delta);
+        assert_eq!(merged.seq, 7);
+        assert_eq!(merged.state["iso"].actual, Some(serde_json::json!(800)));
     }
 
     fn sequence(frames: Vec<FramePacket>) -> Vec<u64> {

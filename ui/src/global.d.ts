@@ -1,11 +1,10 @@
-import type { FakeDevice } from "./fake-device";
 import type { WdControlPanel } from "./components/wd-control-panel";
-import type { CommandLogEntry, ControlState } from "./types";
+import type { CommandLogEntry, ControlState, DeviceBackend } from "./types";
 
 declare global {
   interface Window {
     __watchdog: {
-      device: FakeDevice;
+      device: DeviceBackend;
       panel: WdControlPanel;
       state: () => ControlState;
       commands: () => CommandLogEntry[];

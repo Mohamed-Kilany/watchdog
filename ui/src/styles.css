@@ -295,6 +295,96 @@ body {
   overflow: auto;
 }
 
+.connection-banner {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--wd-warn) 55%, var(--wd-border));
+  background: color-mix(in srgb, var(--wd-warn) 16%, var(--wd-panel));
+  color: var(--wd-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.connection-banner[hidden] {
+  display: none;
+}
+
+.btn.primary {
+  border-color: color-mix(in srgb, var(--wd-accent) 65%, var(--wd-border));
+  background: color-mix(in srgb, var(--wd-accent) 22%, var(--wd-panel-2));
+  color: var(--wd-text);
+}
+
+.token-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.85rem;
+  background: var(--wd-panel);
+  color: var(--wd-text);
+  box-shadow: var(--wd-shadow);
+}
+
+.token-dialog::backdrop {
+  background: rgb(3 6 10 / 68%);
+  backdrop-filter: blur(3px);
+}
+
+.token-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.dialog-copy {
+  margin: 0 0 0.9rem;
+  color: var(--wd-muted);
+  font-size: 0.85rem;
+}
+
+.dialog-copy code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.dialog-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--wd-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dialog-input {
+  width: 100%;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.5rem;
+  background: var(--wd-bg);
+  color: var(--wd-text);
+  font: inherit;
+}
+
+.dialog-input:focus-visible {
+  outline: 2px solid var(--wd-focus);
+  outline-offset: 1px;
+}
+
+.dialog-error {
+  margin: 0.55rem 0 0;
+  color: var(--wd-danger);
+  font-size: 0.82rem;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 #command-log code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.74rem;

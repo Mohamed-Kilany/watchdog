@@ -1,17 +1,11 @@
 import type {
+  ApplyResult,
   ControlChange,
   ControlEntry,
   ControlRegion,
   ControlState,
   ControlValue,
 } from "./types";
-
-export interface ApplyResult {
-  control: string;
-  ok: boolean;
-  applied?: unknown;
-  error?: string;
-}
 
 type Listener = (state: ControlState, changes: ControlChange[]) => void;
 
@@ -133,7 +127,7 @@ function normalizeRegion(value: unknown): ControlRegion | null {
     h: height,
     weight: Number.isFinite(Number(record["weight"]))
       ? Number(record["weight"])
-      : 1,
+      : 1000,
   };
 }
 
@@ -145,6 +139,7 @@ function normalizeRegion(value: unknown): ControlRegion | null {
  * freezes the current actual, ...). It never talks to a real device.
  */
 export class FakeDevice {
+  readonly mode = "demo" as const;
   private state: ControlState = initial();
   private listeners = new Set<Listener>();
 
@@ -563,4 +558,4 @@ export class FakeDevice {
   }
 }
 
-export type { ControlEntry };
+export type { ApplyResult, ControlEntry };
