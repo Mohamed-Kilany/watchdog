@@ -56,8 +56,30 @@ The host embeds the static web UI (see [ui.md](ui.md)) and serves the live MJPEG
 `/stream.mjpg` with frame-hub stats at `/api/stats`. Builds without an embedded UI serve
 the minimal M3 live page instead. The UI reuses the session token stored by provisioning
 and works over USB or wireless debugging (`--serial host:port`). When a bearer token is
-configured, append `?token=…` to the page URL. Controls, capture and the media library
-are wired up in the remaining M6 tasks.
+configured, append `?token=…` to the page URL; the token is moved into session storage
+and removed from the address bar.
+
+The default page is the live view:
+
+- **Viewfinder.** The phone's MJPEG preview, decoded by the browser with native
+  backpressure. The stream opens only while this page is visible and a device session is
+  active. If the session is closed or the host is unreachable, the page says so and
+  reopens the stream automatically when the session returns.
+- **Stats.** FPS, bitrate, latency, dropped frames and total frames from the host's frame
+  hub, refreshed once a second while the stream is live.
+- **Snapshot.** Downloads the next frame as `watchdog-snapshot.jpg`. Overlays are never
+  drawn into the file; it is the camera frame the app sent.
+- **Fullscreen.** Expands the viewfinder; use the overlay button or Escape to leave it.
+- **Overlays.** Show the rule-of-thirds grid and face boxes reported by the app, and draw
+  the metering/focus regions on top of the video. Rotation reported by the app is applied
+  to the preview and its overlays.
+- **Controls.** The left panel holds Exposure, Focus and White balance; the right panel
+  holds Lens, mirroring the phone's own layout. Controls stay available while the preview
+  is connecting; commands are logged at the bottom of the page.
+
+If no host answers the page probe, it falls back to the offline fake-device demo so the
+controls can still be explored. Capture and the media library are wired up in the
+remaining M6 tasks.
 
 ## 9. Scheduler (summary)
 

@@ -5,6 +5,7 @@ import "./wd-lock-button";
 import "./wd-select";
 import "./wd-reset";
 import "./wd-region-overlay";
+import "./wd-face-overlay";
 import "./wd-control-panel";
 
 export { WdSlider } from "./wd-slider";
@@ -14,6 +15,7 @@ export { WdLockButton } from "./wd-lock-button";
 export { WdSelect } from "./wd-select";
 export { WdReset } from "./wd-reset";
 export { WdRegionOverlay } from "./wd-region-overlay";
+export { WdFaceOverlay } from "./wd-face-overlay";
 export { WdControlPanel } from "./wd-control-panel";
 export type {
   AutoDescriptor,

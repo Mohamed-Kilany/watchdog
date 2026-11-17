@@ -20,6 +20,7 @@ import type { ConnectionState } from "./host";
 import type { SessionInfo } from "./device-api";
 import type { WdControlPanel } from "./components/wd-control-panel";
 import type { WdRegionOverlay } from "./components/wd-region-overlay";
+import { LivePage } from "./live";
 import type {
   ApplyResult,
   CommandLogEntry,
@@ -69,6 +70,7 @@ function describe(region: ControlRegion): string {
 
 interface Shell {
   panel: WdControlPanel;
+  panels: WdControlPanel[];
   commands: CommandLogEntry[];
   current(): DeviceBackend;
   log(changes: ControlChange[], results: ApplyResult[]): void;
@@ -76,8 +78,13 @@ interface Shell {
   switchTo(backend: DeviceBackend): void;
 }
 
-function wireShell(initial: DeviceBackend): Shell {
-  const panel = mustQuery<WdControlPanel>("wd-control-panel");
+function wireShell(
+  initial: DeviceBackend,
+  onState: (state: ControlState) => void,
+): Shell {
+  const panel = mustQuery<WdControlPanel>("#panel-left");
+  const rightPanel = mustQuery<WdControlPanel>("#panel-right");
+  const panels = [panel, rightPanel];
   const meteringOverlay = mustQuery<WdRegionOverlay>("#metering-overlay");
   const focusOverlay = mustQuery<WdRegionOverlay>("#focus-overlay");
   const regionReadout = mustQuery<HTMLParagraphElement>("#region-readout");
@@ -85,15 +92,17 @@ function wireShell(initial: DeviceBackend): Shell {
   const status = mustQuery<HTMLSpanElement>("#device-status");
   const modeTag = mustQuery<HTMLSpanElement>("#mode-tag");
   const driftButton = document.querySelector<HTMLButtonElement>("#drift");
-  const corner = document.querySelector<HTMLDivElement>(".vf-corner");
 
   const commands: CommandLogEntry[] = [];
   let backend = initial;
   let label = backend.mode === "demo" ? "fake device" : "host";
 
-  panel.heading = "Camera controls";
-  panel.descriptors = DESCRIPTORS;
-  panel.state = backend.snapshot;
+  panel.heading = "Exposure & focus";
+  rightPanel.heading = "Lens & output";
+  for (const target of panels) target.descriptors = DESCRIPTORS;
+  panel.groups = ["Exposure", "Focus", "White balance"];
+  rightPanel.groups = ["Lens"];
+  for (const target of panels) target.state = backend.snapshot;
 
   function syncRegions(state: ControlState): void {
     const metering = regionOf(state["ae_regions"]);
@@ -133,15 +142,12 @@ function wireShell(initial: DeviceBackend): Shell {
     label = backend.mode === "demo" ? "fake device" : "host";
     modeTag.textContent = backend.mode === "demo" ? "demo device" : "host";
     if (driftButton) driftButton.hidden = backend.mode !== "demo";
-    if (corner) {
-      corner.textContent =
-        backend.mode === "demo" ? "DEMO · 1280×720" : "HOST · LIVE STATE";
-    }
   }
 
   function handleState(state: ControlState): void {
-    panel.state = state;
+    for (const target of panels) target.state = state;
     syncRegions(state);
+    onState(state);
   }
 
   let unsubscribe = backend.subscribe(handleState);
@@ -205,16 +211,18 @@ function wireShell(initial: DeviceBackend): Shell {
     }
   }
 
-  panel.addEventListener("wd-control-change", (event) => {
-    const detail = (event as CustomEvent<ControlChange>).detail;
-    void applyChanges([detail]);
-  });
+  for (const target of panels) {
+    target.addEventListener("wd-control-change", (event) => {
+      const detail = (event as CustomEvent<ControlChange>).detail;
+      void applyChanges([detail]);
+    });
 
-  panel.addEventListener("wd-control-reset", (event) => {
-    const detail = (event as CustomEvent<{ targets: string[] }>).detail;
-    if (!detail) return;
-    void reset(detail.targets, { id: "reset", value: detail.targets });
-  });
+    target.addEventListener("wd-control-reset", (event) => {
+      const detail = (event as CustomEvent<{ targets: string[] }>).detail;
+      if (!detail) return;
+      void reset(detail.targets, { id: "reset", value: detail.targets });
+    });
+  }
 
   for (const overlay of [meteringOverlay, focusOverlay]) {
     overlay.addEventListener("wd-region-change", (event) => {
@@ -293,8 +301,9 @@ function wireShell(initial: DeviceBackend): Shell {
     unsubscribe();
     backend = next;
     unsubscribe = backend.subscribe(handleState);
-    panel.state = backend.snapshot;
+    for (const target of panels) target.state = backend.snapshot;
     syncRegions(backend.snapshot);
+    onState(backend.snapshot);
     updateMode();
     renderLog();
     if (window.__watchdog) window.__watchdog.device = backend;
@@ -306,6 +315,7 @@ function wireShell(initial: DeviceBackend): Shell {
 
   return {
     panel,
+    panels,
     commands,
     current: () => backend,
     log,
@@ -314,10 +324,12 @@ function wireShell(initial: DeviceBackend): Shell {
   };
 }
 
-function expose(shell: Shell): void {
+function expose(shell: Shell, live: LivePage): void {
   window.__watchdog = {
     device: shell.current(),
     panel: shell.panel,
+    panels: shell.panels,
+    live,
     state: () => shell.current().snapshot,
     commands: () => structuredClone(shell.commands),
   };
@@ -412,7 +424,11 @@ function promptForToken(message: string): Promise<string | null> {
 }
 
 /** Probe the origin once, then swap in the host channel or keep the demo. */
-async function boot(shell: Shell, devices: DevicesPage): Promise<void> {
+async function boot(
+  shell: Shell,
+  devices: DevicesPage,
+  live: LivePage,
+): Promise<void> {
   const tokenFromUrl = consumeTokenFromUrl();
   let token = tokenFromUrl ?? readStoredToken();
   let result = await probeHost(token);
@@ -426,6 +442,7 @@ async function boot(shell: Shell, devices: DevicesPage): Promise<void> {
     );
     if (entered === null) {
       devices.demo();
+      live.demo();
       return;
     }
     token = entered;
@@ -437,13 +454,15 @@ async function boot(shell: Shell, devices: DevicesPage): Promise<void> {
   if (result.kind === "host") {
     const host = startHost(shell, token, result.state, result.session);
     devices.connect(token, host);
+    live.connectHost(token, host);
   } else {
     devices.demo();
+    live.demo();
   }
 }
 
 /** Switch between `#/live` and `#/devices` without a reload. */
-function wireRoutes(devices: DevicesPage): void {
+function wireRoutes(devices: DevicesPage, live: LivePage): void {
   const liveView = mustQuery<HTMLElement>("#view-live");
   const devicesView = mustQuery<HTMLElement>("#view-devices");
   const links = Array.from(
@@ -454,6 +473,7 @@ function wireRoutes(devices: DevicesPage): void {
     const route = window.location.hash === "#/devices" ? "devices" : "live";
     liveView.hidden = route !== "live";
     devicesView.hidden = route !== "devices";
+    live.setVisible(route === "live");
     for (const link of links) {
       if (link.dataset.route === route) {
         link.setAttribute("aria-current", "page");
@@ -470,9 +490,10 @@ function wireRoutes(devices: DevicesPage): void {
 
 /** Wire the demo immediately, then upgrade to the host if one answers. */
 export function start(): void {
-  const shell = wireShell(new FakeDevice());
+  const live = new LivePage();
+  const shell = wireShell(new FakeDevice(), (state) => live.renderState(state));
   const devices = new DevicesPage();
-  expose(shell);
-  wireRoutes(devices);
-  void boot(shell, devices);
+  expose(shell, live);
+  wireRoutes(devices, live);
+  void boot(shell, devices, live);
 }

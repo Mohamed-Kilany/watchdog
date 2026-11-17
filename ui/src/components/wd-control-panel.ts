@@ -144,6 +144,7 @@ export class WdControlPanel extends HTMLElement {
 
   private _descriptors: ControlDescriptor[] = [];
   private _state: ControlState = {};
+  private _groups: string[] | null = null;
   private rendered = false;
   private rows = new Map<string, Row>();
   private resets = new Map<string, { host: WdReset; desc: ResetDescriptor }>();
@@ -173,6 +174,16 @@ export class WdControlPanel extends HTMLElement {
 
   set descriptors(value: ControlDescriptor[]) {
     this._descriptors = value;
+    if (this.rendered) this.render();
+  }
+
+  /** Only render these groups; `null` (the default) renders every group. */
+  get groups(): string[] | null {
+    return this._groups;
+  }
+
+  set groups(value: string[] | null) {
+    this._groups = value;
     if (this.rendered) this.render();
   }
 
@@ -235,9 +246,18 @@ export class WdControlPanel extends HTMLElement {
 
     const groups = new Map<string, ControlDescriptor[]>();
     for (const descriptor of this._descriptors) {
+      if (this._groups && !this._groups.includes(descriptor.group)) continue;
       const list = groups.get(descriptor.group) ?? [];
       list.push(descriptor);
       groups.set(descriptor.group, list);
+    }
+
+    if (groups.size === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No controls in this panel.";
+      this.groupsEl.append(empty);
+      return;
     }
 
     for (const [group, descriptors] of groups) {

@@ -165,7 +165,10 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 2.2fr) minmax(240px, 1fr);
+  grid-template-areas:
+    "left stage right"
+    "log log log";
   gap: 1rem;
   align-items: start;
 }
@@ -214,6 +217,7 @@ body {
 }
 
 .stage {
+  grid-area: stage;
   min-width: 0;
 }
 
@@ -225,6 +229,100 @@ body {
   border-radius: 0.85rem;
   background: #05070a;
   box-shadow: var(--wd-shadow);
+}
+
+.vf-media {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--vf-rotation, 0deg)) scale(var(--vf-scale, 1));
+  transform-origin: center;
+}
+
+.live-stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #05070a;
+}
+
+.live-stream[hidden] {
+  display: none;
+}
+
+.vf-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      to right,
+      transparent 33.2%,
+      rgb(255 255 255 / 45%) 33.2%,
+      rgb(255 255 255 / 45%) 33.5%,
+      transparent 33.5%,
+      transparent 66.2%,
+      rgb(255 255 255 / 45%) 66.2%,
+      rgb(255 255 255 / 45%) 66.5%,
+      transparent 66.5%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 33.2%,
+      rgb(255 255 255 / 45%) 33.2%,
+      rgb(255 255 255 / 45%) 33.5%,
+      transparent 33.5%,
+      transparent 66.2%,
+      rgb(255 255 255 / 45%) 66.2%,
+      rgb(255 255 255 / 45%) 66.5%,
+      transparent 66.5%
+    );
+}
+
+.vf-grid[hidden] {
+  display: none;
+}
+
+.vf-status {
+  position: absolute;
+  top: 0.65rem;
+  left: 50%;
+  z-index: 3;
+  max-width: calc(100% - 1.3rem);
+  padding: 0.22rem 0.5rem;
+  border-radius: 0.35rem;
+  background: rgb(5 8 11 / 78%);
+  color: #e7eef4;
+  font-size: 0.72rem;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.vf-exit {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 4;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 0.4rem;
+  background: rgb(5 8 11 / 78%);
+  color: #e7eef4;
+  font-size: 0.75rem;
+}
+
+.vf-exit[hidden] {
+  display: none;
+}
+
+.viewfinder:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
 }
 
 .scene {
@@ -274,7 +372,7 @@ body {
   pointer-events: none;
 }
 
-.region-toolbar {
+.live-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -286,7 +384,7 @@ body {
   background: var(--wd-panel);
 }
 
-.region-toolbar label {
+.live-toolbar label {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -295,8 +393,49 @@ body {
   cursor: pointer;
 }
 
-.region-toolbar input {
+.live-toolbar input {
   accent-color: var(--wd-accent);
+}
+
+.live-toolbar .toolbar-check {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.4rem;
+  background: var(--wd-panel-2);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin: 0.65rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.6rem;
+  background: var(--wd-panel);
+}
+
+.stats div {
+  min-width: 0;
+}
+
+.stats dt {
+  color: var(--wd-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stats dd {
+  margin: 0.1rem 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.stats[data-state="idle"] dd,
+.stats[data-state="closed"] dd {
+  color: var(--wd-muted);
 }
 
 .toolbar-label {
@@ -319,8 +458,16 @@ body {
   min-width: 0;
 }
 
+.controls-left {
+  grid-area: left;
+}
+
+.controls-right {
+  grid-area: right;
+}
+
 .log {
-  grid-column: 1 / -1;
+  grid-area: log;
   padding: 0.8rem 1rem;
   border: 1px solid var(--wd-border);
   border-radius: 0.85rem;
@@ -701,13 +848,26 @@ body {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1200px) {
   .app {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "stage stage"
+      "left right"
+      "log log";
   }
 }
 
 @media (max-width: 720px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "stage"
+      "left"
+      "right"
+      "log";
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
