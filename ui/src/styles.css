@@ -157,14 +157,60 @@ body {
   font-size: 0.8rem;
 }
 
+.main {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
 .app {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
   gap: 1rem;
   align-items: start;
-  padding: 1rem;
-  max-width: 1600px;
-  margin: 0 auto;
+}
+
+.app[hidden],
+.devices-view[hidden] {
+  display: none;
+}
+
+.nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.6rem;
+  background: var(--wd-panel-2);
+}
+
+.nav-link {
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.4rem;
+  color: var(--wd-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: var(--wd-text);
+}
+
+.nav-link[aria-current="page"] {
+  background: var(--wd-panel);
+  color: var(--wd-text);
+  box-shadow: 0 0 0 1px var(--wd-border);
+}
+
+.device-picker select {
+  min-height: 2.25rem;
+  max-width: 16rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.5rem;
+  background: var(--wd-panel-2);
+  color: var(--wd-text);
+  font: inherit;
 }
 
 .stage {
@@ -385,6 +431,268 @@ body {
   margin-top: 1rem;
 }
 
+.muted {
+  margin: 0;
+  color: var(--wd-muted);
+  font-size: 0.85rem;
+}
+
+.devices-view {
+  display: grid;
+  gap: 1rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.devices-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.devices-head h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.45rem;
+}
+
+.devices-head p {
+  max-width: 44rem;
+}
+
+.devices-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.devices-notice {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--wd-border);
+  border-left-width: 4px;
+  border-radius: 0.55rem;
+  background: var(--wd-panel);
+  font-size: 0.88rem;
+}
+
+.devices-notice[data-kind="success"] {
+  border-left-color: var(--wd-ok);
+}
+
+.devices-notice[data-kind="error"] {
+  border-left-color: var(--wd-danger);
+  color: var(--wd-danger);
+}
+
+.devices-notice[data-kind="info"] {
+  border-left-color: var(--wd-accent);
+}
+
+.card {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.85rem;
+  background: var(--wd-panel);
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0 0 0.7rem;
+}
+
+.facts div {
+  min-width: 0;
+}
+
+.facts dt {
+  color: var(--wd-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.update-prompt {
+  margin: 0.7rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--wd-warn) 55%, var(--wd-border));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--wd-warn) 12%, var(--wd-panel));
+  font-size: 0.85rem;
+}
+
+.update-prompt .btn {
+  margin-left: 0.5rem;
+}
+
+.status-detail {
+  max-height: 16rem;
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0.7rem;
+  overflow: auto;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.5rem;
+  background: var(--wd-bg);
+  color: var(--wd-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  white-space: pre-wrap;
+}
+
+.device-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.6rem 0.8rem;
+  align-items: center;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.6rem;
+  background: var(--wd-panel-2);
+}
+
+.device-main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.device-main strong {
+  overflow-wrap: anywhere;
+}
+
+.device-meta {
+  color: var(--wd-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.badge {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 999px;
+  color: var(--wd-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.badge-active,
+.badge[data-state="active"] {
+  border-color: color-mix(in srgb, var(--wd-ok) 60%, var(--wd-border));
+  color: var(--wd-ok);
+}
+
+.badge-closed {
+  border-color: color-mix(in srgb, var(--wd-warn) 60%, var(--wd-border));
+  color: var(--wd-warn);
+}
+
+.badge-available {
+  border-color: color-mix(in srgb, var(--wd-accent) 55%, var(--wd-border));
+  color: var(--wd-accent);
+}
+
+.provision-steps {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 22rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 7rem 4.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--wd-border);
+  border-radius: 0.45rem;
+  background: var(--wd-panel-2);
+  font-size: 0.8rem;
+}
+
+.step-name {
+  font-weight: 700;
+}
+
+.step-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.step-passed .step-status {
+  color: var(--wd-ok);
+}
+
+.step-failed .step-status {
+  color: var(--wd-danger);
+}
+
+.step-skipped .step-status {
+  color: var(--wd-muted);
+}
+
+.step-detail,
+.step-hint {
+  overflow-wrap: anywhere;
+}
+
+.step-hint {
+  grid-column: 3;
+  color: var(--wd-warn);
+  font-size: 0.76rem;
+}
+
 #command-log code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.74rem;
@@ -405,7 +713,7 @@ body {
     flex-direction: column;
   }
 
-  .app {
+  .main {
     padding: 0.6rem;
   }
 

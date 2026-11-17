@@ -816,6 +816,7 @@ fn cli_provision(
         handshake_timeout: Duration::from_secs(10),
         frame_timeout: Duration::from_secs(frame_timeout),
         skip_screen: !screen,
+        progress: None,
     };
     let report = with_device(cfg, serial, |connection, id| async move {
         Ok(provision::provision(&connection, &id, &paths, &options).await)

@@ -6,6 +6,8 @@
 pub mod apk;
 /// Connected device abstraction over USB and TCP (M3-T13).
 pub mod connection;
+/// Device management service behind the web UI devices page (M6-T03).
+pub mod devices;
 /// Frame receiver, sequencer and bounded broadcast hub (M3-T14).
 pub mod hub;
 /// Zero-touch provisioning, status and settings restore (M3-T13/T16).

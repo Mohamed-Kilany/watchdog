@@ -18,10 +18,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::error::RecvError;
 
-use watchdog_device::hub::{FrameHub, HubUpdate};
+use watchdog_device::devices::{DeviceService, SessionNotice};
+use watchdog_device::hub::HubUpdate;
 use watchdog_protocol::{CommandMessage, PROTOCOL_VERSION};
 
-use crate::{result_envelope, state_envelope, waiting_state_envelope};
+use crate::{result_envelope, session_envelope, state_envelope, waiting_state_envelope};
 
 /// Fixed GUID from RFC 6455 section 1.3.
 const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -38,7 +39,11 @@ const OP_PING: u8 = 0x9;
 const OP_PONG: u8 = 0xA;
 
 /// Complete the server handshake and run the channel until the client leaves.
-pub(crate) async fn upgrade(mut stream: TcpStream, key: &str, hub: &FrameHub) -> io::Result<()> {
+pub(crate) async fn upgrade(
+    mut stream: TcpStream,
+    key: &str,
+    service: &DeviceService,
+) -> io::Result<()> {
     let accept = accept_key(key);
     let head = format!(
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
@@ -46,7 +51,7 @@ pub(crate) async fn upgrade(mut stream: TcpStream, key: &str, hub: &FrameHub) ->
     );
     stream.write_all(head.as_bytes()).await?;
     stream.flush().await?;
-    serve(stream, hub).await
+    serve(stream, service).await
 }
 
 /// Compute `Sec-WebSocket-Accept` for a client key.
@@ -57,28 +62,29 @@ fn accept_key(key: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(hasher.finalize())
 }
 
-async fn serve(stream: TcpStream, hub: &FrameHub) -> io::Result<()> {
+async fn serve(stream: TcpStream, service: &DeviceService) -> io::Result<()> {
     let (read_half, mut writer) = stream.into_split();
     let mut reader = WsReader::new(read_half, MAX_MESSAGE_BYTES);
-    let mut updates = hub.subscribe_updates();
+    let mut sessions = service.subscribe_sessions();
+    let mut updates = service.active_hub().map(|hub| hub.subscribe_updates());
 
     write_json(
         &mut writer,
-        &serde_json::json!({ "type": "hello", "protocol": PROTOCOL_VERSION }),
+        &serde_json::json!({
+            "type": "hello",
+            "protocol": PROTOCOL_VERSION,
+            "session": service.session_info(),
+        }),
     )
     .await?;
-    write_snapshot(&mut writer, hub).await?;
-    // A client that reconnects after the app session ended would otherwise wait
-    // forever for a `Closed` update it missed; tell it immediately.
-    if hub.stats().closed {
-        write_closed(&mut writer).await?;
-        return Ok(());
-    }
+    write_snapshot(&mut writer, service).await?;
 
     let mut fragments: Vec<u8> = Vec::new();
     let mut fragment_opcode = 0u8;
 
     loop {
+        let mut notice: Option<std::result::Result<SessionNotice, RecvError>> = None;
+        let mut close_now = false;
         tokio::select! {
             // Read first: a completed `read` must never be dropped in favour of
             // an update, or the bytes would be lost. When the read is pending,
@@ -90,7 +96,7 @@ async fn serve(stream: TcpStream, hub: &FrameHub) -> io::Result<()> {
                     OP_TEXT | OP_BINARY => {
                         if frame.fin {
                             if frame.opcode == OP_TEXT {
-                                handle_client_text(&mut writer, hub, &frame.payload).await?;
+                                handle_client_text(&mut writer, service, &frame.payload).await?;
                             }
                         } else {
                             fragments.clear();
@@ -108,7 +114,7 @@ async fn serve(stream: TcpStream, hub: &FrameHub) -> io::Result<()> {
                         }
                         if frame.fin {
                             if fragment_opcode == OP_TEXT {
-                                handle_client_text(&mut writer, hub, &fragments).await?;
+                                handle_client_text(&mut writer, service, &fragments).await?;
                             }
                             fragments.clear();
                             fragment_opcode = 0;
@@ -123,10 +129,13 @@ async fn serve(stream: TcpStream, hub: &FrameHub) -> io::Result<()> {
                     _ => return Err(invalid_data("unsupported websocket opcode")),
                 }
             }
-            update = updates.recv() => {
+            result = sessions.recv() => {
+                notice = Some(result);
+            }
+            update = recv_update(&mut updates) => {
                 match update {
                     Ok(HubUpdate::State(state)) => {
-                        write_json(&mut writer, &state_envelope(&state)).await?;
+                        write_json(&mut writer, &state_envelope(&state, &service.session_info())).await?;
                     }
                     Ok(HubUpdate::Event(event)) => {
                         let mut value = serde_json::to_value(&event).map_err(io::Error::other)?;
@@ -139,49 +148,73 @@ async fn serve(stream: TcpStream, hub: &FrameHub) -> io::Result<()> {
                         write_json(&mut writer, &value).await?;
                     }
                     Ok(HubUpdate::Closed) => {
-                        write_closed(&mut writer).await?;
-                        break;
+                        write_json(
+                            &mut writer,
+                            &serde_json::json!({
+                                "type": "closed",
+                                "reason": "the app session closed",
+                            }),
+                        )
+                        .await?;
+                        close_now = true;
                     }
                     // A slow client missed updates; a fresh snapshot converges
                     // it without replaying every intermediate delta.
-                    Err(RecvError::Lagged(_)) => write_snapshot(&mut writer, hub).await?,
-                    Err(RecvError::Closed) => break,
+                    Err(RecvError::Lagged(_)) => write_snapshot(&mut writer, service).await?,
+                    Err(RecvError::Closed) => close_now = true,
                 }
+            }
+        }
+        if close_now {
+            // Keep the socket open: the devices page can activate another
+            // session and this channel will follow it.
+            updates = None;
+            write_snapshot(&mut writer, service).await?;
+        }
+        if let Some(result) = notice {
+            match result {
+                Ok(notice) => {
+                    // Subscribe before announcing so a state update that races
+                    // the notice is not lost.
+                    updates = service.active_hub().map(|hub| hub.subscribe_updates());
+                    write_json(&mut writer, &session_envelope(&notice.session)).await?;
+                    write_snapshot(&mut writer, service).await?;
+                }
+                Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => break,
             }
         }
     }
     Ok(())
 }
 
-async fn write_snapshot<W>(writer: &mut W, hub: &FrameHub) -> io::Result<()>
+/// Wait for the next hub update; never resolves while no session is open.
+async fn recv_update(
+    updates: &mut Option<tokio::sync::broadcast::Receiver<HubUpdate>>,
+) -> std::result::Result<HubUpdate, RecvError> {
+    match updates {
+        Some(receiver) => receiver.recv().await,
+        None => std::future::pending().await,
+    }
+}
+
+async fn write_snapshot<W>(writer: &mut W, service: &DeviceService) -> io::Result<()>
 where
     W: AsyncWrite + Unpin,
 {
-    let value = match hub.state() {
-        Some(state) => state_envelope(&state),
-        None => waiting_state_envelope(),
+    let session = service.session_info();
+    let value = match service.active_hub().and_then(|hub| hub.state()) {
+        Some(state) => state_envelope(&state, &session),
+        None => waiting_state_envelope(&session),
     };
     write_json(writer, &value).await
 }
 
-/// Tell the client that the app session ended and close the socket.
-async fn write_closed<W>(writer: &mut W) -> io::Result<()>
-where
-    W: AsyncWrite + Unpin,
-{
-    write_json(
-        writer,
-        &serde_json::json!({
-            "type": "closed",
-            "reason": "the app session closed",
-        }),
-    )
-    .await?;
-    let _ = write_frame(writer, OP_CLOSE, &[]).await;
-    Ok(())
-}
-
-async fn handle_client_text<W>(writer: &mut W, hub: &FrameHub, payload: &[u8]) -> io::Result<()>
+async fn handle_client_text<W>(
+    writer: &mut W,
+    service: &DeviceService,
+    payload: &[u8],
+) -> io::Result<()>
 where
     W: AsyncWrite + Unpin,
 {
@@ -206,6 +239,9 @@ where
                 return write_error(writer, "INVALID_REQUEST", "command id must not be empty")
                     .await;
             }
+            let Some(hub) = service.active_hub() else {
+                return write_error(writer, "DEVICE_OFFLINE", "no device session is active").await;
+            };
             match hub
                 .command(CommandMessage {
                     id,
@@ -218,7 +254,7 @@ where
                 Err(error) => write_error(writer, error.code.as_str(), &error.message).await,
             }
         }
-        ClientMessage::GetState => write_snapshot(writer, hub).await,
+        ClientMessage::GetState => write_snapshot(writer, service).await,
         ClientMessage::Ping => write_json(writer, &serde_json::json!({ "type": "pong" })).await,
     }
 }

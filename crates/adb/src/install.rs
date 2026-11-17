@@ -98,7 +98,7 @@ pub async fn install_apk<T: Transport + 'static>(
     connection: &Connection<T>,
     apk: &Path,
     options: &InstallOptions,
-    mut progress: Option<&mut dyn FnMut(u64, u64)>,
+    mut progress: Option<&mut (dyn FnMut(u64, u64) + Send)>,
 ) -> Result<InstallOutcome> {
     let size = std::fs::metadata(apk)?.len();
     let mut flags = String::new();
@@ -149,7 +149,7 @@ async fn install_with<T: Transport + 'static>(
     apk: &Path,
     command: &str,
     size: u64,
-    progress: &mut Option<&mut dyn FnMut(u64, u64)>,
+    progress: &mut Option<&mut (dyn FnMut(u64, u64) + Send)>,
 ) -> Result<InstallOutcome> {
     // Keep every shell frame (5-byte header + payload) within the peer's
     // advertised maxdata.

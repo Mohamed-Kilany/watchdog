@@ -41,17 +41,20 @@ any required path is unusable.
 ### `watchdog serve [--serial S]`
 Start the web UI on `--ui-port` (default 7700). The host serves the embedded static UI
 built from `ui/` (see [ui.md](ui.md)): `/` is the app shell, `assets/*` are the
-fingerprinted bundles, `/api/stats` exposes the frame-hub counters, `/stream.mjpg` is the
-live multipart MJPEG stream and `/healthz` is a liveness probe. The app shell's real-time
-channel is `/api/state` (merged snapshot), `POST /api/command` (one command through the
-frame hub) and `/ws` (state/event WebSocket); all three reuse the same bearer token.
-Static responses use content-hash ETags, `304 Not Modified` and gzip compression. Builds
-without an embedded UI serve the minimal live page (MJPEG view plus stats) at `/` instead.
+fingerprinted bundles, `/healthz` is a liveness probe and `/api/devices*` is the device
+management API behind the Devices page. Static responses use content-hash ETags,
+`304 Not Modified` and gzip compression. Builds without an embedded UI serve the minimal
+live page at `/` instead.
 
-The command reuses the session token stored by `watchdog device provision` (run it
-first). `--serial` selects a USB serial or `host[:port]` (wireless debugging over LAN).
-When a bearer token is configured, every request needs `?token=…` or
-`Authorization: Bearer …`. MCP (:7701) and the integration API (:7702) land with M6/M9.
+The server starts with no device. Open the Devices page to scan the LAN, pair a phone
+with its wireless-debugging code, provision the app and activate a session; provisioning
+reuses the recorded session token and reports every step live. `--serial` optionally
+activates a USB serial or `host[:port]` at startup when it is already provisioned; an
+activation failure prints a hint and leaves the server running so the page can pair or
+provision the device. Without an active session, `/api/state` returns a waiting snapshot,
+`/api/stats` returns zeroed counters and `/api/command` / `/stream.mjpg` return
+`503 DEVICE_OFFLINE`. When a bearer token is configured, every request needs `?token=…`
+or `Authorization: Bearer …`. MCP (:7701) and the integration API (:7702) land with M6/M9.
 
 ### `watchdog device <subcommand>`
 | Command | Purpose | Status |
