@@ -18,6 +18,7 @@
         <a class="nav-link" href="#/live" data-route="live">Live</a>
         <a class="nav-link" href="#/capture" data-route="capture">Capture</a>
         <a class="nav-link" href="#/media" data-route="media">Media</a>
+        <a class="nav-link" href="#/settings" data-route="settings">Settings</a>
         <a class="nav-link" href="#/devices" data-route="devices">Devices</a>
       </nav>
       <div class="actions">
@@ -740,6 +741,391 @@
             </button>
           </div>
         </dialog>
+      </section>
+
+      <section
+        id="view-settings"
+        class="view settings-view"
+        data-view="settings"
+        hidden
+      >
+        <header class="settings-head">
+          <div>
+            <h1>Settings</h1>
+            <p>
+              Host configuration, storage, bundled tools, logs and diagnostics.
+              Values are read-only unless a card offers an edit control.
+            </p>
+          </div>
+          <div class="settings-actions">
+            <span
+              id="settings-mode"
+              class="tag"
+              data-testid="settings-mode"
+            >demo settings</span>
+            <button
+              id="settings-refresh"
+              data-testid="settings-refresh"
+              class="btn small"
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+        </header>
+
+        <p
+          id="settings-status"
+          data-testid="settings-status"
+          class="settings-status"
+          role="status"
+          aria-live="polite"
+        ></p>
+        <p
+          id="settings-notice"
+          data-testid="settings-notice"
+          class="settings-notice"
+          hidden
+        ></p>
+
+        <div class="settings-grid">
+          <section class="settings-card" aria-labelledby="settings-network-title">
+            <h2 id="settings-network-title">Host &amp; network</h2>
+            <dl class="settings-list">
+              <div>
+                <dt>UI port</dt>
+                <dd id="settings-ui-port" data-testid="settings-ui-port">—</dd>
+              </div>
+              <div>
+                <dt>MCP port</dt>
+                <dd id="settings-mcp-port" data-testid="settings-mcp-port">—</dd>
+              </div>
+              <div>
+                <dt>API port</dt>
+                <dd id="settings-api-port" data-testid="settings-api-port">—</dd>
+              </div>
+              <div>
+                <dt>Listen mode</dt>
+                <dd>
+                  <span
+                    id="settings-listen-mode"
+                    data-testid="settings-listen-mode"
+                    class="badge"
+                  >—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>UI listen</dt>
+                <dd
+                  id="settings-ui-listen"
+                  data-testid="settings-ui-listen"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>MCP listen</dt>
+                <dd
+                  id="settings-mcp-listen"
+                  data-testid="settings-mcp-listen"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>API listen</dt>
+                <dd
+                  id="settings-api-listen"
+                  data-testid="settings-api-listen"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>UI URL</dt>
+                <dd>
+                  <span
+                    id="settings-base-url"
+                    data-testid="settings-base-url"
+                    class="mono"
+                  >—</span>
+                  <button
+                    id="settings-copy-url"
+                    data-testid="settings-copy-url"
+                    class="btn small"
+                    type="button"
+                  >
+                    Copy
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>Bearer token</dt>
+                <dd>
+                  <span
+                    id="settings-token-state"
+                    data-testid="settings-token-state"
+                    class="badge"
+                  >—</span>
+                  <span
+                    id="settings-token-hint"
+                    data-testid="settings-token-hint"
+                    class="mono"
+                  ></span>
+                </dd>
+              </div>
+            </dl>
+            <p
+              id="settings-token-warning"
+              data-testid="settings-token-warning"
+              class="settings-warning"
+              hidden
+            >
+              A port listens beyond localhost but no bearer token is configured.
+              Set <code>WATCHDOG_TOKEN</code> or <code>--token</code> before
+              exposing the host to the LAN.
+            </p>
+          </section>
+
+          <section class="settings-card" aria-labelledby="settings-storage-title">
+            <h2 id="settings-storage-title">Storage</h2>
+            <dl class="settings-list">
+              <div>
+                <dt>Data directory</dt>
+                <dd
+                  id="settings-data-dir"
+                  data-testid="settings-data-dir"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>Media directory</dt>
+                <dd
+                  id="settings-media-dir"
+                  data-testid="settings-media-dir"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>Logs directory</dt>
+                <dd
+                  id="settings-logs-dir"
+                  data-testid="settings-logs-dir"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>Media items</dt>
+                <dd id="settings-media-items" data-testid="settings-media-items">—</dd>
+              </div>
+              <div>
+                <dt>Media size</dt>
+                <dd id="settings-media-size" data-testid="settings-media-size">—</dd>
+              </div>
+              <div>
+                <dt>Disk free</dt>
+                <dd id="settings-disk-free" data-testid="settings-disk-free">—</dd>
+              </div>
+              <div>
+                <dt>Disk total</dt>
+                <dd id="settings-disk-total" data-testid="settings-disk-total">—</dd>
+              </div>
+            </dl>
+            <div
+              class="settings-meter"
+              id="settings-disk-meter"
+              data-testid="settings-disk-meter"
+              role="img"
+              aria-label="Disk usage"
+            >
+              <span id="settings-disk-bar" class="settings-meter-bar"></span>
+            </div>
+          </section>
+
+          <section class="settings-card" aria-labelledby="settings-retention-title">
+            <h2 id="settings-retention-title">Retention</h2>
+            <form
+              id="settings-retention-form"
+              data-testid="settings-retention-form"
+              class="settings-form"
+            >
+              <label class="settings-field">
+                <span>Max age (days)</span>
+                <input
+                  id="settings-retention-age"
+                  data-testid="settings-retention-age"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </label>
+              <label class="settings-field">
+                <span>Max size (MiB)</span>
+                <input
+                  id="settings-retention-size"
+                  data-testid="settings-retention-size"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </label>
+              <button
+                id="settings-retention-save"
+                data-testid="settings-retention-save"
+                class="btn small primary"
+                type="submit"
+              >
+                Save retention
+              </button>
+            </form>
+            <p class="settings-hint">
+              <code>0</code> keeps media forever and removes the size limit.
+              Cleanup runs on the host at startup and after each transfer.
+            </p>
+          </section>
+
+          <section class="settings-card" aria-labelledby="settings-ffmpeg-title">
+            <h2 id="settings-ffmpeg-title">Bundled ffmpeg</h2>
+            <dl class="settings-list">
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <span
+                    id="settings-ffmpeg-state"
+                    data-testid="settings-ffmpeg-state"
+                    class="badge"
+                  >—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>ffmpeg</dt>
+                <dd id="settings-ffmpeg-version" data-testid="settings-ffmpeg-version">—</dd>
+              </div>
+              <div>
+                <dt>ffprobe</dt>
+                <dd id="settings-ffprobe-version" data-testid="settings-ffprobe-version">—</dd>
+              </div>
+              <div>
+                <dt>Path</dt>
+                <dd
+                  id="settings-ffmpeg-path"
+                  data-testid="settings-ffmpeg-path"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>License</dt>
+                <dd id="settings-ffmpeg-license" data-testid="settings-ffmpeg-license">—</dd>
+              </div>
+              <div>
+                <dt>Filters</dt>
+                <dd id="settings-ffmpeg-filters" data-testid="settings-ffmpeg-filters">—</dd>
+              </div>
+            </dl>
+            <p class="settings-hint">
+              The host never uses ffmpeg from <code>PATH</code>; the verified
+              bundle is extracted into the data directory on first use.
+            </p>
+          </section>
+
+          <section
+            class="settings-card settings-card-wide"
+            aria-labelledby="settings-logs-title"
+          >
+            <div class="settings-card-head">
+              <h2 id="settings-logs-title">Logs</h2>
+              <div class="settings-log-tools">
+                <label class="settings-field">
+                  <span>Level</span>
+                  <select
+                    id="settings-log-level"
+                    data-testid="settings-log-level"
+                  >
+                    <option value="all">All levels</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warn</option>
+                    <option value="info">Info</option>
+                    <option value="debug">Debug</option>
+                    <option value="trace">Trace</option>
+                  </select>
+                </label>
+                <button
+                  id="settings-log-refresh"
+                  data-testid="settings-log-refresh"
+                  class="btn small"
+                  type="button"
+                >
+                  Refresh logs
+                </button>
+                <span
+                  id="settings-log-count"
+                  data-testid="settings-log-count"
+                  class="settings-log-count"
+                >0 lines</span>
+              </div>
+            </div>
+            <ol
+              id="settings-log-list"
+              data-testid="settings-log-list"
+              class="settings-logs"
+              aria-label="Host log lines"
+            ></ol>
+            <p
+              id="settings-log-empty"
+              data-testid="settings-log-empty"
+              class="settings-empty"
+              hidden
+            >
+              No log lines at this level.
+            </p>
+          </section>
+
+          <section class="settings-card" aria-labelledby="settings-about-title">
+            <h2 id="settings-about-title">About</h2>
+            <dl class="settings-list">
+              <div>
+                <dt>Host version</dt>
+                <dd id="settings-version" data-testid="settings-version">—</dd>
+              </div>
+              <div>
+                <dt>Commit</dt>
+                <dd
+                  id="settings-commit"
+                  data-testid="settings-commit"
+                  class="mono"
+                >—</dd>
+              </div>
+              <div>
+                <dt>Build</dt>
+                <dd id="settings-build" data-testid="settings-build">—</dd>
+              </div>
+              <div>
+                <dt>Platform</dt>
+                <dd id="settings-platform" data-testid="settings-platform">—</dd>
+              </div>
+              <div>
+                <dt>Protocol</dt>
+                <dd id="settings-protocol" data-testid="settings-protocol">—</dd>
+              </div>
+              <div>
+                <dt>UI version</dt>
+                <dd id="settings-ui-version" data-testid="settings-ui-version">—</dd>
+              </div>
+            </dl>
+            <a
+              id="settings-diagnostics"
+              data-testid="settings-diagnostics"
+              class="btn small primary"
+              href="#"
+              download
+            >
+              Download diagnostics
+            </a>
+            <p class="settings-hint">
+              A zip with the effective configuration (token redacted), recent
+              logs, versions and storage summary.
+            </p>
+          </section>
+        </div>
       </section>
     </main>
 

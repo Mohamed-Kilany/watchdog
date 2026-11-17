@@ -14,12 +14,16 @@ import type {
   ControlState,
   DeviceBackend,
   DeviceEvent,
+  HostLogLine,
+  HostRetention,
+  HostSettings,
   MediaItem,
   RecordOptions,
   TransferProgress,
 } from "./types";
 import type { SessionInfo } from "./device-api";
 import { MediaApi } from "./media-api";
+import { SettingsApi } from "./settings-api";
 
 const TOKEN_KEY = "watchdog.token";
 const RECONNECT_BASE_MS = 500;
@@ -333,6 +337,7 @@ export class HostClient implements DeviceBackend {
 
   private readonly token: string | null;
   private readonly media: MediaApi;
+  private readonly settings: SettingsApi;
   private state: ControlState;
   private readonly listeners = new Set<(state: ControlState) => void>();
   private readonly eventListeners = new Set<(event: HostEvent) => void>();
@@ -358,6 +363,7 @@ export class HostClient implements DeviceBackend {
   ) {
     this.token = token;
     this.media = new MediaApi(token);
+    this.settings = new SettingsApi(token);
     this.state = structuredClone(initialState);
     this.session = initialSession;
   }
@@ -525,6 +531,24 @@ export class HostClient implements DeviceBackend {
 
   analyzeMedia(ids: string[]): Promise<AnalysisSubmission> {
     return this.media.analyze(ids);
+  }
+
+  getSettings(): Promise<HostSettings> {
+    return this.settings.get();
+  }
+
+  saveRetention(retention: HostRetention): Promise<HostRetention> {
+    return this.settings.saveRetention(retention);
+  }
+
+  listLogs(options: { level?: string; limit?: number } = {}): Promise<
+    HostLogLine[]
+  > {
+    return this.settings.logs(options);
+  }
+
+  diagnosticsUrl(): string {
+    return this.settings.diagnosticsUrl();
   }
 
   private async sendCapture(

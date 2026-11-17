@@ -11,6 +11,7 @@ import { CapturePage } from "./capture";
 import { DevicesPage } from "./devices";
 import { FakeDevice } from "./fake-device";
 import { MediaPage } from "./media";
+import { SettingsPage } from "./settings";
 import {
   consumeTokenFromUrl,
   HostClient,
@@ -391,6 +392,7 @@ function expose(
   live: LivePage,
   capture: CapturePage,
   media: MediaPage,
+  settings: SettingsPage,
 ): void {
   window.__watchdog = {
     device: shell.current(),
@@ -400,6 +402,7 @@ function expose(
     live,
     capture,
     media,
+    settings,
     state: () => shell.current().snapshot,
     commands: () => structuredClone(shell.commands),
   };
@@ -532,16 +535,18 @@ async function boot(
   }
 }
 
-/** Switch between `#/live`, `#/capture`, `#/media` and `#/devices` without a reload. */
+/** Switch between `#/live`, `#/capture`, `#/media`, `#/settings` and `#/devices` without a reload. */
 function wireRoutes(
   devices: DevicesPage,
   live: LivePage,
   capture: CapturePage,
   media: MediaPage,
+  settings: SettingsPage,
 ): void {
   const liveView = mustQuery<HTMLElement>("#view-live");
   const captureView = mustQuery<HTMLElement>("#view-capture");
   const mediaView = mustQuery<HTMLElement>("#view-media");
+  const settingsView = mustQuery<HTMLElement>("#view-settings");
   const devicesView = mustQuery<HTMLElement>("#view-devices");
   const links = Array.from(
     document.querySelectorAll<HTMLAnchorElement>("a[data-route]"),
@@ -556,14 +561,18 @@ function wireRoutes(
           ? "capture"
           : hash === "#/media"
             ? "media"
-            : "live";
+            : hash === "#/settings"
+              ? "settings"
+              : "live";
     liveView.hidden = route !== "live";
     captureView.hidden = route !== "capture";
     mediaView.hidden = route !== "media";
+    settingsView.hidden = route !== "settings";
     devicesView.hidden = route !== "devices";
     live.setVisible(route === "live");
     capture.setVisible(route === "capture");
     media.setVisible(route === "media");
+    settings.setVisible(route === "settings");
     for (const link of links) {
       if (link.dataset.route === route) {
         link.setAttribute("aria-current", "page");
@@ -583,6 +592,7 @@ export function start(): void {
   const live = new LivePage();
   const capture = new CapturePage();
   const media = new MediaPage();
+  const settings = new SettingsPage();
   const shell = wireShell(
     new FakeDevice(),
     (state) => {
@@ -592,12 +602,14 @@ export function start(): void {
     (backend) => {
       capture.setBackend(backend);
       media.setBackend(backend);
+      settings.setBackend(backend);
     },
   );
   const devices = new DevicesPage();
   capture.setBackend(shell.current());
   media.setBackend(shell.current());
-  expose(shell, live, capture, media);
-  wireRoutes(devices, live, capture, media);
+  settings.setBackend(shell.current());
+  expose(shell, live, capture, media, settings);
+  wireRoutes(devices, live, capture, media, settings);
   void boot(shell, devices, live);
 }

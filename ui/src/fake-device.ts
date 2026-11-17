@@ -9,6 +9,9 @@ import type {
   ControlState,
   ControlValue,
   DeviceEvent,
+  HostLogLine,
+  HostRetention,
+  HostSettings,
   MediaItem,
   RecordOptions,
   TransferProgress,
@@ -376,6 +379,9 @@ export class FakeDevice {
   private captureSeq = 0;
   private recordingStartedMs: number | null = null;
   private recordingMediaId: string | null = null;
+  private retention: HostRetention = { max_age_days: 30, max_size_mb: 10_240 };
+  private logLines: HostLogLine[] = [];
+  private logsSeeded = false;
 
   get snapshot(): ControlState {
     return structuredClone(this.state);
@@ -438,6 +444,102 @@ export class FakeDevice {
       id: `an-demo-${Date.now().toString(36)}-${this.analysisSeq}`,
       state: "queued",
     });
+  }
+
+  getSettings(): Promise<HostSettings> {
+    this.seedMedia();
+    this.seedLogs();
+    const mediaBytes = this.media.reduce((sum, item) => sum + item.bytes, 0);
+    const settings: HostSettings = {
+      ports: { ui: 7700, mcp: 7701, api: 7702 },
+      listen: {
+        mode: "localhost",
+        addresses: { ui: "127.0.0.1", mcp: "127.0.0.1", api: "127.0.0.1" },
+      },
+      token: { configured: false, hint: null },
+      storage: {
+        data_dir: "demo/data",
+        media_dir: "demo/data/media",
+        logs_dir: "demo/data/logs",
+        media_items: this.media.length,
+        media_bytes: mediaBytes,
+        free_bytes: 128 * 1024 ** 3,
+        total_bytes: 512 * 1024 ** 3,
+      },
+      retention: { ...this.retention },
+      ffmpeg: {
+        available: true,
+        ffmpeg_version: "7.1 (demo)",
+        ffprobe_version: "7.1 (demo)",
+        path: "embedded://ffmpeg",
+        license: "LGPL-2.1-or-later",
+        filters: 418,
+      },
+      about: {
+        version: "0.1.0-demo",
+        commit: "demo-build",
+        build: "2026-11-17",
+        os: "demo",
+        arch: "wasm",
+        protocol: 1,
+      },
+    };
+    return Promise.resolve(settings);
+  }
+
+  saveRetention(retention: HostRetention): Promise<HostRetention> {
+    this.retention = {
+      max_age_days: Math.max(0, Math.round(retention.max_age_days)),
+      max_size_mb: Math.max(0, Math.round(retention.max_size_mb)),
+    };
+    this.appendLog(
+      "info",
+      "settings",
+      `retention updated: ${this.retention.max_age_days} days, ${this.retention.max_size_mb} MiB`,
+    );
+    return Promise.resolve({ ...this.retention });
+  }
+
+  listLogs(options: { level?: string; limit?: number } = {}): Promise<
+    HostLogLine[]
+  > {
+    this.seedLogs();
+    const level = options.level ?? "all";
+    const limit = options.limit ?? 200;
+    const lines = this.logLines
+      .filter((line) => level === "all" || line.level === level)
+      .slice(-limit)
+      .map((line) => ({ ...line }));
+    return Promise.resolve(lines);
+  }
+
+  diagnosticsUrl(): string {
+    this.seedMedia();
+    this.seedLogs();
+    const payload = {
+      generated_ms: Date.now(),
+      about: {
+        version: "0.1.0-demo",
+        commit: "demo-build",
+        build: "2026-11-17",
+        os: "demo",
+        arch: "wasm",
+      },
+      settings: {
+        ports: { ui: 7700, mcp: 7701, api: 7702 },
+        retention: { ...this.retention },
+      },
+      media: this.media.map((item) => ({
+        id: item.id,
+        type: item.type,
+        bytes: item.bytes,
+        sha256: item.sha256,
+      })),
+      logs: this.logLines,
+    };
+    return `data:application/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(payload, null, 2),
+    )}`;
   }
 
   async captureStill(): Promise<CaptureOutcome> {
@@ -1320,7 +1422,50 @@ export class FakeDevice {
     return `m-${kind}-${Date.now().toString(36)}-${this.captureSeq}`;
   }
 
+  /** Seed a short, realistic log history once per demo session. */
+  private seedLogs(): void {
+    if (this.logsSeeded) return;
+    this.logsSeeded = true;
+    const now = Date.now();
+    const seed: Array<[number, HostLogLine["level"], string, string]> = [
+      [92_000, "info", "host", "watchdog 0.1.0 starting"],
+      [91_000, "info", "config", "loaded defaults; no watchdog.toml found"],
+      [90_000, "info", "ui", "web UI listening on http://127.0.0.1:7700"],
+      [89_000, "info", "mcp", "MCP server listening on 127.0.0.1:7701"],
+      [88_000, "info", "api", "integration API listening on 127.0.0.1:7702"],
+      [74_000, "info", "device", "active session DEMO-0001 (Pixel 7 demo)"],
+      [70_000, "debug", "stream", "first frame received: 1280x720 seq=1"],
+      [58_000, "warn", "stream", "dropped 2 late frames while reconnecting"],
+      [55_000, "info", "stream", "stream recovered after 1.4 s"],
+      [40_000, "info", "media", "demo library seeded with 3 items"],
+      [22_000, "debug", "presets", "preset 'OTT baseline' loaded"],
+      [8_000, "error", "analysis", "no analyzer engine yet; queue disabled"],
+      [3_000, "info", "health", "disk 128 GiB free; retention 30 days / 10240 MiB"],
+    ];
+    for (const [ago, level, target, message] of seed) {
+      this.logLines.push({ ts_ms: now - ago, level, target, message });
+    }
+  }
+
+  /** Append one demo log line, keeping the ring buffer bounded. */
+  private appendLog(
+    level: HostLogLine["level"],
+    target: string,
+    message: string,
+  ): void {
+    this.seedLogs();
+    this.logLines.push({ ts_ms: Date.now(), level, target, message });
+    if (this.logLines.length > 300) {
+      this.logLines.splice(0, this.logLines.length - 300);
+    }
+  }
+
   private emitEvent(event: DeviceEvent): void {
+    this.appendLog(
+      event.kind.includes("failed") ? "error" : "info",
+      "device",
+      `event ${event.kind}${event.message ? `: ${event.message}` : ""}`,
+    );
     for (const listener of this.eventListeners) listener(event);
   }
 
@@ -1355,6 +1500,15 @@ export class FakeDevice {
   }
 
   private emit(changes: ControlChange[]): void {
+    if (changes.length > 0) {
+      this.appendLog(
+        "debug",
+        "controls",
+        `applied ${changes.length} change(s): ${changes
+          .map((change) => change.id)
+          .join(", ")}`,
+      );
+    }
     const snapshot = this.snapshot;
     for (const listener of this.listeners) listener(snapshot, changes);
   }

@@ -33,6 +33,10 @@ command forwarding and unsupported commands. `ui/tests/media.spec.ts` covers the
 library: routing, filters/sort/layouts, still and video previews with zoom and metadata,
 multi-select analysis/deletion, capture-to-library integration, host `/api/media` and
 `/api/analyses` calls with the bearer token, and the missing-route notice.
+`ui/tests/settings.spec.ts` covers the Settings page: routing, demo configuration and
+logs, retention persistence, log filtering plus capture events, the demo diagnostics
+bundle, host `/api/settings`, `/api/logs` and `/api/diagnostics` with the bearer token,
+and the missing-route notice.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -256,6 +260,41 @@ in-memory library. Stills use a generated JPEG scene, the video uses the bundled
 `ui/src/assets/demo-clip.webm`, and analysis returns a fake queued id.
 `window.__watchdog.media` exposes the controller for Playwright.
 
+### Settings
+
+The `#/settings` page (`ui/src/settings.ts`) shows the host configuration in six cards:
+
+- **Host & network**: UI/MCP/API ports, listen mode (localhost/LAN) and per-port
+  addresses, the UI URL with a copy button, and the bearer-token state with its hint.
+  A LAN port without a token shows a prominent warning.
+- **Storage**: data/media/logs directories, media item count and bytes, free/total disk
+  with a usage meter.
+- **Retention**: editable maximum age (days) and maximum size (MiB); `0` keeps media
+  forever or removes the size limit. Save uses `PATCH /api/settings`.
+- **Bundled ffmpeg**: availability, ffmpeg/ffprobe versions, extracted path, license and
+  filter count. The host never uses ffmpeg from `PATH`.
+- **Logs**: level filter (all/error/warn/info/debug/trace), manual refresh, line count and
+  a monospace viewer with time, level, target and message.
+- **About**: host version, commit, build, platform, protocol and UI version, plus a
+  diagnostics bundle download (zip on the host, generated JSON in the demo).
+
+`ui/src/settings-api.ts` defines the UI-facing contract, documented in
+[api.md](api.md#settings-logs-and-diagnostics-ui-contract-m6-t08):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/settings` | configuration, storage, retention, ffmpeg and about |
+| `PATCH` | `/api/settings` | `{retention: {max_age_days, max_size_mb}}` |
+| `GET` | `/api/logs?level=&limit=` | recent log lines |
+| `GET` | `/api/diagnostics` | zip bundle; token via `?token=` |
+
+All JSON calls send `Authorization: Bearer <token>` when a token is stored. The host
+configuration/ffmpeg/system routes land with M7/M9; until they exist the page shows
+`The host settings API is not available yet (M7/M9).` with the host error instead of empty
+cards. The demo `FakeDevice` reports configuration-shaped values, seeded logs that grow
+with capture and control events, persists retention edits in memory and generates a JSON
+diagnostics file. `window.__watchdog.settings` exposes the controller for Playwright.
+
 ### Controls and presets
 
 `ui/src/descriptors.ts` describes every control the Android app reports, grouped like the
@@ -322,10 +361,11 @@ command log.
 
 The shell uses hash routes without a reload: `#/live` (default) is the camera/controls
 page, `#/capture` is still/burst/recording with transfer progress, `#/media` is the
-media library, and `#/devices` is device management. The top bar keeps the active-device
-selector visible on every page; choosing another device activates it and choosing “No
-device” disconnects. `HostClient.applySession()` adopts the REST result immediately, and
-the `session` WebSocket envelope keeps every other tab in sync.
+media library, `#/settings` is host configuration and diagnostics, and `#/devices` is
+device management. The top bar keeps the active-device selector visible on every page;
+choosing another device activates it and choosing “No device” disconnects.
+`HostClient.applySession()` adopts the REST result immediately, and the `session`
+WebSocket envelope keeps every other tab in sync.
 
 The Devices page shows the active session card (model, serial, app version, status badge,
 check status, provision/update, restore and disconnect), a known-device list with
@@ -393,17 +433,19 @@ balance; only the selected overlay is editable.
 metering/focus/white-balance overlays, the two control panels, a preset manager, a command
 log, drift and reset-all buttons, and a theme toggle. The shell is backend-agnostic:
 `FakeDevice` keeps the offline demo working and `HostClient` drives the same panels,
-overlays, presets, capture page and log from the host channel. The mode tag shows
-`demo device` or `host`; the drift button is hidden in host mode. The Devices page works
-in host mode only and shows a demo notice otherwise. The demo `FakeDevice` also simulates
-still/burst captures, recording and stepped media transfers, so `#/capture` is usable
-without a phone, and keeps an in-memory media library seeded with three items, so
-`#/media` is usable without a host. `window.__watchdog` exposes the active backend, the
-left panel (and both panels via `panels`), the live view controller, the capture
-controller (`capture`), the media controller (`media`), the preset manager (`presets`),
-the state snapshot and the command log for Playwright assertions. The fake device is not
-a protocol implementation; it only mirrors the state/implication semantics needed by the
-components.
+overlays, presets, capture page, media library, settings page and log from the host
+channel. The mode tag shows `demo device` or `host`; the drift button is hidden in host
+mode. The Devices page works in host mode only and shows a demo notice otherwise. The
+demo `FakeDevice` also simulates still/burst captures, recording and stepped media
+transfers, so `#/capture` is usable without a phone, keeps an in-memory media library
+seeded with three items, so `#/media` is usable without a host, and reports demo
+configuration, seeded logs and a generated diagnostics file, so `#/settings` is usable
+offline. `window.__watchdog` exposes the active backend, the left panel (and both panels
+via `panels`), the live view controller, the capture controller (`capture`), the media
+controller (`media`), the settings controller (`settings`), the preset manager
+(`presets`), the state snapshot and the command log for Playwright assertions. The fake
+device is not a protocol implementation; it only mirrors the state/implication semantics
+needed by the components.
 
 Host resets are sent as one `set_controls` batch: exposure returns `ae_mode` to auto,
 focus returns `af_mode` to continuous, white balance returns `awb_mode` to auto, lens

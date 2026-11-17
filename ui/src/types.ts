@@ -121,6 +121,81 @@ export interface AnalysisSubmission {
   state: string;
 }
 
+/** One listening address per UI-facing port. */
+export interface ListenAddresses {
+  ui: string;
+  mcp: string;
+  api: string;
+}
+
+/** Ports the host serves (UI, MCP and integration API). */
+export interface HostPorts {
+  ui: number;
+  mcp: number;
+  api: number;
+}
+
+/** Storage paths and usage reported by the host settings endpoint. */
+export interface HostStorage {
+  data_dir: string;
+  media_dir: string;
+  logs_dir: string;
+  media_items: number;
+  media_bytes: number;
+  free_bytes?: number;
+  total_bytes?: number;
+}
+
+/** Media retention limits (`0` keeps forever / unlimited). */
+export interface HostRetention {
+  max_age_days: number;
+  max_size_mb: number;
+}
+
+/** Bundled ffmpeg/ffprobe information. */
+export interface FfmpegInfo {
+  available: boolean;
+  ffmpeg_version?: string;
+  ffprobe_version?: string;
+  path?: string;
+  license?: string;
+  filters?: number;
+}
+
+/** Host build and platform information for the About card. */
+export interface HostAbout {
+  version: string;
+  commit?: string;
+  build?: string;
+  os: string;
+  arch: string;
+  protocol?: number;
+}
+
+/**
+ * One normalized settings snapshot from `GET /api/settings`.
+ *
+ * The host configuration (M1) and ffmpeg bundle (M7) will back this endpoint;
+ * until then the demo fills the same shape.
+ */
+export interface HostSettings {
+  ports: HostPorts;
+  listen: { mode: "localhost" | "lan" | "mixed"; addresses: ListenAddresses };
+  token: { configured: boolean; hint?: string | null };
+  storage: HostStorage;
+  retention: HostRetention;
+  ffmpeg: FfmpegInfo;
+  about: HostAbout;
+}
+
+/** One host log line from `GET /api/logs`. */
+export interface HostLogLine {
+  ts_ms: number;
+  level: "trace" | "debug" | "info" | "warn" | "error";
+  target?: string;
+  message: string;
+}
+
 /**
  * The shell's device contract. `FakeDevice` implements it for the offline demo
  * and `HostClient` implements it against the host's real-time channel.
@@ -143,6 +218,14 @@ export interface DeviceBackend {
   deleteMedia(id: string): Promise<void>;
   mediaFileUrl(id: string): string;
   analyzeMedia(ids: string[]): Promise<AnalysisSubmission>;
+  getSettings(): Promise<HostSettings>;
+  saveRetention(retention: HostRetention): Promise<HostRetention>;
+  listLogs(options?: {
+    level?: string;
+    limit?: number;
+  }): Promise<HostLogLine[]>;
+  /** Download URL for the diagnostics bundle (zip on the host, JSON in the demo). */
+  diagnosticsUrl(): string;
 }
 
 export interface SelectOption {
