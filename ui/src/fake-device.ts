@@ -1,4 +1,5 @@
 import type {
+  AnalysisSubmission,
   ApplyResult,
   BurstOptions,
   CaptureOutcome,
@@ -8,11 +9,15 @@ import type {
   ControlState,
   ControlValue,
   DeviceEvent,
+  MediaItem,
   RecordOptions,
   TransferProgress,
 } from "./types";
 
 type Listener = (state: ControlState, changes: ControlChange[]) => void;
+
+/** Tiny synthetic clip shipped with the demo (Vite hashes and serves it). */
+const DEMO_CLIP_URL = new URL("./assets/demo-clip.webm", import.meta.url).href;
 
 const AUTO = {
   iso: 100,
@@ -293,6 +298,64 @@ function sizeOf(value: unknown): { width: number; height: number } | null {
     : null;
 }
 
+/** Deterministic placeholder digest for demo media items. */
+function fakeSha256(seed: string): string {
+  let hash = 2166136261;
+  let out = "";
+  for (let index = 0; index < 64; index += 1) {
+    hash ^= seed.charCodeAt(index % Math.max(seed.length, 1));
+    hash = Math.imul(hash, 16777619);
+    out += ((hash >>> 28) & 0xf).toString(16);
+  }
+  return out;
+}
+
+/** Synthetic JPEG used by the demo media library and captured stills. */
+function demoSceneDataUrl(label: string, subtitle: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 360;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return (
+      "data:image/svg+xml;charset=utf-8," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">` +
+          `<rect width="640" height="360" fill="#10202c"/>` +
+          `<text x="320" y="180" fill="#7ce0b3" font-size="28" text-anchor="middle">${label}</text>` +
+          `</svg>`,
+      )
+    );
+  }
+  const gradient = context.createLinearGradient(0, 0, 640, 360);
+  gradient.addColorStop(0, "#0b1a26");
+  gradient.addColorStop(0.55, "#123240");
+  gradient.addColorStop(1, "#0a2a24");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 640, 360);
+  context.fillStyle = "#1c2a35";
+  context.fillRect(48, 56, 544, 248);
+  context.strokeStyle = "#3b5566";
+  context.lineWidth = 3;
+  context.strokeRect(48, 56, 544, 248);
+  context.fillStyle = "#4cc2ff";
+  context.fillRect(86, 96, 180, 8);
+  context.fillStyle = "#7ce0b3";
+  context.font = "700 46px system-ui, sans-serif";
+  context.fillText("OTT DEMO", 86, 178);
+  context.fillStyle = "#e8edf5";
+  context.font = "600 22px system-ui, sans-serif";
+  context.fillText(label, 86, 218);
+  context.fillStyle = "#9aa7b8";
+  context.font = "500 18px ui-monospace, monospace";
+  context.fillText(subtitle, 86, 256);
+  context.fillStyle = "#ffb84d";
+  context.beginPath();
+  context.arc(548, 84, 9, 0, Math.PI * 2);
+  context.fill();
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 /**
  * In-memory stand-in for `watchdog device` used by the demo and Playwright.
  *
@@ -306,6 +369,10 @@ export class FakeDevice {
   private listeners = new Set<Listener>();
   private eventListeners = new Set<(event: DeviceEvent) => void>();
   private transferListeners = new Set<(transfer: TransferProgress) => void>();
+  private media: MediaItem[] = [];
+  private mediaFiles = new Map<string, string>();
+  private mediaSeeded = false;
+  private analysisSeq = 0;
   private captureSeq = 0;
   private recordingStartedMs: number | null = null;
   private recordingMediaId: string | null = null;
@@ -331,18 +398,56 @@ export class FakeDevice {
     return () => this.transferListeners.delete(listener);
   }
 
+  listMedia(): Promise<MediaItem[]> {
+    this.seedMedia();
+    return Promise.resolve(this.media.map((item) => structuredClone(item)));
+  }
+
+  getMedia(id: string): Promise<MediaItem | null> {
+    this.seedMedia();
+    const item = this.media.find((entry) => entry.id === id);
+    return Promise.resolve(item ? structuredClone(item) : null);
+  }
+
+  deleteMedia(id: string): Promise<void> {
+    this.seedMedia();
+    const index = this.media.findIndex((entry) => entry.id === id);
+    if (index < 0) {
+      return Promise.reject(new Error(`media ${id} was not found`));
+    }
+    this.media.splice(index, 1);
+    this.mediaFiles.delete(id);
+    return Promise.resolve();
+  }
+
+  mediaFileUrl(id: string): string {
+    this.seedMedia();
+    return this.mediaFiles.get(id) ?? "";
+  }
+
+  analyzeMedia(ids: string[]): Promise<AnalysisSubmission> {
+    this.seedMedia();
+    const missing = ids.find(
+      (id) => !this.media.some((item) => item.id === id),
+    );
+    if (missing) {
+      return Promise.reject(new Error(`media ${missing} was not found`));
+    }
+    this.analysisSeq += 1;
+    return Promise.resolve({
+      id: `an-demo-${Date.now().toString(36)}-${this.analysisSeq}`,
+      state: "queued",
+    });
+  }
+
   async captureStill(): Promise<CaptureOutcome> {
     const mediaId = this.nextMediaId("still");
-    const size = this.state.still_size?.actual;
-    const width =
-      size && typeof size === "object" && Number.isFinite(Number((size as Record<string, unknown>)["width"]))
-        ? Number((size as Record<string, unknown>)["width"])
-        : 4000;
-    const height =
-      size && typeof size === "object" && Number.isFinite(Number((size as Record<string, unknown>)["height"]))
-        ? Number((size as Record<string, unknown>)["height"])
-        : 3000;
+    const { width, height } = sizeOf(this.state["still_size"]?.actual) ?? {
+      width: 4000,
+      height: 3000,
+    };
     const bytes = Math.round(width * height * 0.35);
+    this.addStillMedia(mediaId, width, height, bytes, Date.now(), "Captured still");
     this.emitEvent({
       kind: "capture_finished",
       timestamp_ms: Date.now(),
@@ -385,6 +490,26 @@ export class FakeDevice {
       }
     }
     const bytes = count * (options.fromStream ? 120_000 : 1_500_000);
+    const stillSize = sizeOf(this.state["still_size"]?.actual) ?? {
+      width: 4000,
+      height: 3000,
+    };
+    const streamSize = sizeOf(this.state["stream_size"]?.actual) ?? {
+      width: 1280,
+      height: 720,
+    };
+    const frameSize = options.fromStream ? streamSize : stillSize;
+    const perFrameBytes = Math.max(1, Math.round(bytes / count));
+    mediaIds.forEach((mediaId, index) => {
+      this.addStillMedia(
+        mediaId,
+        frameSize.width,
+        frameSize.height,
+        perFrameBytes,
+        Date.now(),
+        `Burst frame ${index + 1}/${count}`,
+      );
+    });
     this.startTransfer(sequenceId, bytes);
     return {
       sequenceId,
@@ -451,6 +576,18 @@ export class FakeDevice {
     const durationMs = Math.max(0, Date.now() - startedMs);
     const mediaId = this.recordingMediaId ?? this.nextMediaId("video");
     const bytes = Math.max(1, Math.round((durationMs / 1000) * 1_000_000));
+    const videoSize = sizeOf(this.state["video_size"]?.actual) ?? {
+      width: 1920,
+      height: 1080,
+    };
+    this.addVideoMedia(
+      mediaId,
+      durationMs,
+      bytes,
+      videoSize.width,
+      videoSize.height,
+      Date.now(),
+    );
     this.recordingStartedMs = null;
     this.recordingMediaId = null;
     this.setRecording(false);
@@ -1011,6 +1148,171 @@ export class FakeDevice {
       entry.source = "device";
     }
     this.emit([]);
+  }
+
+  private seedMedia(): void {
+    if (this.mediaSeeded) return;
+    this.mediaSeeded = true;
+    const now = Date.now();
+    const deviceOne = {
+      model: "Pixel 7 (demo)",
+      serial: "DEMO-0001",
+      sdk: 34,
+    };
+    const deviceTwo = {
+      model: "Pixel 6 (demo)",
+      serial: "DEMO-0002",
+      sdk: 33,
+    };
+    this.addMedia(
+      {
+        id: "m-demo-still-1",
+        type: "still",
+        created_ms: now - 90_000,
+        width: 1920,
+        height: 1080,
+        bytes: 1_842_000,
+        sha256: fakeSha256("m-demo-still-1"),
+        mime: "image/jpeg",
+        device: deviceOne,
+        control_snapshot: {
+          iso: 400,
+          exposure_time_ns: 8_333_333,
+          awb_mode: 1,
+          zoom_actual: 1,
+          fps_actual: 30,
+        },
+      },
+      demoSceneDataUrl("Still · buffering", "1920×1080 · ISO 400"),
+    );
+    this.addMedia(
+      {
+        id: "m-demo-video-1",
+        type: "video",
+        created_ms: now - 2 * 60 * 60 * 1000,
+        duration_ms: 12_400,
+        width: 1920,
+        height: 1080,
+        bytes: 9_240_000,
+        sha256: fakeSha256("m-demo-video-1"),
+        mime: "video/webm",
+        device: deviceOne,
+        control_snapshot: {
+          iso: 200,
+          exposure_time_ns: 16_666_666,
+          awb_mode: 1,
+          zoom_actual: 1,
+          fps_actual: 30,
+        },
+      },
+      DEMO_CLIP_URL,
+    );
+    this.addMedia(
+      {
+        id: "m-demo-still-2",
+        type: "still",
+        created_ms: now - 26 * 60 * 60 * 1000,
+        width: 3840,
+        height: 2160,
+        bytes: 3_208_000,
+        sha256: fakeSha256("m-demo-still-2"),
+        mime: "image/jpeg",
+        device: deviceTwo,
+        control_snapshot: {
+          iso: 800,
+          exposure_time_ns: 33_333_333,
+          awb_mode: 5,
+          zoom_actual: 2,
+          fps_actual: 24,
+        },
+      },
+      demoSceneDataUrl("Still · paused", "3840×2160 · ISO 800"),
+    );
+  }
+
+  private addMedia(item: MediaItem, fileUrl: string): void {
+    this.media.push(item);
+    this.mediaFiles.set(item.id, fileUrl);
+  }
+
+  private addStillMedia(
+    mediaId: string,
+    width: number,
+    height: number,
+    bytes: number,
+    createdMs: number,
+    label: string,
+  ): void {
+    this.addMedia(
+      {
+        id: mediaId,
+        type: "still",
+        created_ms: createdMs,
+        width,
+        height,
+        bytes,
+        sha256: fakeSha256(mediaId),
+        mime: "image/jpeg",
+        device: {
+          model: "Pixel 7 (demo)",
+          serial: "DEMO-0001",
+          sdk: 34,
+        },
+        control_snapshot: this.controlSnapshot(),
+      },
+      demoSceneDataUrl(label, `${width}×${height}`),
+    );
+  }
+
+  private addVideoMedia(
+    mediaId: string,
+    durationMs: number,
+    bytes: number,
+    width: number,
+    height: number,
+    createdMs: number,
+  ): void {
+    this.addMedia(
+      {
+        id: mediaId,
+        type: "video",
+        created_ms: createdMs,
+        duration_ms: durationMs,
+        width,
+        height,
+        bytes,
+        sha256: fakeSha256(mediaId),
+        mime: "video/webm",
+        device: {
+          model: "Pixel 7 (demo)",
+          serial: "DEMO-0001",
+          sdk: 34,
+        },
+        control_snapshot: this.controlSnapshot(),
+      },
+      DEMO_CLIP_URL,
+    );
+  }
+
+  private controlSnapshot(): Record<string, unknown> {
+    const snapshot: Record<string, unknown> = {};
+    for (const id of [
+      "iso",
+      "exposure_time_ns",
+      "ae_mode",
+      "af_mode",
+      "focus_distance",
+      "awb_mode",
+      "awb_gains",
+      "zoom_actual",
+      "fps_actual",
+    ]) {
+      const entry = this.state[id];
+      if (entry && entry.actual !== undefined) {
+        snapshot[id] = structuredClone(entry.actual);
+      }
+    }
+    return snapshot;
   }
 
   private nextMediaId(kind: string): string {

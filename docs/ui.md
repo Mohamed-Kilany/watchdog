@@ -29,7 +29,10 @@ when the Devices page is open. `ui/tests/controls.spec.ts` covers every control 
 `ui/tests/presets.spec.ts` covers preset save/apply/delete; `ui/tests/regions.spec.ts`
 covers metering, focus and white-balance region editing. `ui/tests/capture.spec.ts` covers
 the Capture page: routing, still/burst/recording in the demo, transfer progress, host
-command forwarding and unsupported commands.
+command forwarding and unsupported commands. `ui/tests/media.spec.ts` covers the Media
+library: routing, filters/sort/layouts, still and video previews with zoom and metadata,
+multi-select analysis/deletion, capture-to-library integration, host `/api/media` and
+`/api/analyses` calls with the bearer token, and the missing-route notice.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
 Playwright). The Playwright HTML report is uploaded only when the job fails.
@@ -219,6 +222,40 @@ The demo `FakeDevice` simulates the whole flow: media ids, burst progress events
 recording lifecycle and a stepped transfer (`queued` → `transferring` → `verifying` →
 `done`). `window.__watchdog.capture` exposes the controller for Playwright.
 
+### Media library
+
+The `#/media` page (`ui/src/media.ts`) is backend-agnostic like the capture page. It
+lists items with a text search over id/type/MIME/device, type and device filters,
+newest/oldest/largest sorting, and grid/list layouts. Each card has a selection checkbox
+and an open button; selecting one or more items reveals bulk download, analysis and
+delete actions. The preview dialog shows a still with zoom (buttons, Ctrl+wheel and
+`+`/`-`/`0`) or a video with a generated poster and native controls, plus a metadata grid
+(type, capture time, dimensions, duration, bytes, MIME, SHA-256, device, host job) and
+the captured control snapshot as JSON. Download uses the original file URL and delete
+removes the item from the library; both single-item actions live in the dialog.
+
+`ui/src/media-api.ts` defines the UI-facing host contract, documented in
+[api.md](api.md#media-and-analysis-ui-contract-m6-t07):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/media` | list; accepts `{items: [...]}` or a bare array |
+| `GET` | `/api/media/{id}` | one item; accepts `{item: {...}}` or the item |
+| `GET` | `/api/media/{id}/file` | original bytes; token via `?token=` |
+| `DELETE` | `/api/media/{id}` | delete |
+| `POST` | `/api/analyses` | `{media_ids: [...]}`, returns `{id, state}` |
+
+All JSON calls send `Authorization: Bearer <token>` when a token is stored. The host
+media store lands with M5 and the analysis queue with M7; until those routes exist the
+page shows `The host media library is not available yet (M5).` with the host error instead
+of an empty grid.
+
+The demo `FakeDevice` seeds three items (`m-demo-still-1`, `m-demo-video-1`,
+`m-demo-still-2`) and appends every demo still, burst frame and recording to the same
+in-memory library. Stills use a generated JPEG scene, the video uses the bundled
+`ui/src/assets/demo-clip.webm`, and analysis returns a fake queued id.
+`window.__watchdog.media` exposes the controller for Playwright.
+
 ### Controls and presets
 
 `ui/src/descriptors.ts` describes every control the Android app reports, grouped like the
@@ -284,11 +321,11 @@ command log.
 ## Pages
 
 The shell uses hash routes without a reload: `#/live` (default) is the camera/controls
-page, `#/capture` is still/burst/recording with transfer progress, and `#/devices` is
-device management. The top bar keeps the active-device selector
-visible on every page; choosing another device activates it and choosing “No device”
-disconnects. `HostClient.applySession()` adopts the REST result immediately, and the
-`session` WebSocket envelope keeps every other tab in sync.
+page, `#/capture` is still/burst/recording with transfer progress, `#/media` is the
+media library, and `#/devices` is device management. The top bar keeps the active-device
+selector visible on every page; choosing another device activates it and choosing “No
+device” disconnects. `HostClient.applySession()` adopts the REST result immediately, and
+the `session` WebSocket envelope keeps every other tab in sync.
 
 The Devices page shows the active session card (model, serial, app version, status badge,
 check status, provision/update, restore and disconnect), a known-device list with
@@ -360,11 +397,13 @@ overlays, presets, capture page and log from the host channel. The mode tag show
 `demo device` or `host`; the drift button is hidden in host mode. The Devices page works
 in host mode only and shows a demo notice otherwise. The demo `FakeDevice` also simulates
 still/burst captures, recording and stepped media transfers, so `#/capture` is usable
-without a phone. `window.__watchdog` exposes the active backend, the left panel (and both
-panels via `panels`), the live view controller, the capture controller (`capture`), the
-preset manager (`presets`), the state snapshot and the command log for Playwright
-assertions. The fake device is not a protocol implementation; it only mirrors the
-state/implication semantics needed by the components.
+without a phone, and keeps an in-memory media library seeded with three items, so
+`#/media` is usable without a host. `window.__watchdog` exposes the active backend, the
+left panel (and both panels via `panels`), the live view controller, the capture
+controller (`capture`), the media controller (`media`), the preset manager (`presets`),
+the state snapshot and the command log for Playwright assertions. The fake device is not
+a protocol implementation; it only mirrors the state/implication semantics needed by the
+components.
 
 Host resets are sent as one `set_controls` batch: exposure returns `ae_mode` to auto,
 focus returns `af_mode` to continuous, white balance returns `awb_mode` to auto, lens

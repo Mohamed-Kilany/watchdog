@@ -17,6 +17,7 @@
       <nav class="nav" aria-label="Pages">
         <a class="nav-link" href="#/live" data-route="live">Live</a>
         <a class="nav-link" href="#/capture" data-route="capture">Capture</a>
+        <a class="nav-link" href="#/media" data-route="media">Media</a>
         <a class="nav-link" href="#/devices" data-route="devices">Devices</a>
       </nav>
       <div class="actions">
@@ -447,6 +448,298 @@
             ></ol>
           </section>
         </div>
+      </section>
+
+      <section
+        id="view-media"
+        class="media-view view"
+        data-view="media"
+        aria-labelledby="media-title"
+        hidden
+      >
+        <header class="media-head">
+          <div>
+            <h1 id="media-title">Media library</h1>
+            <p class="muted">
+              Every still and recording received from the device. Preview a file,
+              inspect its metadata and control snapshot, download it, or send it
+              to analysis.
+            </p>
+          </div>
+          <div class="media-actions">
+            <span
+              id="media-mode"
+              data-testid="media-mode"
+              class="badge"
+              data-state="demo"
+            >
+              demo library
+            </span>
+            <button
+              id="media-refresh"
+              data-testid="media-refresh"
+              class="btn"
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+        </header>
+
+        <p
+          id="media-status"
+          data-testid="media-status"
+          class="media-status"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+        <p
+          id="media-notice"
+          data-testid="media-notice"
+          class="media-notice"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+
+        <div class="media-toolbar">
+          <label class="media-search">
+            <span class="sr-only">Search media</span>
+            <input
+              id="media-search"
+              data-testid="media-search"
+              type="search"
+              placeholder="Search id, device or MIME type"
+            />
+          </label>
+          <label class="media-filter">
+            <span>Type</span>
+            <select id="media-filter-type" data-testid="media-filter-type">
+              <option value="all">All types</option>
+              <option value="still">Stills</option>
+              <option value="video">Videos</option>
+            </select>
+          </label>
+          <label class="media-filter">
+            <span>Device</span>
+            <select id="media-filter-device" data-testid="media-filter-device">
+              <option value="all">All devices</option>
+            </select>
+          </label>
+          <label class="media-filter">
+            <span>Sort</span>
+            <select id="media-sort" data-testid="media-sort">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="largest">Largest first</option>
+            </select>
+          </label>
+          <div class="media-view-toggle" role="group" aria-label="Layout">
+            <button
+              id="media-view-grid"
+              data-testid="media-view-grid"
+              class="btn small"
+              type="button"
+              aria-pressed="true"
+            >
+              Grid
+            </button>
+            <button
+              id="media-view-list"
+              data-testid="media-view-list"
+              class="btn small"
+              type="button"
+              aria-pressed="false"
+            >
+              List
+            </button>
+          </div>
+          <button
+            id="media-select-all"
+            data-testid="media-select-all"
+            class="btn small"
+            type="button"
+          >
+            Select all
+          </button>
+        </div>
+
+        <div
+          id="media-selection"
+          class="media-selection"
+          data-testid="media-selection"
+          hidden
+        >
+          <span
+            id="media-selected-count"
+            data-testid="media-selected-count"
+            class="media-selected-count"
+          >
+            0 selected
+          </span>
+          <button
+            id="media-select-clear"
+            data-testid="media-select-clear"
+            class="btn small"
+            type="button"
+          >
+            Clear
+          </button>
+          <button
+            id="media-download-selected"
+            data-testid="media-download-selected"
+            class="btn small"
+            type="button"
+          >
+            Download
+          </button>
+          <button
+            id="media-analyze-selected"
+            data-testid="media-analyze-selected"
+            class="btn small primary"
+            type="button"
+          >
+            Send to analysis
+          </button>
+          <button
+            id="media-delete-selected"
+            data-testid="media-delete-selected"
+            class="btn small danger"
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+
+        <p id="media-empty" data-testid="media-empty" class="muted" hidden>
+          No media matches the current filters.
+        </p>
+        <ul
+          id="media-grid"
+          class="media-grid"
+          data-testid="media-grid"
+          data-view="grid"
+          aria-label="Media items"
+        ></ul>
+        <p id="media-count" data-testid="media-count" class="muted"></p>
+
+        <dialog
+          id="media-dialog"
+          class="media-dialog"
+          data-testid="media-dialog"
+          aria-labelledby="media-dialog-title"
+        >
+          <div class="media-dialog-head">
+            <h2 id="media-dialog-title" data-testid="media-dialog-title">
+              Media
+            </h2>
+            <button
+              id="media-close"
+              data-testid="media-close"
+              class="btn small"
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+          <div class="media-preview">
+            <div
+              id="media-image-wrap"
+              class="media-image-wrap"
+              data-testid="media-image-wrap"
+            >
+              <img id="media-image" data-testid="media-image" alt="" />
+              <div class="media-zoom" role="group" aria-label="Image zoom">
+                <button
+                  id="media-zoom-out"
+                  data-testid="media-zoom-out"
+                  class="btn small"
+                  type="button"
+                  aria-label="Zoom out"
+                >
+                  −
+                </button>
+                <span
+                  id="media-zoom-level"
+                  data-testid="media-zoom-level"
+                  class="media-zoom-level"
+                >
+                  100%
+                </span>
+                <button
+                  id="media-zoom-in"
+                  data-testid="media-zoom-in"
+                  class="btn small"
+                  type="button"
+                  aria-label="Zoom in"
+                >
+                  +
+                </button>
+                <button
+                  id="media-zoom-reset"
+                  data-testid="media-zoom-reset"
+                  class="btn small"
+                  type="button"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+            <video
+              id="media-video"
+              data-testid="media-video"
+              controls
+              playsinline
+              preload="metadata"
+              hidden
+            ></video>
+          </div>
+          <div class="media-detail">
+            <dl
+              id="media-metadata"
+              class="facts"
+              data-testid="media-metadata"
+            ></dl>
+            <details
+              class="media-snapshot"
+              data-testid="media-snapshot"
+            >
+              <summary>Control snapshot</summary>
+              <pre
+                id="media-snapshot-json"
+                data-testid="media-snapshot-json"
+              ></pre>
+            </details>
+          </div>
+          <div class="media-dialog-actions">
+            <a
+              id="media-download"
+              data-testid="media-download"
+              class="btn small"
+              href="#"
+              download
+            >
+              Download
+            </a>
+            <button
+              id="media-analyze"
+              data-testid="media-analyze"
+              class="btn small primary"
+              type="button"
+            >
+              Send to analysis
+            </button>
+            <button
+              id="media-delete"
+              data-testid="media-delete"
+              class="btn small danger"
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        </dialog>
       </section>
     </main>
 

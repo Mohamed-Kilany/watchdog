@@ -6,6 +6,7 @@
 // stripped from the URL after the first load.
 
 import type {
+  AnalysisSubmission,
   ApplyResult,
   BurstOptions,
   CaptureOutcome,
@@ -13,10 +14,12 @@ import type {
   ControlState,
   DeviceBackend,
   DeviceEvent,
+  MediaItem,
   RecordOptions,
   TransferProgress,
 } from "./types";
 import type { SessionInfo } from "./device-api";
+import { MediaApi } from "./media-api";
 
 const TOKEN_KEY = "watchdog.token";
 const RECONNECT_BASE_MS = 500;
@@ -329,6 +332,7 @@ export class HostClient implements DeviceBackend {
   readonly mode = "host" as const;
 
   private readonly token: string | null;
+  private readonly media: MediaApi;
   private state: ControlState;
   private readonly listeners = new Set<(state: ControlState) => void>();
   private readonly eventListeners = new Set<(event: HostEvent) => void>();
@@ -353,6 +357,7 @@ export class HostClient implements DeviceBackend {
     initialSession: SessionInfo = { active: true, closed: false },
   ) {
     this.token = token;
+    this.media = new MediaApi(token);
     this.state = structuredClone(initialState);
     this.session = initialSession;
   }
@@ -500,6 +505,26 @@ export class HostClient implements DeviceBackend {
 
   recordStop(): Promise<CaptureOutcome> {
     return this.sendCapture("record_stop", {});
+  }
+
+  listMedia(): Promise<MediaItem[]> {
+    return this.media.list();
+  }
+
+  getMedia(id: string): Promise<MediaItem | null> {
+    return this.media.get(id);
+  }
+
+  deleteMedia(id: string): Promise<void> {
+    return this.media.remove(id);
+  }
+
+  mediaFileUrl(id: string): string {
+    return this.media.fileUrl(id);
+  }
+
+  analyzeMedia(ids: string[]): Promise<AnalysisSubmission> {
+    return this.media.analyze(ids);
   }
 
   private async sendCapture(

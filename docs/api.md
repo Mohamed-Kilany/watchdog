@@ -60,6 +60,46 @@ Initial codes: `CONFIG_INVALID`, `CONFIG_NOT_FOUND`, `DATA_DIR_NOT_WRITABLE`, `P
 | `/api/v1/events` (WS) | typed event stream (see below) |
 | `GET /openapi.json` | generated from code |
 
+## Media and analysis UI contract (M6-T07)
+
+The web UI uses the unprefixed `/api/media...` and `/api/analyses` routes, like the other
+host UI routes (`/api/state`, `/api/command`, `/api/stats`). The media store (M5) and
+analysis engine (M7) will back both this UI contract and the `/api/v1` integration API.
+Until those routes exist the Media page shows a clear M5 notice instead of an empty
+library.
+
+`GET /api/media` returns either `{"items": [item, ...]}` or a bare array. An item is:
+
+```json
+{
+  "id": "m-01H...",
+  "type": "still",
+  "created_ms": 1700000000000,
+  "duration_ms": 12400,
+  "width": 1920,
+  "height": 1080,
+  "bytes": 1842000,
+  "sha256": "<64 hex chars>",
+  "mime": "image/jpeg",
+  "device": {"model": "Pixel 7", "serial": "1A2B...", "sdk": 34},
+  "control_snapshot": {"iso": 400, "exposure_time_ns": 8333333},
+  "host_job_id": null
+}
+```
+
+`duration_ms` is present for videos; `control_snapshot` and `host_job_id` are optional.
+`GET /api/media/{id}` returns the same item, optionally wrapped as `{"item": item}`.
+
+| Method | Path | Behaviour |
+|---|---|---|
+| `GET` | `/api/media/{id}/file` | Streams the original bytes with the item's `mime` and an attachment filename. Media elements cannot send headers, so the UI passes the bearer token as `?token=`. Missing media → 404 `MEDIA_NOT_FOUND`; a size/hash mismatch → 422 `MEDIA_INTEGRITY_MISMATCH`. |
+| `DELETE` | `/api/media/{id}` | Removes the item and its stored file; 204 on success, 404 `MEDIA_NOT_FOUND` when absent. |
+| `POST` | `/api/analyses` | Accepts `{"media_ids": ["m-...", ...]}` and returns `{"analysis_id": "an-...", "state": "queued"}` (`id` is accepted as an alias). Missing media → 404 `MEDIA_NOT_FOUND`; an engine with no analyzers → 501 `NOT_IMPLEMENTED`. |
+
+All JSON calls send `Authorization: Bearer <token>` when a token is configured; file URLs
+carry it as `?token=` so `<img>`/`<video>` can load them. Non-2xx responses use the error
+model above, and the UI shows `error.message` (plus `error.hint`) in its status line.
+
 ## WebSocket events
 
 Event envelope: `{ "event": "device.connected" | "device.disconnected" | "state.changed" |

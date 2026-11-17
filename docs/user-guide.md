@@ -115,6 +115,32 @@ capture pipeline is tracked under M5 and is not implemented yet, so the phone an
 `UNSUPPORTED_COMMAND`; the status line shows that, while the offline demo simulates the
 complete flow.
 
+## 7. Media library (web UI)
+
+Open **Media** in the top navigation (`#/media`). The page lists everything received
+from the device, with a search box (id, type, MIME type, model or serial), type and
+device filters, newest/oldest/largest sorting, and a grid/list toggle. The demo starts
+with three sample items so the page can be explored without a phone.
+
+- **Preview.** Click a card to open the dialog. Stills get an image viewer with zoom
+  buttons, Ctrl+wheel and `+`/`-`/`0`; videos use the native player with a generated
+  poster. The dialog also shows dimensions, capture time, duration, size, MIME type,
+  SHA-256, device and host job id, plus the control snapshot captured with the media.
+- **Download.** The dialog downloads the original file; the bulk bar downloads every
+  selected item.
+- **Delete.** Delete one item from the dialog or many from the bulk bar. Deletion is
+  immediate and has no undo prompt.
+- **Send to analysis.** Submit one item from the dialog or several from the bulk bar.
+  The status line reports the analysis id and state; the full report arrives with the
+  analyzer UI in M7.
+
+Host mode uses `GET /api/media`, `GET /api/media/{id}`, `GET /api/media/{id}/file`,
+`DELETE /api/media/{id}` and `POST /api/analyses` (see
+[api.md](api.md#media-and-analysis-ui-contract-m6-t07)). The host media store lands with
+M5 and the analysis engine with M7; until those routes exist the page shows a notice
+instead of an empty library. Demo captures, burst frames and recordings are appended to
+the in-memory library immediately, and demo analysis returns a fake queued job.
+
 ## 9. Scheduler (summary)
 
 Jobs combine device + capture plan + analysis profile + cron (or preset like `every-30m`,
