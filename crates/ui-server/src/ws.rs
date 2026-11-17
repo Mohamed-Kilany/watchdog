@@ -286,6 +286,7 @@ where
 }
 
 /// One decoded client frame.
+#[derive(Debug)]
 struct WsFrame {
     fin: bool,
     opcode: u8,

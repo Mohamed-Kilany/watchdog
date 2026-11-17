@@ -15,9 +15,10 @@ use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::macros::format_description;
+use time::OffsetDateTime;
 
 use watchdog_core::error::{ErrorCode, Result, WatchdogError};
 
@@ -198,6 +199,15 @@ pub struct PresetSummary {
     pub updated_at: Option<String>,
 }
 
+/// RFC 3339 UTC timestamp with millisecond precision (`2026-11-12T18:04:07.123Z`).
+fn now_rfc3339() -> String {
+    const FORMAT: &[time::format_description::FormatItem<'static>] =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
+    OffsetDateTime::now_utc()
+        .format(FORMAT)
+        .expect("the built-in RFC 3339 format is always valid")
+}
+
 /// One-directory store of JSON presets.
 #[derive(Debug, Clone)]
 pub struct PresetStore {
@@ -298,7 +308,7 @@ impl PresetStore {
         preset.validate()?;
         self.ensure_dir()?;
         let path = self.root.join(format!("{}.json", slugify(&preset.name)?));
-        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let now = now_rfc3339();
         if preset.created_at.is_none() {
             preset.created_at = fs::read(&path)
                 .ok()
@@ -497,7 +507,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!(
             "watchdog-presets-{label}-{}-{}",
             std::process::id(),
-            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+            OffsetDateTime::now_utc().unix_timestamp_nanos()
         ));
         let _ = fs::remove_dir_all(&root);
         PresetStore::new(root)

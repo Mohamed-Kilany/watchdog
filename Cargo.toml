@@ -40,7 +40,6 @@ watchdog-ui-server = { path = "crates/ui-server", version = "0.1.0" }
 
 base64 = "0.22"
 bytes = "1.10"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4.5", features = ["derive", "wrap_help"] }
 crc32fast = "1.4"
 directories = "6.0"
