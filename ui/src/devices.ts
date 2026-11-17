@@ -357,7 +357,8 @@ export class DevicesPage {
   private async disconnect(): Promise<void> {
     if (!this.api) return;
     try {
-      await this.api.disconnect();
+      const result = await this.api.disconnect();
+      this.host?.applySession(result.session);
       this.status = null;
       this.showNotice("Device session closed.", "info");
       await this.refresh();

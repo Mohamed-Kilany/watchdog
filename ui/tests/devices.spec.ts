@@ -194,10 +194,7 @@ test("pairs with a 6-digit code and refreshes discovery", async ({ page }) => {
 
 test("shows provisioning progress and the update prompt", async ({ page }) => {
   const session = activeSession();
-  await routeHost(
-    page,
-    { ...idleState(), session: { active: false, closed: false } },
-  );
+  await routeHost(page, { ...idleState(), session });
   await page.route("**/api/devices", async (route) => {
     await route.fulfill({
       status: 200,
@@ -293,7 +290,7 @@ test("shows provisioning progress and the update prompt", async ({ page }) => {
 
 test("disconnects the active session", async ({ page }) => {
   let session: unknown = activeSession();
-  await routeHost(page);
+  await routeHost(page, { ...idleState(), session: activeSession() });
   await page.route("**/api/devices", async (route) => {
     await route.fulfill({
       status: 200,
