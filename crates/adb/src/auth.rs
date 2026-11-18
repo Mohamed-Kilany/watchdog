@@ -107,7 +107,11 @@ impl AdbKeyPair {
     /// so it defaults to the product name rather than an OS account name.
     #[must_use]
     pub fn public_key_userkey(&self) -> String {
-        format!("{} {}", BASE64.encode(self.android_public_key()), key_comment())
+        format!(
+            "{} {}",
+            BASE64.encode(self.android_public_key()),
+            key_comment()
+        )
     }
 
     /// The full `AUTH_RSAPUBLICKEY` payload (user key + trailing NUL).
