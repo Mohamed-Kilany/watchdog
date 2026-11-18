@@ -185,6 +185,7 @@ export class DevicesPage {
   private setBusy(busy: boolean): void {
     this.scanButton.textContent = busy ? "Scanning…" : "Scan LAN";
     this.scanButton.setAttribute("aria-busy", String(busy));
+    this.listElement.setAttribute("aria-busy", String(busy));
   }
 
   private showNotice(

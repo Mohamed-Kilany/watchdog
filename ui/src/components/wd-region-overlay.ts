@@ -351,7 +351,6 @@ export class WdRegionOverlay extends HTMLElement {
       "aria-label",
       `${label}. ${editable ? HINT : "Read-only."}`,
     );
-    this.setAttribute("aria-describedby", "hint");
     const hint = this.shadowRoot?.querySelector(".hint");
     if (hint) hint.textContent = HINT;
     this.tabIndex = editable && !this.disabled ? 0 : -1;
