@@ -1,8 +1,8 @@
 # User guide
 
-> Status: skeleton (M1). Sections are filled in as features land, with screenshots
-> captured from real devices during verification runs (see `docs/verification/`).
-> Annotated screenshots arrive with M6/M10.
+> Status: living document. Sections are filled in as features land, with screenshots
+> captured from the real running UI against real devices during verification runs (see
+> `docs/verification/`).
 
 ## Contents
 
@@ -39,6 +39,17 @@ rotated daily in `<data_dir>/logs/`.
 - `watchdog device pair <host:port> <code>` — pair a wireless-debugging endpoint (Android 11+)
 - `watchdog device provision` — zero-touch install/permissions/launch (M3)
 - Linux: `watchdog device udev-rules` prints (or `--write` installs) udev rules
+
+In the web UI, open **Devices** (`#/devices`) for the same operations with live progress:
+
+![Devices page against a Samsung A51](screenshots/2026-11-18-m6/05-devices.png)
+
+1. **Active session** — model, serial, app version and session state, with Check status,
+   Provision / update, Restore settings and Disconnect actions.
+2. **Known devices** — stored USB and LAN endpoints; the active one is marked ACTIVE and
+   each row can be disconnected, provisioned or queried.
+3. **Scan LAN** — mDNS discovery of wireless-debugging endpoints.
+4. **Pair device** — opens the pairing dialog (endpoint + six-digit code).
 
 Full walkthrough with OEM quirks: [device-setup.md](device-setup.md).
 
@@ -102,6 +113,21 @@ The default page is the live view:
   and all regions, turns torch and face detection off, and restores the default output
   settings in one batch.
 
+![Live view against a Samsung A51, with numbered callouts](screenshots/2026-11-18-m6/01-live.png)
+
+*Real device in the 2026-11-18 verification run. The camera image is blurred for privacy;
+the host UI is unchanged. The preset manager and command log sit below the panels.*
+
+1. **Device selector** — the active session (`SM-A515F` over wireless debugging) and a
+   shortcut to the Devices page.
+2. **Viewfinder** — live MJPEG from the phone. Region and face overlays are drawn here in
+   the browser and never written into the stream or snapshot file.
+3. **Stats** — FPS, bitrate, latency, dropped and total frames from the host frame hub.
+4. **Live tools** — snapshot, fullscreen, rule-of-thirds grid, face boxes, active region
+   and Clear regions.
+5. **Left controls** — Exposure, Focus and White balance.
+6. **Right controls** — Lens, Flash & scene, Output, Recording, then the preset manager.
+
 If no host answers the page probe, it falls back to the offline fake-device demo so the
 controls can still be explored. The demo also simulates capture, recording and transfers.
 
@@ -110,6 +136,16 @@ controls can still be explored. The demo also simulates capture, recording and t
 Open **Capture** in the top navigation (`#/capture`). The page keeps working while you
 switch to another page, so a burst or recording does not stop when you go back to the
 live view.
+
+![Capture page against a Samsung A51](screenshots/2026-11-18-m6/02-capture.png)
+
+1. **Status line** — the last command result, including `UNSUPPORTED_COMMAND` until the
+   M5 capture pipeline lands.
+2. **Still** — one full-resolution JPEG; the last capture reports its media id, dimensions
+   and size.
+3. **Burst** — frame count, interval and the cheap live-stream-frame option.
+4. **Recording** — start/stop, live timer and optional maximum duration.
+5. **Transfers** — media pulled from the phone with state, byte progress and errors.
 
 - **Still.** Takes one full-resolution JPEG. The last capture reports its media id,
   dimensions and size.
