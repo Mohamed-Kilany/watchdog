@@ -42,6 +42,9 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   timeout: 60_000,
+  // A wedged run must still end early enough to print its failures before the
+  // CI job's own timeout kills the log.
+  globalTimeout: process.env.CI ? 15 * 60_000 : 0,
   expect: { timeout: 10_000 },
   reporter: [
     ["list"],

@@ -270,7 +270,7 @@ async fn handle_connection(
             .await
         }
     };
-    if !authorized(&request, token) {
+    if !is_public_asset(&request) && !authorized(&request, token) {
         return write_response(
             &mut stream,
             &Response::new(
@@ -1335,6 +1335,18 @@ fn parse_request(head: &str) -> Option<Request> {
     })
 }
 
+/// Static UI files are served without a token.
+///
+/// A browser asks for the app shell and its assets before any JavaScript can
+/// read a token, so gating them would leave the page blank instead of showing
+/// the token prompt. They contain no user data; every dynamic route (the
+/// stream, `/healthz`, the WebSocket and `/api/*`) still requires the token.
+fn is_public_asset(request: &Request) -> bool {
+    request.method == "GET"
+        && !request.path().starts_with("/api/")
+        && !matches!(request.path(), "/ws" | "/stream.mjpg" | "/healthz")
+}
+
 fn authorized(request: &Request, expected: Option<&str>) -> bool {
     let Some(expected) = expected else {
         return true;
@@ -1569,6 +1581,30 @@ mod tests {
     #[test]
     fn no_token_configured_allows_everything() {
         assert!(authorized(&request("/"), None));
+    }
+
+    #[test]
+    fn static_ui_files_are_public() {
+        for target in ["/", "/assets/app.js", "/assets/app.css", "/devices/123"] {
+            assert!(is_public_asset(&request(target)), "{target}");
+        }
+    }
+
+    #[test]
+    fn dynamic_routes_still_require_a_token() {
+        for target in [
+            "/api/state",
+            "/api/media/m-1/file",
+            "/api/settings",
+            "/api/diagnostics",
+            "/stream.mjpg",
+            "/healthz",
+            "/ws",
+        ] {
+            assert!(!is_public_asset(&request(target)), "{target}");
+        }
+        let post = parse_request("POST / HTTP/1.1\r\n\r\n").expect("valid request");
+        assert!(!is_public_asset(&post));
     }
 
     #[test]

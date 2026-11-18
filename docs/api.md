@@ -15,7 +15,9 @@
 
 Localhost-only by default. When `--listen 0.0.0.0` (or per-port) is used, a bearer token
 is required on **every port** (UI, MCP, API): `Authorization: Bearer <token>`. Constant-time
-compare; tokens are never logged; 401 with `error.code = UNAUTHORIZED`.
+compare; tokens are never logged; 401 with `error.code = UNAUTHORIZED`. The UI's static
+shell and assets are public so the token prompt can load; every dynamic UI route
+(`/api/*`, `/stream.mjpg`, `/ws`, `/healthz`) still requires the token.
 
 ## Error model (M1-T05)
 

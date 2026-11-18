@@ -20,6 +20,8 @@
   prints a loud warning when a non-loopback bind lacks a token.
 - No tokens are ever logged; `watchdog config show`, error bodies and MCP outputs
   redact them (unit-tested).
+- The UI's static shell and assets are public (they hold no user data) so a browser can
+  load the token prompt; `/api/*`, `/stream.mjpg`, `/ws` and `/healthz` require the token.
 - Media ids are ULIDs; file paths are never taken from clients.
 
 ## Network exposure recipes

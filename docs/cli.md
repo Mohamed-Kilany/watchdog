@@ -53,8 +53,10 @@ activates a USB serial or `host[:port]` at startup when it is already provisione
 activation failure prints a hint and leaves the server running so the page can pair or
 provision the device. Without an active session, `/api/state` returns a waiting snapshot,
 `/api/stats` returns zeroed counters and `/api/command` / `/stream.mjpg` return
-`503 DEVICE_OFFLINE`. When a bearer token is configured, every request needs `?token=…`
-or `Authorization: Bearer …`. MCP (:7701) and the integration API (:7702) land with M6/M9.
+`503 DEVICE_OFFLINE`. When a bearer token is configured, the stream, `/healthz`, the
+WebSocket and every `/api/*` request need `?token=…` or `Authorization: Bearer …`; the
+static UI shell and its assets load without a token so the page can prompt for it. MCP
+(:7701) and the integration API (:7702) land with M6/M9.
 
 `--mock-device` activates the synthetic device instead of contacting a phone: a static
 320×180 viewfinder at 10 fps, merged control changes, capture/burst/recording replies,

@@ -118,8 +118,9 @@ Every static response carries a weak content-hash ETag (`W/"<sha256>"`), answers
 `If-None-Match` with `304 Not Modified`, and is gzip-compressed when the client sends
 `Accept-Encoding: gzip` (text, JSON, SVG and Wasm responses of at least 512 bytes).
 Compressed bodies are cached by ETag, and compressible responses send
-`Vary: Accept-Encoding`. Bearer-token auth applies to static files, the stream and the
-API alike.
+`Vary: Accept-Encoding`. Bearer-token auth applies to the stream, `/healthz`, the
+WebSocket and the API. Static UI files are public: the browser has to load the shell and
+its assets before any JavaScript can read a token, and they contain no user data.
 
 When no UI was embedded, `/` and extensionless routes serve a self-contained live page
 (MJPEG view plus stats) with `X-Watchdog-UI: fallback`; `watchdog version` prints
