@@ -387,8 +387,15 @@ export class MediaPage {
     open.type = "button";
     open.className = "media-open";
     open.dataset["mediaOpen"] = item.id;
-    open.setAttribute("aria-label", `Preview ${itemLabel(item)}`);
     open.setAttribute("data-testid", "media-open");
+    // The accessible name comes from the visible card content (kind, id,
+    // metadata, device) with an action prefix. An aria-label that summarized
+    // the item instead would not contain the visible text, which screen reader
+    // users cannot reconcile with the label they hear.
+    const preview = document.createElement("span");
+    preview.className = "sr-only";
+    preview.textContent = "Preview ";
+    open.append(preview);
 
     const thumb = document.createElement("span");
     thumb.className = "media-thumb";
