@@ -25,8 +25,9 @@ tls/tls_connection.cpp).
    `<data_dir>/keys/adbkey` (never `~/.android`). Sign with **SHA-1 + PKCS#1 v1.5** (as
    AOSP does, `NID_sha1`). Public key exported in Android's custom binary format
    (`modulus_size_words=64`, `n0inv = (-1/N[0]) mod 2³²`, LE modulus, `rr = 2^4096 mod N`,
-   LE), base64-encoded + ` " user@host"` suffix — exactly what `adb_auth_get_userkey()`
-   produces and what devices expect in `AUTH_RSAPUBLICKEY` / PeerInfo.
+   LE), base64-encoded + a comment suffix (`watchdog` by default, or
+   `WATCHDOG_ADB_KEY_COMMENT`) - the same shape `adb_auth_get_userkey()` produces
+   and what devices expect in `AUTH_RSAPUBLICKEY` / PeerInfo.
 4. **Wireless pairing**: pure-Rust BoringSSL-compatible SPAKE2 over Ed25519 (the
    BoringSSL variant: M/N constants `5ada7e4b…`/`10e3df0a…`, SHA-512 transcript with
    8-byte LE length prefixes, password = 6-digit code bytes + 64 TLS exporter bytes

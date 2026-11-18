@@ -101,14 +101,16 @@ impl AdbKeyPair {
         Ok(pair)
     }
 
-    /// The public key as an `adbkey.pub` body (base64 + " user@host"), no trailing newline.
+    /// The public key as an `adbkey.pub` body (base64 + comment), no trailing newline.
+    ///
+    /// The comment is what Android lists in Wireless debugging → Paired devices,
+    /// so it defaults to the product name rather than an OS account name.
     #[must_use]
     pub fn public_key_userkey(&self) -> String {
         format!(
-            "{} {}@{}",
+            "{} {}",
             BASE64.encode(self.android_public_key()),
-            user_name(),
-            host_name()
+            key_comment()
         )
     }
 
@@ -159,37 +161,17 @@ impl AdbKeyPair {
     }
 }
 
-fn user_name() -> String {
-    std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_else(|_| "watchdog".to_string())
-}
-
-fn host_name() -> String {
-    gethostname().unwrap_or_else(|| "localhost".to_string())
-}
-
-#[cfg(unix)]
-fn gethostname() -> Option<String> {
-    // Avoid extra deps; /proc/sys/kernel/hostname on Linux, `hostname` elsewhere.
-    if let Ok(name) = std::fs::read_to_string("/proc/sys/kernel/hostname") {
-        let trimmed = name.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    std::process::Command::new("hostname")
-        .output()
+/// Comment shown for this host in the phone's paired-device list.
+///
+/// `WATCHDOG_ADB_KEY_COMMENT` overrides it when one phone is paired with several
+/// hosts; the default is the product name so the phone shows `watchdog` instead
+/// of a developer-machine account name.
+fn key_comment() -> String {
+    std::env::var("WATCHDOG_ADB_KEY_COMMENT")
         .ok()
-        .and_then(|o| {
-            let s = String::from_utf8(o.stdout).ok()?;
-            Some(s.trim().to_string())
-        })
-}
-
-#[cfg(windows)]
-fn gethostname() -> Option<String> {
-    std::env::var("COMPUTERNAME").ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "watchdog".to_string())
 }
 
 /// Encode an RSA public key in Android's RSAPublicKey format.
@@ -341,12 +323,15 @@ mod tests {
             public_key: private_key.to_public_key(),
         };
         let userkey = pair.public_key_userkey();
-        // Must be `base64 user@host`
+        // Must be `base64 comment`
         let parts: Vec<&str> = userkey.split(' ').collect();
         assert_eq!(parts.len(), 2);
         let decoded = BASE64.decode(parts[0]).expect("valid base64");
         assert_eq!(decoded.len(), ANDROID_PUBKEY_ENCODED_SIZE);
-        assert!(parts[1].contains('@'));
+        assert!(!parts[1].is_empty());
+        if std::env::var("WATCHDOG_ADB_KEY_COMMENT").is_err() {
+            assert_eq!(parts[1], "watchdog");
+        }
         let payload = pair.public_key_payload();
         assert_eq!(*payload.last().unwrap(), 0);
     }

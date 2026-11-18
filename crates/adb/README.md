@@ -26,7 +26,8 @@ adb.h, types.h, client/auth.cpp, sync service docs). Citations are inline.
 
 ## Key store
 
-`<data_dir>/keys/adbkey` (PKCS#8 PEM) + `adbkey.pub` (base64 + ` user@host`). Never
+`<data_dir>/keys/adbkey` (PKCS#8 PEM) + `adbkey.pub` (base64 + ` watchdog`, or the
+`WATCHDOG_ADB_KEY_COMMENT` value when set). Never
 `~/.android`. See `docs/security.md` for backup/revoke guidance.
 
 ## Testing
