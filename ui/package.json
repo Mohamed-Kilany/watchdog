@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "test": "playwright test",
+    "test:host": "playwright test --config playwright.host.config.ts",
     "verify": "npm run typecheck && npm run build && npm run check:bundle && npm run test"
   },
   "devDependencies": {

@@ -147,6 +147,13 @@ async fn serve(stream: TcpStream, service: &DeviceService) -> io::Result<()> {
                         }
                         write_json(&mut writer, &value).await?;
                     }
+                    Ok(HubUpdate::Transfer(transfer)) => {
+                        write_json(
+                            &mut writer,
+                            &serde_json::json!({ "type": "transfer", "transfer": transfer }),
+                        )
+                        .await?;
+                    }
                     Ok(HubUpdate::Closed) => {
                         write_json(
                             &mut writer,

@@ -10,6 +10,8 @@ pub mod connection;
 pub mod devices;
 /// Frame receiver, sequencer and bounded broadcast hub (M3-T14).
 pub mod hub;
+/// Synthetic device backend for UI end-to-end tests (M6-T09).
+pub mod mock;
 /// Zero-touch provisioning, status and settings restore (M3-T13/T16).
 pub mod provision;
 /// Host side of an authenticated app session (M3-T13).

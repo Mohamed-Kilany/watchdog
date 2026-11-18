@@ -22,6 +22,7 @@ use watchdog_protocol::HelloAck;
 
 use crate::connection::DeviceConnection;
 use crate::hub::{FrameHub, HubConfig};
+use crate::mock::{self, MockConfig, MockData};
 use crate::provision::{
     self, ProvisionOptions, RestoreRecord, RestoreStep, StatusReport, StepReport, PACKAGE,
 };
@@ -363,6 +364,8 @@ pub struct DeviceService {
     keys: Arc<watchdog_adb::AdbKeyPair>,
     paths: DataPaths,
     active: Mutex<Option<Active>>,
+    /// Synthetic backend when `watchdog serve --mock-device` is active.
+    mock: Option<Arc<MockData>>,
     /// Serializes activation/deactivation so two clicks cannot open two sessions.
     activation: AsyncMutex<()>,
     /// Serializes mDNS scans (the daemon is not re-entrant friendly).
@@ -383,12 +386,75 @@ impl DeviceService {
             keys: Arc::new(keys),
             paths,
             active: Mutex::new(None),
+            mock: None,
             activation: AsyncMutex::new(()),
             discovery: AsyncMutex::new(()),
             discovered: Mutex::new(DiscoveryCache::default()),
             jobs: Mutex::new(BTreeMap::new()),
             notices,
         })
+    }
+
+    /// Create a service backed by the synthetic device (M6-T09).
+    ///
+    /// No phone, ADB server or app session is contacted. The mock data store
+    /// also backs the temporary `/api/media*`, `/api/settings`, `/api/logs` and
+    /// `/api/diagnostics` routes used by the end-to-end suite.
+    pub fn new_mock(paths: DataPaths, config: MockConfig) -> Result<Self> {
+        let data = Arc::new(MockData::new(paths.clone(), config));
+        let mut service = Self::new(paths)?;
+        service.mock = Some(data);
+        Ok(service)
+    }
+
+    /// Whether this host runs the synthetic device.
+    #[must_use]
+    pub fn is_mock(&self) -> bool {
+        self.mock.is_some()
+    }
+
+    /// Shared mock data store, when the synthetic device is active.
+    #[must_use]
+    pub fn mock_data(&self) -> Option<Arc<MockData>> {
+        self.mock.clone()
+    }
+
+    /// Open the synthetic app session and publish it to the UI.
+    pub async fn activate_mock(&self) -> Result<ActiveDevice> {
+        let Some(data) = self.mock.clone() else {
+            return Err(WatchdogError::new(
+                ErrorCode::InvalidRequest,
+                "the host is not running with --mock-device",
+            ));
+        };
+        let _gate = self.activation.lock().await;
+        if self.take_active().is_some() {
+            self.publish_session();
+        }
+        let info = mock::active_device();
+        let hub = Arc::new(FrameHub::spawn_mock(HubConfig::default(), data));
+        *lock(&self.active) = Some(Active {
+            info: info.clone(),
+            hub,
+        });
+        self.publish_session();
+        tracing::info!(
+            device = %info.serial,
+            "opened the mock app session for the web UI"
+        );
+        Ok(info)
+    }
+
+    /// Reject operations that only make sense with a real phone.
+    fn ensure_real(&self, action: &str) -> Result<()> {
+        if self.is_mock() {
+            return Err(WatchdogError::new(
+                ErrorCode::InvalidRequest,
+                format!("{action} is not available while the host runs the mock device"),
+            )
+            .with_hint("restart `watchdog serve` without --mock-device to use a real phone"));
+        }
+        Ok(())
     }
 
     /// Subscribe to session changes for the WebSocket loop.
@@ -439,7 +505,7 @@ impl DeviceService {
 
     /// List known devices, optionally refreshing the mDNS cache first.
     pub async fn list(&self, discover: bool) -> Result<DeviceList> {
-        if discover {
+        if discover && !self.is_mock() {
             let _gate = self.discovery.lock().await;
             let found = watchdog_adb::discover(DISCOVERY_TIMEOUT).await?;
             let mut cache = lock(&self.discovered);
@@ -472,6 +538,34 @@ impl DeviceService {
                 guid: None,
                 last_seen_ms: None,
             });
+        }
+
+        if self.is_mock() {
+            // The synthetic device is always available, even after the UI
+            // disconnects it, so the devices page can activate it again.
+            if session.device.is_none() {
+                let info = mock::active_device();
+                entries.push(DeviceEntry {
+                    serial: info.serial,
+                    kind: info.kind,
+                    state: if session.closed {
+                        DeviceState::Closed
+                    } else {
+                        DeviceState::Available
+                    },
+                    model: Some(info.model),
+                    product: Some("watchdog mock device".to_string()),
+                    connect: None,
+                    pairing: None,
+                    guid: None,
+                    last_seen_ms: Some(now_ms()),
+                });
+            }
+            return DeviceList {
+                session,
+                devices: entries,
+                discovered_at_ms: None,
+            };
         }
 
         for device in watchdog_adb::list_usb() {
@@ -521,6 +615,7 @@ impl DeviceService {
 
     /// Pair with an Android 11+ wireless-debugging endpoint.
     pub async fn pair(&self, target: &str, code: &str) -> Result<String> {
+        self.ensure_real("wireless pairing")?;
         if code.len() != 6 || !code.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(WatchdogError::new(
                 ErrorCode::InvalidRequest,
@@ -544,12 +639,18 @@ impl DeviceService {
 
     /// Read `watchdog device status` for one device.
     pub async fn status(&self, serial: &str) -> Result<StatusReport> {
+        if self.is_mock() {
+            return Ok(mock::status_report(serial));
+        }
         let (connection, id) = DeviceConnection::connect(&self.keys, Some(serial)).await?;
         provision::status(&connection, &id, &self.paths).await
     }
 
     /// Revert host-side changes provisioning made, then drop the session.
     pub async fn restore(&self, serial: &str) -> Result<(String, Vec<RestoreStep>)> {
+        if self.is_mock() {
+            return Ok((serial.to_string(), Vec::new()));
+        }
         let (connection, id) = DeviceConnection::connect(&self.keys, Some(serial)).await?;
         let steps = provision::restore(&connection, &id, &self.paths).await?;
         self.deactivate_if(&id).await;
@@ -558,6 +659,9 @@ impl DeviceService {
 
     /// Open the app session for `serial`, replacing any current session.
     pub async fn activate(&self, serial: &str) -> Result<ActiveDevice> {
+        if self.is_mock() {
+            return self.activate_mock().await;
+        }
         let _gate = self.activation.lock().await;
         if self.take_active().is_some() {
             self.publish_session();
@@ -655,6 +759,7 @@ impl DeviceService {
 
     /// Start a background provisioning job; returns its id immediately.
     pub fn start_provision(self: &Arc<Self>, request: ProvisionRequest) -> Result<String> {
+        self.ensure_real("provisioning")?;
         if request.serial.trim().is_empty() {
             return Err(WatchdogError::new(
                 ErrorCode::InvalidRequest,

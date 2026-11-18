@@ -482,9 +482,51 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # End-to-end coverage of every UI page against the real release host binary
+  # running the synthetic device. The host embeds the UI artifact built by the
+  # `web` job, so the suite exercises the same files shipped to users.
+  e2e:
+    name: e2e (host + mock device)
+    needs: [web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - name: rustup (pinned toolchain)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: build release host with the embedded UI
+        working-directory: .
+        run: |
+          # Force rust-embed to re-expand now that ui/dist exists.
+          cargo clean -p watchdog-ui-server
+          cargo build --locked --release -p watchdog
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:host
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-host
+          path: ui/playwright-report-host
+          if-no-files-found: ignore
+          retention-days: 7
+
   gate:
     name: all checks
-    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android, host-windows, web]
+    needs: [fmt, clippy, test, deny, docs-link-check, fixtures, isolation, android, host-windows, web, e2e]
     runs-on: ubuntu-latest
     steps:
       - run: echo "All required checks passed."
