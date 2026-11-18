@@ -444,5 +444,6 @@ export class CapturePage {
   private setStatus(message: string, state: StatusState): void {
     this.status.textContent = message;
     this.status.dataset.state = state;
+    this.status.setAttribute("aria-busy", String(state === "busy"));
   }
 }

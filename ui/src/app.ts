@@ -347,6 +347,12 @@ function wireShell(
     document.documentElement.dataset.theme = theme;
     themeButton.textContent = `Theme: ${theme}`;
     themeButton.setAttribute("aria-pressed", String(theme === "light"));
+    // The accessible name has to contain the visible label ("Theme: dark"), so
+    // it is rebuilt with the current state instead of being a static verb.
+    themeButton.setAttribute(
+      "aria-label",
+      `Theme: ${theme}. Switch to ${theme === "dark" ? "light" : "dark"} theme`,
+    );
     localStorage.setItem("watchdog.theme", theme);
   }
 

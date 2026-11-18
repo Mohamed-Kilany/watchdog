@@ -1165,6 +1165,7 @@ fn mime_for_path(path: &str) -> &'static str {
         Some("wasm") => "application/wasm",
         Some("webmanifest" | "manifest") => "application/manifest+json",
         Some("txt") => "text/plain; charset=utf-8",
+        Some("vtt") => "text/vtt; charset=utf-8",
         _ => "application/octet-stream",
     }
 }
@@ -1806,6 +1807,7 @@ mod tests {
         assert_eq!(mime_for_path("icon.png"), "image/png");
         assert_eq!(mime_for_path("font.woff2"), "font/woff2");
         assert_eq!(mime_for_path("app.wasm"), "application/wasm");
+        assert_eq!(mime_for_path("captions.vtt"), "text/vtt; charset=utf-8");
         assert_eq!(mime_for_path("blob.bin"), "application/octet-stream");
     }
 

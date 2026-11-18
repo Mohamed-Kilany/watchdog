@@ -65,6 +65,26 @@ test.describe("host live view", () => {
     const button = hostPage.getByTestId("fullscreen");
     await button.click();
 
+    // requestFullscreen() settles asynchronously: reading the state right after
+    // the click can still see no fullscreen element even though the request
+    // succeeds a moment later. Wait until either the browser entered
+    // fullscreen or the page reported that it could not.
+    await expect
+      .poll(
+        async () => {
+          const active = await hostPage.evaluate(
+            () => document.fullscreenElement !== null,
+          );
+          if (active) return true;
+          const status = await hostPage
+            .getByTestId("live-status")
+            .textContent();
+          return status?.includes("fullscreen unavailable") ?? false;
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+
     const active = await hostPage.evaluate(
       () => document.fullscreenElement !== null,
     );

@@ -61,6 +61,8 @@ recording with transfer progress, the media library (filters, previews, analysis
 deletion), settings (configuration, log filtering, retention, diagnostics zip, clipboard)
 and the devices page (status, scan, pair/provision guards, restore, disconnect and
 reactivate). The host binary path can be overridden with `WATCHDOG_HOST_BIN`.
+`host-a11y.spec.ts` adds axe-core scans of every page and the token, media preview and
+pair dialogs.
 
 The mock device (`crates/device/src/mock.rs`) is test support only: it is compiled into
 the host but never selected unless `--mock-device` is passed. Its in-memory
@@ -69,7 +71,9 @@ implementations stand in for the M5/M7/M9 stores so the E2E suite can run today;
 real stores replace them milestone by milestone.
 
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
-Playwright). The `e2e (host + mock device)` job downloads `ui-dist`, builds the release
+Playwright). Both Playwright suites include axe-core scans (`ui/tests/a11y.spec.ts` for
+the demo shell, `ui/e2e/host-a11y.spec.ts` for the host pages), so WCAG violations fail
+the build. The `e2e (host + mock device)` job downloads `ui-dist`, builds the release
 host with the embedded UI and runs `npm run test:host`. Playwright HTML reports are
 uploaded only when the job fails.
 
@@ -452,13 +456,27 @@ balance; only the selected overlay is editable.
 
 ### Accessibility
 
+- `@axe-core/playwright` scans every route in both Playwright suites
+  (`ui/tests/a11y.spec.ts`, `ui/e2e/host-a11y.spec.ts`) with the WCAG 2.0/2.1/2.2 A+AA
+  and best-practice rule tags, plus the token prompt, media preview and pair dialogs.
+  Any violation fails CI, and the assertion message lists the rule and selector.
 - Native range, number and select elements keep their platform keyboard behavior.
 - Auto toggles use `role="switch"` and `aria-checked`; lock buttons use `aria-pressed`.
 - Live badges are `role="status"` / `aria-live="polite"`.
-- The region overlay is focusable only while editable and has an explicit keyboard
-  contract in its accessible name.
-- The app has a skip link, visible focus rings and a dark/light palette driven by
-  `data-theme`; the layout is responsive to 768 px.
+- The region overlay is a labelled `role="group"`, focusable only while editable, and
+  carries its keyboard contract in the accessible name.
+- The app has a skip link to `#main`, visible focus rings and a dark/light palette
+  driven by `data-theme`; the layout is responsive to 768 px.
+- Every async surface exposes loading, empty and error states: media/settings/device
+  lists set `aria-busy` while fetching, show explicit empty copy, and render failures in
+  the page notice; the capture and settings status lines use `data-state` plus
+  `aria-busy` for in-flight work.
+- Long scrollable regions (command log, device status, provisioning steps, log viewer,
+  zoomed preview) are keyboard-focusable so their content can be scrolled without a
+  pointer.
+- The video player ships an empty WebVTT captions track (`ui/public/captions.vtt`)
+  because camera recordings carry no speech track; this keeps `<video>` accessible and
+  satisfies the `video-caption` rule without pretending to transcribe audio.
 
 ## Demo and fake device
 

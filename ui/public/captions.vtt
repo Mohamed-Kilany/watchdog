@@ -1,0 +1,4 @@
+WEBVTT
+
+NOTE Camera recordings carry no speech track; this empty captions track keeps
+NOTE the video player accessible without claiming captions that do not exist.
