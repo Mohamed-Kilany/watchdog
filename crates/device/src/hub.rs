@@ -34,6 +34,7 @@ use watchdog_protocol::{
     StateMessage,
 };
 
+use crate::mock::{self, MockData};
 use crate::session::{LiveSession, Polled};
 
 /// Default number of frames kept for slow subscribers.
@@ -99,6 +100,8 @@ pub enum HubUpdate {
     State(StateMessage),
     /// Asynchronous app event (`camera_disconnected`, `error`, ...).
     Event(EventMessage),
+    /// Transfer progress for a capture or recording.
+    Transfer(serde_json::Value),
     /// The app session ended; no further updates will be published.
     Closed,
 }
@@ -299,6 +302,45 @@ impl FrameHub {
         }
     }
 
+    /// Spawn a hub backed by the synthetic device (M6-T09).
+    ///
+    /// The mock hub publishes a static viewfinder frame at
+    /// [`mock::FRAME_INTERVAL`], starts with [`mock::initial_state`] and answers
+    /// commands through [`mock::handle_command`]. It never closes, so the UI
+    /// pages stay live for the whole end-to-end run.
+    ///
+    /// Must be called from within a Tokio runtime.
+    #[must_use]
+    pub fn spawn_mock(config: HubConfig, data: Arc<MockData>) -> Self {
+        let broadcaster =
+            FrameBroadcaster::with_window(config.channel_capacity, config.stats_window);
+        let (updates, _receiver) = broadcast::channel(config.update_capacity.max(1));
+        let state = Arc::new(Mutex::new(Some(mock::initial_state())));
+        let (commands, command_rx) = mpsc::channel(COMMAND_CAPACITY);
+        let command_timeout = config.command_timeout;
+        let task_broadcaster = broadcaster.clone();
+        let task_updates = updates.clone();
+        let task_state = Arc::clone(&state);
+        let task = tokio::spawn(async move {
+            run_mock(
+                data,
+                &task_broadcaster,
+                &task_updates,
+                &task_state,
+                command_rx,
+            )
+            .await;
+        });
+        Self {
+            broadcaster,
+            updates,
+            state,
+            commands,
+            command_timeout,
+            task,
+        }
+    }
+
     /// Subscribe to frames from this hub.
     #[must_use]
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<ReceivedFrame>> {
@@ -461,6 +503,47 @@ async fn run(
                 out.mark_closed(Some(error.to_string()));
                 close_pending(&mut pending, updates);
                 break;
+            }
+        }
+    }
+}
+
+/// Synthetic hub loop: publish frames and answer commands from [`MockData`].
+async fn run_mock(
+    data: Arc<MockData>,
+    out: &FrameBroadcaster,
+    updates: &broadcast::Sender<HubUpdate>,
+    state: &Mutex<Option<StateMessage>>,
+    mut commands: mpsc::Receiver<HubCommand>,
+) {
+    let mut ticker = tokio::time::interval(mock::FRAME_INTERVAL);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut seq = 0_u64;
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                seq = seq.saturating_add(1);
+                out.publish(mock::frame(seq));
+            }
+            command = commands.recv() => {
+                let Some(command) = command else {
+                    break;
+                };
+                let mut current = lock_state(state)
+                    .clone()
+                    .unwrap_or_else(mock::initial_state);
+                let outcome = mock::handle_command(&command.message, &mut current, &data);
+                if let Some(new_state) = outcome.state_update {
+                    *lock_state(state) = Some(new_state.clone());
+                    let _ = updates.send(HubUpdate::State(new_state));
+                }
+                for event in outcome.events {
+                    let _ = updates.send(HubUpdate::Event(event));
+                }
+                for transfer in outcome.transfers {
+                    let _ = updates.send(HubUpdate::Transfer(transfer));
+                }
+                let _ = command.reply.send(Ok(outcome.result));
             }
         }
     }

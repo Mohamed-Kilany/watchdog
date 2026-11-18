@@ -27,7 +27,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::Write as _;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -41,6 +41,7 @@ use watchdog_core::error::{ErrorCode, WatchdogError};
 use watchdog_core::Result;
 use watchdog_device::devices::{DeviceService, ProvisionJobState, ProvisionRequest, SessionInfo};
 use watchdog_device::hub::{FrameHub, ReceivedFrame, StreamStats};
+use watchdog_device::mock::MockData;
 use watchdog_presets::{Preset, PresetStore};
 use watchdog_protocol::{CommandMessage, CommandResultMessage, StateMessage};
 
@@ -314,7 +315,9 @@ async fn handle_connection(
         }
         ("GET", "/healthz") => Response::new("200 OK", "text/plain; charset=utf-8", b"ok\n")
             .header("Cache-Control", "no-store"),
-        ("GET", _) => static_response(&request, embedded_asset),
+        (_, path) if service.is_mock() && is_mock_api_path(path) => {
+            mock_api_response(&request, service)
+        }
         (_, "/api/command") => method_not_allowed("POST"),
         (_, "/api/snapshot") => method_not_allowed("GET"),
         (_, "/api/presets") => method_not_allowed("GET, POST, DELETE"),
@@ -327,6 +330,8 @@ async fn handle_connection(
         | (_, "/api/devices")
         | (_, "/api/state")
         | (_, "/api/stats") => method_not_allowed("GET"),
+        (_, path) if path.starts_with("/api/") => api_not_found(),
+        ("GET", _) => static_response(&request, embedded_asset),
         _ => method_not_allowed("GET"),
     };
     write_response(&mut stream, &response).await
@@ -515,6 +520,257 @@ fn no_session_response() -> Response {
         "no device session is active",
         Some("open the devices page and activate a device"),
     )
+}
+
+/// Paths served by the synthetic backend (M6-T09).
+fn is_mock_api_path(path: &str) -> bool {
+    path == "/api/media"
+        || path.starts_with("/api/media/")
+        || path == "/api/analyses"
+        || path == "/api/settings"
+        || path == "/api/logs"
+        || path == "/api/diagnostics"
+}
+
+/// Temporary mock-only media, analysis, settings and diagnostics routes.
+///
+/// The real media store, analysis queue and settings/logs stores land with
+/// M5/M7/M9; these routes exist so the end-to-end suite exercises the real UI,
+/// host and WebSocket against a synthetic device.
+fn mock_api_response(request: &Request, service: &DeviceService) -> Response {
+    let Some(data) = service.mock_data() else {
+        return api_error(
+            "503 Service Unavailable",
+            ErrorCode::DeviceOffline,
+            "the mock device is not active",
+            None,
+        );
+    };
+    let path = request.path();
+    match (request.method.as_str(), path) {
+        ("GET", "/api/media") => {
+            json_response("200 OK", &serde_json::json!({ "items": data.list_media() }))
+        }
+        ("POST", "/api/analyses") => analyses_response(request, &data),
+        ("GET", "/api/settings") => json_response("200 OK", &data.settings()),
+        ("PATCH", "/api/settings") => patch_settings_response(request, &data),
+        ("GET", "/api/logs") => logs_response(request, &data),
+        ("GET", "/api/diagnostics") => diagnostics_response(&data),
+        (_, "/api/media") => method_not_allowed("GET"),
+        (_, path) if path.starts_with("/api/media/") => media_item_response(request, &data),
+        (_, "/api/analyses") => method_not_allowed("POST"),
+        (_, "/api/settings") => method_not_allowed("GET, PATCH"),
+        (_, "/api/logs") | (_, "/api/diagnostics") => method_not_allowed("GET"),
+        _ => api_not_found(),
+    }
+}
+
+/// `GET`/`DELETE /api/media/{id}` and `GET /api/media/{id}/file`.
+fn media_item_response(request: &Request, data: &MockData) -> Response {
+    let rest = request.path().trim_start_matches("/api/media/");
+    let (raw_id, file) = match rest.strip_suffix("/file") {
+        Some(id) => (id, true),
+        None => (rest, false),
+    };
+    let id = percent_decode(raw_id);
+    if id.is_empty() || id.contains('/') {
+        return api_not_found();
+    }
+    if file {
+        return match (request.method.as_str(), data.media_file(&id)) {
+            ("GET", Some((bytes, content_type))) => {
+                Response::new("200 OK", content_type, bytes).header("Cache-Control", "no-store")
+            }
+            ("GET", None) => media_not_found(&id),
+            (_, Some(_)) => method_not_allowed("GET"),
+            (_, None) => media_not_found(&id),
+        };
+    }
+    match (request.method.as_str(), data.get_media(&id)) {
+        ("GET", Some(item)) => json_response("200 OK", &serde_json::json!({ "item": item })),
+        ("GET", None) => media_not_found(&id),
+        ("DELETE", Some(_)) => {
+            if data.delete_media(&id) {
+                json_response("200 OK", &serde_json::json!({ "ok": true, "id": id }))
+            } else {
+                media_not_found(&id)
+            }
+        }
+        ("DELETE", None) => media_not_found(&id),
+        _ => method_not_allowed("GET, DELETE"),
+    }
+}
+
+fn media_not_found(id: &str) -> Response {
+    api_error(
+        "404 Not Found",
+        ErrorCode::NotFound,
+        &format!("no media item {id:?}"),
+        None,
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct AnalysisBody {
+    #[serde(default)]
+    media_ids: Vec<String>,
+}
+
+/// `POST /api/analyses` — queue a mock analysis.
+fn analyses_response(request: &Request, data: &MockData) -> Response {
+    let body: AnalysisBody = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid analysis body: {error}"),
+                None,
+            )
+        }
+    };
+    match data.submit_analysis(&body.media_ids) {
+        Ok(payload) => json_response("200 OK", &payload),
+        Err(message) => api_error("400 Bad Request", ErrorCode::InvalidRequest, &message, None),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct SettingsPatch {
+    #[serde(default)]
+    retention: Option<RetentionPatch>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RetentionPatch {
+    #[serde(default)]
+    max_age_days: Option<i64>,
+    #[serde(default)]
+    max_size_mb: Option<i64>,
+}
+
+/// `PATCH /api/settings` — update the mock retention limits.
+fn patch_settings_response(request: &Request, data: &MockData) -> Response {
+    let body: SettingsPatch = match serde_json::from_slice(&request.body) {
+        Ok(body) => body,
+        Err(error) => {
+            return api_error(
+                "400 Bad Request",
+                ErrorCode::InvalidRequest,
+                &format!("invalid settings body: {error}"),
+                None,
+            )
+        }
+    };
+    let Some(retention) = body.retention else {
+        return api_error(
+            "400 Bad Request",
+            ErrorCode::InvalidRequest,
+            "the retention object is required",
+            Some("send {\"retention\":{\"max_age_days\":30,\"max_size_mb\":10240}}"),
+        );
+    };
+    let updated = data.update_retention(
+        retention.max_age_days.unwrap_or(30),
+        retention.max_size_mb.unwrap_or(10_240),
+    );
+    json_response("200 OK", &serde_json::json!({ "retention": updated }))
+}
+
+/// `GET /api/logs?level=&limit=` — the mock log ring buffer.
+fn logs_response(request: &Request, data: &MockData) -> Response {
+    let level = request.query("level");
+    let limit = request
+        .query("limit")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(200);
+    json_response(
+        "200 OK",
+        &serde_json::json!({ "lines": data.logs(level.as_deref(), limit) }),
+    )
+}
+
+/// `GET /api/diagnostics` — a stored (uncompressed) ZIP with one JSON entry.
+fn diagnostics_response(data: &MockData) -> Response {
+    let json = data.diagnostics_json();
+    let zip = zip_single_file("diagnostics.json", &json);
+    Response::new("200 OK", "application/zip", zip)
+        .header("Cache-Control", "no-store")
+        .header(
+            "Content-Disposition",
+            format!(
+                "attachment; filename=\"watchdog-diagnostics-{}.zip\"",
+                now_ms()
+            ),
+        )
+}
+
+/// Build a valid ZIP archive with one stored (method 0) entry.
+fn zip_single_file(name: &str, contents: &[u8]) -> Vec<u8> {
+    let crc = crc32fast::hash(contents);
+    let size = u32::try_from(contents.len()).unwrap_or(u32::MAX);
+    let name_len = u16::try_from(name.len()).unwrap_or(u16::MAX);
+    let mut zip = Vec::with_capacity(contents.len() + 256);
+    // Local file header.
+    zip.extend_from_slice(&0x0403_4b50_u32.to_le_bytes());
+    zip.extend_from_slice(&20_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&crc.to_le_bytes());
+    zip.extend_from_slice(&size.to_le_bytes());
+    zip.extend_from_slice(&size.to_le_bytes());
+    zip.extend_from_slice(&name_len.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(name.as_bytes());
+    zip.extend_from_slice(contents);
+    let central_offset = u32::try_from(zip.len()).unwrap_or(u32::MAX);
+    // Central directory header.
+    zip.extend_from_slice(&0x0201_4b50_u32.to_le_bytes());
+    zip.extend_from_slice(&20_u16.to_le_bytes());
+    zip.extend_from_slice(&20_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&crc.to_le_bytes());
+    zip.extend_from_slice(&size.to_le_bytes());
+    zip.extend_from_slice(&size.to_le_bytes());
+    zip.extend_from_slice(&name_len.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u32.to_le_bytes());
+    zip.extend_from_slice(&0_u32.to_le_bytes());
+    zip.extend_from_slice(name.as_bytes());
+    let central_size = u32::try_from(zip.len()).unwrap_or(u32::MAX) - central_offset;
+    // End of central directory.
+    zip.extend_from_slice(&0x0605_4b50_u32.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip.extend_from_slice(&1_u16.to_le_bytes());
+    zip.extend_from_slice(&1_u16.to_le_bytes());
+    zip.extend_from_slice(&central_size.to_le_bytes());
+    zip.extend_from_slice(&central_offset.to_le_bytes());
+    zip.extend_from_slice(&0_u16.to_le_bytes());
+    zip
+}
+
+fn api_not_found() -> Response {
+    api_error(
+        "404 Not Found",
+        ErrorCode::NotFound,
+        "no such API route",
+        Some("see docs/api.md for the supported routes"),
+    )
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as u64)
 }
 
 /// `GET /api/devices` and `POST /api/devices/discover`.

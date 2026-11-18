@@ -15,6 +15,7 @@ watchdog-presets.workspace = true
 watchdog-protocol.workspace = true
 base64.workspace = true
 bytes.workspace = true
+crc32fast.workspace = true
 flate2.workspace = true
 rust-embed.workspace = true
 serde.workspace = true

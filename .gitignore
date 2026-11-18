@@ -6,7 +6,10 @@ Cargo.lock.bak
 node_modules/
 ui/dist/
 ui/playwright-report/
+ui/playwright-report-host/
 ui/test-results/
+ui/test-results-host/
+ui/.e2e-data/
 
 # Android / Gradle
 android/.gradle/

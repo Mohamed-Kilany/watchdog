@@ -59,6 +59,20 @@ and works over USB or wireless debugging (`--serial host:port`). When a bearer t
 configured, append `?token=…` to the page URL; the token is moved into session storage
 and removed from the address bar.
 
+To explore the UI without a phone, start the host with the synthetic device:
+
+```bash
+watchdog serve --mock-device
+# open http://127.0.0.1:7700/
+```
+
+The mock device publishes a static 320×180 viewfinder frame, answers control changes,
+still/burst/recording commands and transfer events, and seeds a small media library,
+log ring buffer and settings page. Pairing and provisioning are rejected while it is
+active. It uses no ADB server and is intended for demos and the Playwright end-to-end
+suite; real media, analysis and settings stores replace its in-memory routes in later
+milestones. Restart without `--mock-device` to use a phone.
+
 The default page is the live view:
 
 - **Viewfinder.** The phone's MJPEG preview, decoded by the browser with native

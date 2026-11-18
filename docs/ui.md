@@ -38,8 +38,40 @@ logs, retention persistence, log filtering plus capture events, the demo diagnos
 bundle, host `/api/settings`, `/api/logs` and `/api/diagnostics` with the bearer token,
 and the missing-route notice.
 
+### End-to-end suite against the real host
+
+`npm run test:host` (config `playwright.host.config.ts`) runs `ui/e2e/*.spec.ts` against
+the release host binary with the synthetic device:
+
+```sh
+cargo build --release -p watchdog
+cd ui
+npm run build
+npm run test:host
+```
+
+The config starts `watchdog serve --mock-device` on `127.0.0.1:7717` with token
+`e2e-token-1234` and data directory `ui/.e2e-data`, then waits for
+`/healthz?token=…` before running Chromium with one worker. No route mocking is used:
+the suite drives the same static UI, REST routes, WebSocket channel and MJPEG stream a
+phone session uses. It covers authentication (URL token, rejected token, cancel to the
+demo), the shell/theme/routing, live stream and stats, snapshot/fullscreen/grid/region
+editing, every control kind, host preset save/apply/delete and reset-all, still/burst/
+recording with transfer progress, the media library (filters, previews, analysis,
+deletion), settings (configuration, log filtering, retention, diagnostics zip, clipboard)
+and the devices page (status, scan, pair/provision guards, restore, disconnect and
+reactivate). The host binary path can be overridden with `WATCHDOG_HOST_BIN`.
+
+The mock device (`crates/device/src/mock.rs`) is test support only: it is compiled into
+the host but never selected unless `--mock-device` is passed. Its in-memory
+`/api/media*`, `/api/analyses`, `/api/settings`, `/api/logs` and `/api/diagnostics`
+implementations stand in for the M5/M7/M9 stores so the E2E suite can run today; the
+real stores replace them milestone by milestone.
+
 The CI `web` job runs exactly this sequence (`npm ci`, typecheck, build, bundle budget,
-Playwright). The Playwright HTML report is uploaded only when the job fails.
+Playwright). The `e2e (host + mock device)` job downloads `ui-dist`, builds the release
+host with the embedded UI and runs `npm run test:host`. Playwright HTML reports are
+uploaded only when the job fails.
 
 ## Bundle budget
 

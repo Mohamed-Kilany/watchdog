@@ -38,7 +38,7 @@ any required path is unusable.
 - `path` — resolved `watchdog.toml` path + existence.
 - `validate` — parse/validate all layers; write-probe data dir; prints ok + ports.
 
-### `watchdog serve [--serial S]`
+### `watchdog serve [--serial S] [--mock-device]`
 Start the web UI on `--ui-port` (default 7700). The host serves the embedded static UI
 built from `ui/` (see [ui.md](ui.md)): `/` is the app shell, `assets/*` are the
 fingerprinted bundles, `/healthz` is a liveness probe and `/api/devices*` is the device
@@ -55,6 +55,14 @@ provision the device. Without an active session, `/api/state` returns a waiting 
 `/api/stats` returns zeroed counters and `/api/command` / `/stream.mjpg` return
 `503 DEVICE_OFFLINE`. When a bearer token is configured, every request needs `?token=…`
 or `Authorization: Bearer …`. MCP (:7701) and the integration API (:7702) land with M6/M9.
+
+`--mock-device` activates the synthetic device instead of contacting a phone: a static
+320×180 viewfinder at 10 fps, merged control changes, capture/burst/recording replies,
+transfer events, and in-memory media, analysis, settings, log and diagnostics routes.
+It needs no ADB server and is what the `e2e (host + mock device)` CI job and
+`npm run test:host` use. Pairing, provisioning and restore are rejected while it is
+active; `--serial` is ignored. The mock-only data routes are temporary until the real
+media (M5), analysis (M7) and settings (M9) stores land.
 
 ### `watchdog device <subcommand>`
 | Command | Purpose | Status |

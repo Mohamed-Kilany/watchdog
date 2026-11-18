@@ -66,7 +66,10 @@ The web UI uses the unprefixed `/api/media...` and `/api/analyses` routes, like 
 host UI routes (`/api/state`, `/api/command`, `/api/stats`). The media store (M5) and
 analysis engine (M7) will back both this UI contract and the `/api/v1` integration API.
 Until those routes exist the Media page shows a clear M5 notice instead of an empty
-library.
+library. `watchdog serve --mock-device` implements the contract in memory against the
+synthetic device (three seeded items, still/video captures, a queued fake analysis and
+deletes) so the Playwright end-to-end suite can exercise the page; those mock routes are
+not available with a real device session.
 
 `GET /api/media` returns either `{"items": [item, ...]}` or a bare array. An item is:
 
@@ -105,7 +108,10 @@ model above, and the UI shows `error.message` (plus `error.hint`) in its status 
 The web UI uses the unprefixed `/api/settings`, `/api/logs` and `/api/diagnostics` routes.
 The host configuration (M1), log ring buffer (M1-T04), ffmpeg bundle (M7) and system
 resources (M9) will back them. Until those routes exist the Settings page shows a clear
-M7/M9 notice instead of empty cards.
+M7/M9 notice instead of empty cards. `watchdog serve --mock-device` serves in-memory
+mock settings, a seeded log ring buffer, editable retention and a stored-zip diagnostics
+bundle for the Playwright end-to-end suite; the mock reports ffmpeg as missing and uses
+fixed disk totals.
 
 `GET /api/settings` returns either the object below or `{"settings": {...}}`:
 
