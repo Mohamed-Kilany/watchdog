@@ -34,3 +34,4 @@ Rules (from TASK.md §6/§7):
 | 2026-11-12 | M4-T10 (probe everything: per-key compatibility matrices, keepalive, camera switching) | CI run 43180201208, commit `940343a` | Samsung SM-A515F, Android 13 (4 cameras) | PASS — [record](2026-11-12-m4-probe.md) |
 | 2026-11-12 | M4-T13 (on-device state panels, high-contrast mode, live latency) | CI run 43189751860, commit `e259f7c` | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-12-m4-panels.md) |
 | 2026-11-12 | M4-T14 (filming guide reviewed against real captures) | CI run 43189751860, commit `e259f7c` | Samsung SM-A515F, Android 13 | PASS — [captures](2026-11-12-m4-filming/frame-analysis.txt) |
+| 2026-11-18 | M6-T11 (web UI docs, annotated screenshots) | CI run 44331842267, commit `de6670e` (merged `d2cd9ea`) | Samsung SM-A515F, Android 13 | PASS — [record](2026-11-18-m6-ui.md) |
