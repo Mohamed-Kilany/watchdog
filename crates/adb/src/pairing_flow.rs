@@ -142,7 +142,7 @@ impl std::fmt::Debug for PairingTls {
 ///
 /// `keys` supplies the ADB RSA key: its self-signed certificate is the TLS
 /// client certificate, and its user key is sent in PeerInfo.
-/// `host_pubkey_userkey` is the `adbkey.pub` body (`base64 user@host`).
+/// `host_pubkey_userkey` is the `adbkey.pub` body (`base64 comment`).
 /// Returns the device GUID when pairing succeeds.
 pub async fn pair(
     stream: TcpStream,

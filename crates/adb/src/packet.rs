@@ -113,7 +113,7 @@ pub enum AuthType {
     Token = 1,
     /// RSA signature over the token (SHA-1, PKCS#1 v1.5).
     Signature = 2,
-    /// Base64 Android public key + " " + user@host + NUL.
+    /// Base64 Android public key + " " + comment + NUL.
     RsaPublicKey = 3,
 }
 
